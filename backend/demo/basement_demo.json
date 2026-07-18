@@ -1,0 +1,2112 @@
+{
+  "schema_version": 5,
+  "viewport": {
+    "center": {
+      "x": 204,
+      "y": 192
+    },
+    "zoom": 0.9
+  },
+  "walls": [
+    {
+      "id": "w-ext",
+      "vertices": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 336,
+          "y": 0
+        },
+        {
+          "x": 336,
+          "y": 150
+        },
+        {
+          "x": 408,
+          "y": 150
+        },
+        {
+          "x": 408,
+          "y": 246
+        },
+        {
+          "x": 336,
+          "y": 246
+        },
+        {
+          "x": 336,
+          "y": 384
+        },
+        {
+          "x": 0,
+          "y": 384
+        }
+      ],
+      "thickness_in": 12,
+      "reference": "right",
+      "closed": true,
+      "locked_segments": [],
+      "junctions": []
+    },
+    {
+      "id": "w-col",
+      "vertices": [
+        {
+          "x": 132,
+          "y": 0
+        },
+        {
+          "x": 132,
+          "y": 384
+        }
+      ],
+      "thickness_in": 3.5,
+      "reference": "center",
+      "closed": false,
+      "locked_segments": [],
+      "junctions": [
+        {
+          "end": "start",
+          "host_wall_id": "w-ext",
+          "segment_index": 0,
+          "t": 132
+        },
+        {
+          "end": "end",
+          "host_wall_id": "w-ext",
+          "segment_index": 6,
+          "t": 204
+        }
+      ]
+    },
+    {
+      "id": "w-b1",
+      "vertices": [
+        {
+          "x": 0,
+          "y": 120
+        },
+        {
+          "x": 132,
+          "y": 120
+        }
+      ],
+      "thickness_in": 3.5,
+      "reference": "center",
+      "closed": false,
+      "locked_segments": [],
+      "junctions": [
+        {
+          "end": "start",
+          "host_wall_id": "w-ext",
+          "segment_index": 7,
+          "t": 264
+        },
+        {
+          "end": "end",
+          "host_wall_id": "w-col",
+          "segment_index": 0,
+          "t": 120
+        }
+      ]
+    },
+    {
+      "id": "w-b2",
+      "vertices": [
+        {
+          "x": 0,
+          "y": 264
+        },
+        {
+          "x": 132,
+          "y": 264
+        }
+      ],
+      "thickness_in": 3.5,
+      "reference": "center",
+      "closed": false,
+      "locked_segments": [],
+      "junctions": [
+        {
+          "end": "start",
+          "host_wall_id": "w-ext",
+          "segment_index": 7,
+          "t": 120
+        },
+        {
+          "end": "end",
+          "host_wall_id": "w-col",
+          "segment_index": 0,
+          "t": 264
+        }
+      ]
+    },
+    {
+      "id": "w-mech-bot",
+      "vertices": [
+        {
+          "x": 132,
+          "y": 168
+        },
+        {
+          "x": 240,
+          "y": 168
+        }
+      ],
+      "thickness_in": 3.5,
+      "reference": "center",
+      "closed": false,
+      "locked_segments": [],
+      "junctions": [
+        {
+          "end": "start",
+          "host_wall_id": "w-col",
+          "segment_index": 0,
+          "t": 168
+        }
+      ]
+    },
+    {
+      "id": "w-mech-diag",
+      "vertices": [
+        {
+          "x": 240,
+          "y": 168
+        },
+        {
+          "x": 276,
+          "y": 204
+        }
+      ],
+      "thickness_in": 3.5,
+      "reference": "center",
+      "closed": false,
+      "locked_segments": [],
+      "junctions": [
+        {
+          "end": "start",
+          "host_wall_id": "w-mech-bot",
+          "segment_index": 0,
+          "t": 108
+        }
+      ]
+    },
+    {
+      "id": "w-mech-right",
+      "vertices": [
+        {
+          "x": 276,
+          "y": 0
+        },
+        {
+          "x": 276,
+          "y": 204
+        }
+      ],
+      "thickness_in": 3.5,
+      "reference": "center",
+      "closed": false,
+      "locked_segments": [],
+      "junctions": [
+        {
+          "end": "start",
+          "host_wall_id": "w-ext",
+          "segment_index": 0,
+          "t": 276
+        },
+        {
+          "end": "end",
+          "host_wall_id": "w-mech-diag",
+          "segment_index": 0,
+          "t": 50.91168824543142
+        }
+      ]
+    },
+    {
+      "id": "w-stair-bot",
+      "vertices": [
+        {
+          "x": 276,
+          "y": 120
+        },
+        {
+          "x": 336,
+          "y": 120
+        }
+      ],
+      "thickness_in": 3.5,
+      "reference": "center",
+      "closed": false,
+      "locked_segments": [],
+      "junctions": [
+        {
+          "end": "start",
+          "host_wall_id": "w-mech-right",
+          "segment_index": 0,
+          "t": 120
+        },
+        {
+          "end": "end",
+          "host_wall_id": "w-ext",
+          "segment_index": 1,
+          "t": 120
+        }
+      ]
+    },
+    {
+      "id": "w-cold-west",
+      "vertices": [
+        {
+          "x": 336,
+          "y": 150
+        },
+        {
+          "x": 336,
+          "y": 246
+        }
+      ],
+      "thickness_in": 3.5,
+      "reference": "center",
+      "closed": false,
+      "locked_segments": [],
+      "junctions": [
+        {
+          "end": "start",
+          "host_wall_id": "w-ext",
+          "segment_index": 1,
+          "t": 150
+        },
+        {
+          "end": "end",
+          "host_wall_id": "w-ext",
+          "segment_index": 5,
+          "t": 0
+        }
+      ]
+    }
+  ],
+  "openings": [
+    {
+      "id": "d-bed1",
+      "kind": "door",
+      "wall_id": "w-col",
+      "segment_index": 0,
+      "t": 60,
+      "width_in": 30.0,
+      "hinge": "left",
+      "swing": "in"
+    },
+    {
+      "id": "d-bur",
+      "kind": "door",
+      "wall_id": "w-col",
+      "segment_index": 0,
+      "t": 204,
+      "width_in": 30.0,
+      "hinge": "right",
+      "swing": "in"
+    },
+    {
+      "id": "d-bed2",
+      "kind": "door",
+      "wall_id": "w-col",
+      "segment_index": 0,
+      "t": 324,
+      "width_in": 30.0,
+      "hinge": "left",
+      "swing": "in"
+    },
+    {
+      "id": "d-mech",
+      "kind": "door",
+      "wall_id": "w-mech-diag",
+      "segment_index": 0,
+      "t": 25,
+      "width_in": 30.0,
+      "hinge": "left",
+      "swing": "out"
+    },
+    {
+      "id": "d-cold",
+      "kind": "door",
+      "wall_id": "w-cold-west",
+      "segment_index": 0,
+      "t": 48,
+      "width_in": 30.0,
+      "hinge": "right",
+      "swing": "out"
+    },
+    {
+      "id": "win-bed1",
+      "kind": "window",
+      "wall_id": "w-ext",
+      "segment_index": 7,
+      "t": 324,
+      "width_in": 36.0,
+      "hinge": "left",
+      "swing": "in"
+    },
+    {
+      "id": "win-bur",
+      "kind": "window",
+      "wall_id": "w-ext",
+      "segment_index": 7,
+      "t": 180,
+      "width_in": 48,
+      "hinge": "left",
+      "swing": "in"
+    },
+    {
+      "id": "win-bed2",
+      "kind": "window",
+      "wall_id": "w-ext",
+      "segment_index": 6,
+      "t": 264,
+      "width_in": 36.0,
+      "hinge": "left",
+      "swing": "in"
+    },
+    {
+      "id": "win-fam",
+      "kind": "window",
+      "wall_id": "w-ext",
+      "segment_index": 5,
+      "t": 90,
+      "width_in": 36.0,
+      "hinge": "left",
+      "swing": "in"
+    }
+  ],
+  "stairs": [
+    {
+      "id": "st-1",
+      "origin": {
+        "x": 330,
+        "y": 6
+      },
+      "width_in": 52,
+      "length_in": 110,
+      "rotation_deg": 90,
+      "direction": "up"
+    }
+  ],
+  "labels": [
+    {
+      "id": "lb-1",
+      "position": {
+        "x": 46,
+        "y": 84
+      },
+      "text": "Chambre 1",
+      "size_in": 8
+    },
+    {
+      "id": "lb-2",
+      "position": {
+        "x": 46,
+        "y": 204
+      },
+      "text": "Bureau",
+      "size_in": 8
+    },
+    {
+      "id": "lb-3",
+      "position": {
+        "x": 46,
+        "y": 306
+      },
+      "text": "Chambre 2",
+      "size_in": 8
+    },
+    {
+      "id": "lb-4",
+      "position": {
+        "x": 228,
+        "y": 306
+      },
+      "text": "Salle familiale",
+      "size_in": 10
+    },
+    {
+      "id": "lb-5",
+      "position": {
+        "x": 150,
+        "y": 54
+      },
+      "text": "Salle mecanique",
+      "size_in": 7
+    },
+    {
+      "id": "lb-6",
+      "position": {
+        "x": 352,
+        "y": 192
+      },
+      "text": "Ch. froide",
+      "size_in": 6
+    },
+    {
+      "id": "lb-7",
+      "position": {
+        "x": 292,
+        "y": 66
+      },
+      "text": "Escalier",
+      "size_in": 6
+    }
+  ],
+  "dimensions": [
+    {
+      "id": "dm-1",
+      "p1": {
+        "x": 0,
+        "y": 0
+      },
+      "p2": {
+        "x": 336,
+        "y": 0
+      },
+      "offset_in": -36
+    },
+    {
+      "id": "dm-2",
+      "p1": {
+        "x": 0,
+        "y": 0
+      },
+      "p2": {
+        "x": 0,
+        "y": 384
+      },
+      "offset_in": -36
+    }
+  ],
+  "thickness_presets_in": [
+    12.0,
+    4.5,
+    3.5
+  ],
+  "devices": [
+    {
+      "id": "panel",
+      "type": "panel",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 6,
+        "t": 120,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": "Panneau",
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "o-fam1",
+      "type": "outlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 6,
+        "t": 66,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "o-fam2",
+      "type": "outlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 6,
+        "t": 174,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "o-cold",
+      "type": "outlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 3,
+        "t": 48,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "o-stair",
+      "type": "outlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 1,
+        "t": 135,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "o-bed2a",
+      "type": "outlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 6,
+        "t": 276,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "o-bed2b",
+      "type": "outlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 7,
+        "t": 60,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "o-bur1",
+      "type": "outlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 7,
+        "t": 150,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "o-bur2",
+      "type": "outlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 7,
+        "t": 228,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "o-bed1",
+      "type": "outlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 7,
+        "t": 324,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "g-mech1",
+      "type": "outlet_gfci",
+      "attachment": {
+        "wall_id": "w-mech-bot",
+        "segment_index": 0,
+        "t": 36,
+        "side": "left"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "g-mech2",
+      "type": "outlet_gfci",
+      "attachment": {
+        "wall_id": "w-mech-right",
+        "segment_index": 0,
+        "t": 60,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "l-bed1",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 66,
+        "y": 54
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "l-bur",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 66,
+        "y": 192
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "l-bed2",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 66,
+        "y": 324
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "l-hall",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 210,
+        "y": 144
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "l-mech",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 204,
+        "y": 84
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "l-cold",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 372,
+        "y": 198
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "lf1",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 258,
+        "y": 216
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "lf2",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 306,
+        "y": 216
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "lf3",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 258,
+        "y": 276
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "lf4",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 306,
+        "y": 276
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "lf5",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 258,
+        "y": 336
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "lf6",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 306,
+        "y": 336
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "lf7",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 186,
+        "y": 300
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "lf8",
+      "type": "ceiling_light",
+      "attachment": null,
+      "position": {
+        "x": 186,
+        "y": 348
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "wl-bed2",
+      "type": "wall_light",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 6,
+        "t": 312,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "s-bed1",
+      "type": "switch",
+      "attachment": {
+        "wall_id": "w-col",
+        "segment_index": 0,
+        "t": 48,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "s-bur",
+      "type": "switch",
+      "attachment": {
+        "wall_id": "w-col",
+        "segment_index": 0,
+        "t": 192,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "s-bed2",
+      "type": "switch",
+      "attachment": {
+        "wall_id": "w-col",
+        "segment_index": 0,
+        "t": 312,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "s-hall",
+      "type": "switch",
+      "attachment": {
+        "wall_id": "w-col",
+        "segment_index": 0,
+        "t": 228,
+        "side": "left"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "s-mech",
+      "type": "switch",
+      "attachment": {
+        "wall_id": "w-mech-diag",
+        "segment_index": 0,
+        "t": 12,
+        "side": "left"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "s3-fam1",
+      "type": "switch_3way",
+      "attachment": {
+        "wall_id": "w-mech-diag",
+        "segment_index": 0,
+        "t": 42,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "s3-fam2",
+      "type": "switch_3way",
+      "attachment": {
+        "wall_id": "w-stair-bot",
+        "segment_index": 0,
+        "t": 18,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "th-bur",
+      "type": "thermostat",
+      "attachment": {
+        "wall_id": "w-col",
+        "segment_index": 0,
+        "t": 168,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "th-fam",
+      "type": "thermostat",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 6,
+        "t": 90,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "bb-bur",
+      "type": "baseboard_heater",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 7,
+        "t": 192,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": 1250,
+      "length_in": 60,
+      "notes": null
+    },
+    {
+      "id": "bb-bed1",
+      "type": "baseboard_heater",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 7,
+        "t": 300,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": 750,
+      "length_in": 48,
+      "notes": null
+    },
+    {
+      "id": "bb-fam1",
+      "type": "baseboard_heater",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 6,
+        "t": 84,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": 1500,
+      "length_in": 60,
+      "notes": null
+    },
+    {
+      "id": "bb-fam2",
+      "type": "baseboard_heater",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 5,
+        "t": 80,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": 1000,
+      "length_in": 48,
+      "notes": null
+    },
+    {
+      "id": "wh",
+      "type": "water_heater",
+      "attachment": null,
+      "position": {
+        "x": 168,
+        "y": 42
+      },
+      "rotation_deg": 0,
+      "label": "Chauffe-eau",
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "vac",
+      "type": "central_vacuum",
+      "attachment": null,
+      "position": {
+        "x": 240,
+        "y": 96
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "ea",
+      "type": "air_exchanger",
+      "attachment": null,
+      "position": {
+        "x": 198,
+        "y": 132
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "sd",
+      "type": "smoke_detector",
+      "attachment": null,
+      "position": {
+        "x": 156,
+        "y": 138
+      },
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "vi-hall",
+      "type": "vacuum_inlet",
+      "attachment": {
+        "wall_id": "w-col",
+        "segment_index": 0,
+        "t": 252,
+        "side": "left"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "vi-fam",
+      "type": "vacuum_inlet",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 6,
+        "t": 36,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "nj-bur",
+      "type": "network_jack",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 7,
+        "t": 210,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "nj-bed2",
+      "type": "network_jack",
+      "attachment": {
+        "wall_id": "w-col",
+        "segment_index": 0,
+        "t": 300,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    },
+    {
+      "id": "nj-fam",
+      "type": "network_jack",
+      "attachment": {
+        "wall_id": "w-ext",
+        "segment_index": 6,
+        "t": 108,
+        "side": "right"
+      },
+      "position": null,
+      "rotation_deg": 0,
+      "label": null,
+      "load_w": null,
+      "length_in": null,
+      "notes": null
+    }
+  ],
+  "catalog_defaults": {},
+  "circuits": [
+    {
+      "id": "c-prises",
+      "name": "Prises sous-sol",
+      "color": "#2563eb",
+      "breaker_a": 15,
+      "voltage_v": 120,
+      "kind": "power"
+    },
+    {
+      "id": "c-ddft",
+      "name": "DDFT mecanique",
+      "color": "#7c3aed",
+      "breaker_a": 15,
+      "voltage_v": 120,
+      "kind": "power"
+    },
+    {
+      "id": "c-chauffage",
+      "name": "Chauffage",
+      "color": "#dc2626",
+      "breaker_a": 20,
+      "voltage_v": 240,
+      "kind": "power"
+    },
+    {
+      "id": "c-lum-fam",
+      "name": "Eclairage salle familiale",
+      "color": "#ea580c",
+      "breaker_a": 15,
+      "voltage_v": 120,
+      "kind": "power"
+    },
+    {
+      "id": "c-lum-ch",
+      "name": "Eclairage chambres",
+      "color": "#db2777",
+      "breaker_a": 15,
+      "voltage_v": 120,
+      "kind": "power"
+    },
+    {
+      "id": "c-wh",
+      "name": "Chauffe-eau",
+      "color": "#92400e",
+      "breaker_a": 20,
+      "voltage_v": 240,
+      "kind": "power"
+    },
+    {
+      "id": "c-vac",
+      "name": "Aspirateur central",
+      "color": "#0891b2",
+      "breaker_a": 15,
+      "voltage_v": 120,
+      "kind": "power"
+    },
+    {
+      "id": "c-mech",
+      "name": "Mecanique",
+      "color": "#0d9488",
+      "breaker_a": 15,
+      "voltage_v": 120,
+      "kind": "power"
+    },
+    {
+      "id": "c-reseau",
+      "name": "Reseau",
+      "color": "#475569",
+      "breaker_a": 15,
+      "voltage_v": 120,
+      "kind": "data"
+    }
+  ],
+  "wires": [
+    {
+      "id": "wr-01",
+      "circuit_id": "c-prises",
+      "from_device_id": "panel",
+      "to_device_id": "o-fam1",
+      "control_points": [
+        {
+          "x": 234.0,
+          "y": 377.52
+        },
+        {
+          "x": 252.0,
+          "y": 377.52
+        }
+      ]
+    },
+    {
+      "id": "wr-02",
+      "circuit_id": "c-prises",
+      "from_device_id": "o-fam1",
+      "to_device_id": "o-cold",
+      "control_points": [
+        {
+          "x": 293.68,
+          "y": 305.44
+        },
+        {
+          "x": 339.68,
+          "y": 243.44
+        }
+      ]
+    },
+    {
+      "id": "wr-03",
+      "circuit_id": "c-prises",
+      "from_device_id": "o-cold",
+      "to_device_id": "o-stair",
+      "control_points": [
+        {
+          "x": 376.44,
+          "y": 185.64
+        },
+        {
+          "x": 352.44,
+          "y": 164.64
+        }
+      ]
+    },
+    {
+      "id": "wr-04",
+      "circuit_id": "c-prises",
+      "from_device_id": "panel",
+      "to_device_id": "o-fam2",
+      "control_points": [
+        {
+          "x": 198.0,
+          "y": 390.48
+        },
+        {
+          "x": 180.0,
+          "y": 390.48
+        }
+      ]
+    },
+    {
+      "id": "wr-05",
+      "circuit_id": "c-prises",
+      "from_device_id": "o-fam2",
+      "to_device_id": "o-bed2a",
+      "control_points": [
+        {
+          "x": 128.0,
+          "y": 396.24
+        },
+        {
+          "x": 94.0,
+          "y": 396.24
+        }
+      ]
+    },
+    {
+      "id": "wr-06",
+      "circuit_id": "c-prises",
+      "from_device_id": "o-bed2a",
+      "to_device_id": "o-bed2b",
+      "control_points": [
+        {
+          "x": 32.8,
+          "y": 371.2
+        },
+        {
+          "x": 12.8,
+          "y": 351.2
+        }
+      ]
+    },
+    {
+      "id": "wr-07",
+      "circuit_id": "c-prises",
+      "from_device_id": "o-bed2b",
+      "to_device_id": "o-bur1",
+      "control_points": [
+        {
+          "x": -10.799999999999999,
+          "y": 294.0
+        },
+        {
+          "x": -10.799999999999999,
+          "y": 264.0
+        }
+      ]
+    },
+    {
+      "id": "wr-08",
+      "circuit_id": "c-prises",
+      "from_device_id": "o-bur1",
+      "to_device_id": "o-bur2",
+      "control_points": [
+        {
+          "x": -9.36,
+          "y": 208.0
+        },
+        {
+          "x": -9.36,
+          "y": 182.0
+        }
+      ]
+    },
+    {
+      "id": "wr-09",
+      "circuit_id": "c-prises",
+      "from_device_id": "o-bur2",
+      "to_device_id": "o-bed1",
+      "control_points": [
+        {
+          "x": -11.52,
+          "y": 124.0
+        },
+        {
+          "x": -11.52,
+          "y": 92.0
+        }
+      ]
+    },
+    {
+      "id": "wr-10",
+      "circuit_id": "c-ddft",
+      "from_device_id": "panel",
+      "to_device_id": "g-mech1",
+      "control_points": [
+        {
+          "x": 174.07999999999998,
+          "y": 317.76
+        },
+        {
+          "x": 158.07999999999998,
+          "y": 245.76
+        }
+      ]
+    },
+    {
+      "id": "wr-11",
+      "circuit_id": "c-ddft",
+      "from_device_id": "g-mech1",
+      "to_device_id": "g-mech2",
+      "control_points": [
+        {
+          "x": 191.04,
+          "y": 119.04
+        },
+        {
+          "x": 227.04,
+          "y": 83.04
+        }
+      ]
+    },
+    {
+      "id": "wr-12",
+      "circuit_id": "c-chauffage",
+      "from_device_id": "panel",
+      "to_device_id": "th-fam",
+      "control_points": [
+        {
+          "x": 226.0,
+          "y": 380.4
+        },
+        {
+          "x": 236.0,
+          "y": 380.4
+        }
+      ]
+    },
+    {
+      "id": "wr-13",
+      "circuit_id": "c-chauffage",
+      "from_device_id": "th-fam",
+      "to_device_id": "bb-fam1",
+      "control_points": [
+        {
+          "x": 248.0,
+          "y": 383.28
+        },
+        {
+          "x": 250.0,
+          "y": 383.28
+        }
+      ]
+    },
+    {
+      "id": "wr-14",
+      "circuit_id": "c-chauffage",
+      "from_device_id": "bb-fam1",
+      "to_device_id": "bb-fam2",
+      "control_points": [
+        {
+          "x": 273.04,
+          "y": 354.5866666666667
+        },
+        {
+          "x": 301.04,
+          "y": 335.25333333333333
+        }
+      ]
+    },
+    {
+      "id": "wr-15",
+      "circuit_id": "c-chauffage",
+      "from_device_id": "panel",
+      "to_device_id": "th-bur",
+      "control_points": [
+        {
+          "x": 162.08,
+          "y": 322.08
+        },
+        {
+          "x": 134.08,
+          "y": 250.08
+        }
+      ]
+    },
+    {
+      "id": "wr-16",
+      "circuit_id": "c-chauffage",
+      "from_device_id": "th-bur",
+      "to_device_id": "bb-bur",
+      "control_points": [
+        {
+          "x": 90.88,
+          "y": 191.84
+        },
+        {
+          "x": 46.88,
+          "y": 199.84
+        }
+      ]
+    },
+    {
+      "id": "wr-17",
+      "circuit_id": "c-chauffage",
+      "from_device_id": "bb-bur",
+      "to_device_id": "bb-bed1",
+      "control_points": [
+        {
+          "x": -12.959999999999999,
+          "y": 156.0
+        },
+        {
+          "x": -12.959999999999999,
+          "y": 120.0
+        }
+      ]
+    },
+    {
+      "id": "wr-18",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "panel",
+      "to_device_id": "s3-fam1",
+      "control_points": [
+        {
+          "x": 211.543184,
+          "y": 315.455616
+        },
+        {
+          "x": 229.442584,
+          "y": 253.35501599999998
+        }
+      ]
+    },
+    {
+      "id": "wr-19",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "s3-fam1",
+      "to_device_id": "s3-fam2",
+      "control_points": [
+        {
+          "x": 268.475016,
+          "y": 168.882584
+        },
+        {
+          "x": 276.575616,
+          "y": 142.983184
+        }
+      ]
+    },
+    {
+      "id": "wr-20",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "s3-fam1",
+      "to_device_id": "lf1",
+      "control_points": [
+        {
+          "x": 267.99501599999996,
+          "y": 205.202584
+        },
+        {
+          "x": 264.095616,
+          "y": 211.303184
+        }
+      ]
+    },
+    {
+      "id": "wr-21",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "lf1",
+      "to_device_id": "lf2",
+      "control_points": [
+        {
+          "x": 274.0,
+          "y": 210.24
+        },
+        {
+          "x": 290.0,
+          "y": 210.24
+        }
+      ]
+    },
+    {
+      "id": "wr-22",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "lf2",
+      "to_device_id": "lf4",
+      "control_points": [
+        {
+          "x": 313.2,
+          "y": 236.0
+        },
+        {
+          "x": 313.2,
+          "y": 256.0
+        }
+      ]
+    },
+    {
+      "id": "wr-23",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "lf4",
+      "to_device_id": "lf3",
+      "control_points": [
+        {
+          "x": 290.0,
+          "y": 281.76
+        },
+        {
+          "x": 274.0,
+          "y": 281.76
+        }
+      ]
+    },
+    {
+      "id": "wr-24",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "lf3",
+      "to_device_id": "lf5",
+      "control_points": [
+        {
+          "x": 265.2,
+          "y": 296.0
+        },
+        {
+          "x": 265.2,
+          "y": 316.0
+        }
+      ]
+    },
+    {
+      "id": "wr-25",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "lf5",
+      "to_device_id": "lf6",
+      "control_points": [
+        {
+          "x": 274.0,
+          "y": 330.24
+        },
+        {
+          "x": 290.0,
+          "y": 330.24
+        }
+      ]
+    },
+    {
+      "id": "wr-26",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "lf3",
+      "to_device_id": "lf7",
+      "control_points": [
+        {
+          "x": 236.88,
+          "y": 292.64
+        },
+        {
+          "x": 212.88,
+          "y": 300.64
+        }
+      ]
+    },
+    {
+      "id": "wr-27",
+      "circuit_id": "c-lum-fam",
+      "from_device_id": "lf7",
+      "to_device_id": "lf8",
+      "control_points": [
+        {
+          "x": 191.76,
+          "y": 316.0
+        },
+        {
+          "x": 191.76,
+          "y": 332.0
+        }
+      ]
+    },
+    {
+      "id": "wr-28",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "panel",
+      "to_device_id": "s-hall",
+      "control_points": [
+        {
+          "x": 169.28,
+          "y": 342.08
+        },
+        {
+          "x": 141.28,
+          "y": 290.08
+        }
+      ]
+    },
+    {
+      "id": "wr-29",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "s-hall",
+      "to_device_id": "l-hall",
+      "control_points": [
+        {
+          "x": 147.92,
+          "y": 190.64
+        },
+        {
+          "x": 173.92,
+          "y": 162.64
+        }
+      ]
+    },
+    {
+      "id": "wr-30",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-hall",
+      "to_device_id": "l-mech",
+      "control_points": [
+        {
+          "x": 200.8,
+          "y": 124.72
+        },
+        {
+          "x": 198.8,
+          "y": 104.72
+        }
+      ]
+    },
+    {
+      "id": "wr-31",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-mech",
+      "to_device_id": "l-cold",
+      "control_points": [
+        {
+          "x": 273.68,
+          "y": 101.84
+        },
+        {
+          "x": 329.68,
+          "y": 139.84
+        }
+      ]
+    },
+    {
+      "id": "wr-32",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-hall",
+      "to_device_id": "l-bed1",
+      "control_points": [
+        {
+          "x": 151.2,
+          "y": 131.28
+        },
+        {
+          "x": 103.2,
+          "y": 101.28
+        }
+      ]
+    },
+    {
+      "id": "wr-33",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-bed1",
+      "to_device_id": "s-bed1",
+      "control_points": [
+        {
+          "x": 87.28,
+          "y": 44.08
+        },
+        {
+          "x": 109.28,
+          "y": 42.08
+        }
+      ]
+    },
+    {
+      "id": "wr-34",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-hall",
+      "to_device_id": "l-bur",
+      "control_points": [
+        {
+          "x": 167.76,
+          "y": 177.28
+        },
+        {
+          "x": 119.76,
+          "y": 193.28
+        }
+      ]
+    },
+    {
+      "id": "wr-35",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-bur",
+      "to_device_id": "s-bur",
+      "control_points": [
+        {
+          "x": 88.0,
+          "y": 184.08
+        },
+        {
+          "x": 110.0,
+          "y": 184.08
+        }
+      ]
+    },
+    {
+      "id": "wr-36",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-bur",
+      "to_device_id": "l-bed2",
+      "control_points": [
+        {
+          "x": 81.84,
+          "y": 236.0
+        },
+        {
+          "x": 81.84,
+          "y": 280.0
+        }
+      ]
+    },
+    {
+      "id": "wr-37",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-bed2",
+      "to_device_id": "wl-bed2",
+      "control_points": [
+        {
+          "x": 59.2,
+          "y": 349.04
+        },
+        {
+          "x": 45.2,
+          "y": 369.04
+        }
+      ]
+    },
+    {
+      "id": "wr-38",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-bed2",
+      "to_device_id": "s-bed2",
+      "control_points": [
+        {
+          "x": 86.56,
+          "y": 312.08
+        },
+        {
+          "x": 108.56,
+          "y": 308.08
+        }
+      ]
+    },
+    {
+      "id": "wr-39",
+      "circuit_id": "c-lum-ch",
+      "from_device_id": "l-mech",
+      "to_device_id": "s-mech",
+      "control_points": [
+        {
+          "x": 229.92662399999998,
+          "y": 109.490176
+        },
+        {
+          "x": 244.755024,
+          "y": 140.318576
+        }
+      ]
+    },
+    {
+      "id": "wr-40",
+      "circuit_id": "c-wh",
+      "from_device_id": "panel",
+      "to_device_id": "wh",
+      "control_points": [
+        {
+          "x": 158.96,
+          "y": 275.76
+        },
+        {
+          "x": 142.96,
+          "y": 161.76
+        }
+      ]
+    },
+    {
+      "id": "wr-41",
+      "circuit_id": "c-vac",
+      "from_device_id": "panel",
+      "to_device_id": "vac",
+      "control_points": [
+        {
+          "x": 189.44,
+          "y": 285.12
+        },
+        {
+          "x": 197.44,
+          "y": 189.12
+        }
+      ]
+    },
+    {
+      "id": "wr-42",
+      "circuit_id": "c-mech",
+      "from_device_id": "panel",
+      "to_device_id": "ea",
+      "control_points": [
+        {
+          "x": 179.76,
+          "y": 302.16
+        },
+        {
+          "x": 173.76,
+          "y": 218.16
+        }
+      ]
+    },
+    {
+      "id": "wr-43",
+      "circuit_id": "c-mech",
+      "from_device_id": "ea",
+      "to_device_id": "sd",
+      "control_points": [
+        {
+          "x": 184.72,
+          "y": 139.04
+        },
+        {
+          "x": 170.72,
+          "y": 141.04
+        }
+      ]
+    },
+    {
+      "id": "wr-44",
+      "circuit_id": "c-reseau",
+      "from_device_id": "panel",
+      "to_device_id": "nj-fam",
+      "control_points": [
+        {
+          "x": 220.0,
+          "y": 382.56
+        },
+        {
+          "x": 224.0,
+          "y": 382.56
+        }
+      ]
+    },
+    {
+      "id": "wr-45",
+      "circuit_id": "c-reseau",
+      "from_device_id": "nj-fam",
+      "to_device_id": "nj-bur",
+      "control_points": [
+        {
+          "x": 126.8,
+          "y": 341.36
+        },
+        {
+          "x": 50.8,
+          "y": 271.36
+        }
+      ]
+    },
+    {
+      "id": "wr-46",
+      "circuit_id": "c-reseau",
+      "from_device_id": "nj-bur",
+      "to_device_id": "nj-bed2",
+      "control_points": [
+        {
+          "x": 59.12,
+          "y": 200.16
+        },
+        {
+          "x": 103.12,
+          "y": 242.16
+        }
+      ]
+    }
+  ],
+  "control_links": [
+    {
+      "id": "cl-1",
+      "switch_id": "s3-fam1",
+      "target_id": "s3-fam2",
+      "kind": "three_way_pair"
+    },
+    {
+      "id": "cl-2",
+      "switch_id": "s3-fam1",
+      "target_id": "lf1",
+      "kind": "controls"
+    },
+    {
+      "id": "cl-3",
+      "switch_id": "s-bed1",
+      "target_id": "l-bed1",
+      "kind": "controls"
+    },
+    {
+      "id": "cl-4",
+      "switch_id": "s-bur",
+      "target_id": "l-bur",
+      "kind": "controls"
+    },
+    {
+      "id": "cl-5",
+      "switch_id": "s-bed2",
+      "target_id": "l-bed2",
+      "kind": "controls"
+    },
+    {
+      "id": "cl-6",
+      "switch_id": "s-hall",
+      "target_id": "l-hall",
+      "kind": "controls"
+    },
+    {
+      "id": "cl-7",
+      "switch_id": "s-mech",
+      "target_id": "l-mech",
+      "kind": "controls"
+    }
+  ],
+  "underlay": {
+    "image_ref": "__DEMO_ASSET__",
+    "transform": {
+      "origin": {
+        "x": -48.0,
+        "y": -31.0
+      },
+      "rotation_deg": 0,
+      "scale": 0.103
+    },
+    "opacity": 0.35,
+    "locked": true,
+    "visible": false
+  }
+}

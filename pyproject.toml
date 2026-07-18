@@ -1,0 +1,120 @@
+[project]
+name = "floor-plan-editor"
+version = "0.1.0"
+description = "Interactive web editor for floor plans and colour-coded electrical circuits"
+requires-python = ">=3.13"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "dishka>=1.9.1",
+    "fastapi>=0.129.0",
+    "loguru>=0.7.3",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "python-multipart>=0.0.20",
+    "starlette>=0.47,<1.0",
+    "uvicorn>=0.40.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "poethepoet>=0.41.0",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "ruff>=0.15.1",
+    "ty>=0.0.17",
+]
+
+
+[tool.poe.tasks.api]
+help = "Start the backend API server (--dev for auto-reload)"
+script = "uvicorn:run('backend.main:app', host='127.0.0.1', port=47825, reload=dev, reload_dirs=['backend'])"
+args = [{ name = "dev", options = ["--dev"], type = "boolean", default = false, help = "Run with auto-reload" }]
+
+[tool.poe.tasks.ui]
+help = "Start the frontend dev server (--dev for auto-reload)"
+shell = "npm run dev"
+cwd = "frontend"
+args = [{ name = "dev", options = ["--dev"], type = "boolean", default = false, help = "Passed for consistency with 'poe api --dev'" }]
+
+[tool.poe.tasks]
+lint = "ruff check backend/ tests/"
+format = "ruff format backend/ tests/"
+typecheck = "ty check backend/"
+test = "python -m pytest tests/"
+check = ["lint", "typecheck", "test"]
+
+
+[tool.pytest.ini_options] # https://docs.pytest.org/en/latest/reference/reference.html#ini-options-ref
+addopts = "--color=yes --exitfirst --failed-first --strict-config --strict-markers --verbosity=2"
+filterwarnings = ["error", "ignore::DeprecationWarning", "ignore::pytest.PytestUnraisableExceptionWarning"]
+testpaths = ["tests"]
+xfail_strict = true
+asyncio_mode = "auto"
+
+
+[tool.ruff] # https://github.com/charliermarsh/ruff
+fix = true
+include = ["pyproject.toml", "backend/**/*.py", "tests/**/*.py"]
+preview = true
+line-length = 99
+lint.select = ["ALL"]
+lint.ignore = [
+  "ANN002", # Missing type annotation for args. Complicates the code too much with the current annotation system.
+  "ANN003", # Missing type annotation for kwargs. Complicates the code too much with the current annotation system.
+  "ANN401", # Typing with Any is not permitted.
+  "ARG002", # Unused argument. Sometimes it's useful to keep the argument for future use, for retrocompatibility or to abide by an interface.
+  "COM812", # Missing trailing comma in a single-line list. Already handled by ruff formater
+  "CPY001", # Copyright notice missing. Not always needed.
+  "D104",  # Missing docstring in public package. Nobody reads these.
+  "D417",   # Missing argument descriptions in the docstring. Not always needed.
+  "DOC201", # Missing Returns section in the docstring. Not always needed.
+  "DOC402", # Missing Yields section in the docstring. Not always needed.
+  "DOC501", # Missing Raises section in the docstring. Not always needed.
+  "E501",   # Line too long. Already handled by ruff formater
+  "E731",   # Do not assign a lambda expression. Do not agree with this rule, it improves readability as it is self-documenting the lambda function.
+  "EM101",  # Do not use string literal in Exception. Don't care.
+  "EM102",  # Do not use f-string in Exception. Don't care.
+  "PYI063", # Use PEP 570 syntax for positional-only arguments. Not needed.
+  "RET504", # Unnecessary assign before return. This is not bad, it helps debugging.
+  "S311",   # Standard pseudo-random generators are not suitable for security/cryptographic purposes. Our use case is not security/cryptographic.
+  "TRY003", # Raise exception with vanilla arguments. Creating exception classes should be done only when really needed.
+  "W505",   # Doc line too long. Editor autowraps doc, and it's too much work to fix it.
+  "ISC001", # This rule may cause conflicts when used with the formatter
+  "LOG015", # Prevent root logger usage. This is not a problem in our case.
+]
+
+lint.unfixable = ["ERA001", "F401", "F841", "T201", "T203"]
+src = ["backend", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "INP001", "D", "SLF", "PLR6301", "PLR2004", "RUF029", "RUF069", "PLC0415", "ARG001"]
+"backend/container.py" = ["PLR6301"]  # Dishka @provide methods must be instance methods
+"backend/main.py" = ["RUF029"]  # @asynccontextmanager requires async even without await
+"backend/core/orchestrators/demo_plan_seeder.py" = ["BLE001"]  # First-run seeding must never crash app startup: any failure is logged and swallowed
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-unused-arguments]
+ignore-variadic-names = true # Allow unused *args and **kwargs in function signature
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 99
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pylint]
+max-args = 10
+max-public-methods = 30
