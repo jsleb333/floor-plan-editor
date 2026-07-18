@@ -1,0 +1,595 @@
+# Floor Plan Editor — Requirements
+
+Interactive web editor for residential floor plans and their electrical layout.
+The reference use case is digitizing a hand-drawn basement plan: walls, doors,
+windows and stairs, plus electrical devices (outlets, switches, lights,
+heaters...) connected by colour-coded wires where **each colour is one circuit**
+fed from the electrical panel.
+
+Two qualities dominate every decision in this document: **UX** (drawing must
+feel fast, forgiving and precise) and **accuracy** (real dimensions, real
+electrical loads).
+
+---
+
+## 1. Product vision
+
+A single-user, locally-hosted web app where the user can:
+
+1. Import a photo of a hand-drawn plan, calibrate its scale, and trace over it.
+2. Draw a dimensionally accurate floor plan (imperial units, feet and inches).
+3. Place electrical devices from a catalog of pictograms on walls or ceilings.
+4. Draw smooth, hand-routed wires between devices, grouped into colour-coded
+   circuits anchored at the electrical panel.
+5. Track the electrical load of each circuit against its breaker rating.
+6. Export the result as SVG, PNG or JSON.
+
+Out of scope (for now): multi-user collaboration, authentication, mobile/touch
+support, full Canadian Electrical Code validation, plumbing/HVAC layers, 3D.
+
+---
+
+## 2. Definitions
+
+| Term | Meaning |
+|---|---|
+| **Plan** | One floor plan document (e.g. "Basement"). The unit of persistence and export. |
+| **Structure** | Non-electrical geometry: walls, doors, windows, stairs, room labels. |
+| **Device** | An electrical element placed on the plan, rendered as a pictogram (outlet, switch, light...). |
+| **Circuit** | A named, colour-coded group of devices protected by one breaker in the panel. |
+| **Wire** | A curved line connecting two device terminals, belonging to one circuit. |
+| **Underlay** | A raster image (photo/scan) displayed under the plan for tracing. |
+| **Layer** | A visibility/locking group: underlay, structure, devices, each circuit's wires, annotations. |
+
+---
+
+## 3. Units and coordinate system
+
+- Internal canonical unit: **inches**, stored as floats. One drawing unit = 1 inch.
+- Display format: feet and inches (`12'6"`, `9'0 1/8"`). Fractional inches
+  displayed to the nearest **1/8" by default** (configurable: 1", 1/2", 1/4", 1/8").
+- The viewport shows rulers graduated in feet, and a light grid (default 12",
+  minor 3") that fades with zoom level.
+- All snapping distances and nudge steps are expressed in real units, not pixels.
+
+---
+
+## 4. Geometry & attachment model
+
+The core modelling decisions, stated once so every feature builds on the same
+foundation.
+
+### 4.1 Walls are reference polylines, never rectangles
+
+A wall is a **chain**: an ordered list of reference-line vertices, plus
+`thickness`, `reference side` (centre/left/right) and per-segment lock flags.
+That is the *entire* stored geometry. The rendered outline — offset faces,
+mitred corners, junction cut-outs, square end caps — is **derived geometry**,
+recomputed from the reference line on every change and never persisted.
+
+Why not rectangles: a rectangle per wall stores each corner twice (once in
+each adjacent wall), so corners drift apart under editing, mitres between
+different thicknesses have no single owner, and every move must update
+duplicated coordinates. With reference polylines there is one source of truth;
+editing is vertex math; corners are always exact by construction.
+
+One shared, deterministic geometry module computes the derived outlines and is
+used by *both* the editor rendering and the SVG export, so what you see is
+exactly what exports (and there is exactly one implementation to test).
+
+### 4.2 Wall decorations attach parametrically, not by coordinates
+
+Openings (doors, windows) and wall-mounted devices (outlets, switches,
+baseboards...) never store world coordinates. They store a **host address**:
+
+```
+attachment: { wall_id, segment_index, t, side }
+  t: position along the segment's reference line, in inches from the segment start
+  side: left | right  (which face the device sits on; openings span both)
+```
+
+World position is always derived from the host wall's current geometry.
+Consequences, by design:
+
+- Moving, stretching or exact-dimensioning a wall carries its decorations
+  with it — no re-placement, ever.
+- Splitting a wall reassigns each attachment to whichever new segment contains
+  its position.
+- Shrinking a segment below an attachment's position **clamps** the attachment
+  to the segment end and flags it in a validation list — nothing is silently
+  deleted or left floating.
+- Baseboard heaters are attachments with a `length` along the wall; the
+  pictogram stretches with it.
+
+Free-standing elements (ceiling lights, smoke detectors, water heater, air
+exchanger, central vacuum, labels, the panel if wall-less) store absolute
+positions. Wire endpoints reference device ids (never coordinates), so wires
+follow their devices; only interior control points are absolute.
+
+---
+
+## 5. Functional requirements
+
+### 5.1 Plan management
+
+- **P1** — The user can create, rename, duplicate and archive plans from a home
+  page listing all plans with thumbnail previews.
+- **P2** — Deleting a plan is a soft delete (archive); data is never destroyed
+  without an explicit, confirmed "permanently delete" action.
+- **P3** — The editor autosaves continuously (debounced); the user never has to
+  press "save". A saved/saving indicator is visible.
+- **P4** — A plan stores everything needed to restore the session: geometry,
+  devices, circuits, wires, underlay reference and calibration, layer states,
+  and last viewport position.
+
+### 5.2 Underlay (trace over a photo)
+
+- **U1** — The user can import a JPEG/PNG image as the plan's underlay.
+- **U2** — Calibration: the user draws a reference segment on the image and
+  types its real-world length (e.g. `10'`); the underlay is scaled accordingly.
+  Calibration can be redone at any time without moving traced geometry.
+- **U3** — The underlay can be repositioned, rotated and its opacity adjusted
+  (default ~40%); it can be hidden or locked independently of other layers.
+- **U4** — The underlay never appears in SVG/PNG exports unless explicitly
+  enabled in the export dialog.
+
+### 5.3 Structure drawing
+
+- **S1 Walls** — Drawn as chains of segments with a real thickness. Thickness
+  presets: **exterior ~12"**, **interior 3½" (default)** or 4½" (dimensional
+  lumber walls); any custom value allowed, editable per wall after the fact.
+  Click to place vertices, double-click/Enter/Esc to finish. Angle snapping to
+  0°/45°/90° **relative to the global axes** (never to the previous segment, so
+  error cannot accumulate around a room); hold a modifier (Alt) to draw free
+  angles. Endpoint and midpoint snapping to existing walls, and grid snapping.
+- **S1a Wall reference side** — The polyline the user draws is the wall's
+  *reference line*; thickness is applied relative to it in one of three modes:
+  **centre** (default), **left face**, or **right face** (relative to drawing
+  direction). The mode is shown in the tool options and cycled with **Tab**
+  while drawing, with a live preview of which side the thickness grows on.
+  This is how measurement semantics stay unambiguous: *typed lengths and
+  displayed live dimensions always measure along the reference line,
+  vertex to vertex*. Tracing a tape-measured room = reference on the inside
+  face, draw around the room interior, type the tape readings; thickness grows
+  away from the room and interior dimensions are exactly what was typed.
+  The reference side of an existing wall can be changed later (geometry is
+  re-offset accordingly, reference line stays put).
+- **S1b Corners** — Walls meeting at a shared vertex join with a mitre: face
+  polygons are computed by offsetting each segment's faces from its reference
+  line and intersecting adjacent offsets. Corners between walls of different
+  thicknesses (e.g. 12" exterior meets 3½" partition) resolve cleanly with the
+  thinner wall butting into the thicker one's face. Free wall ends are capped
+  square. No gaps, no overlaps, at any angle.
+- **S1c Closing the loop** — When the cursor approaches the chain's start
+  vertex, a close affordance appears. Clicking it performs an **auto-square
+  close**: the final corner is solved as the intersection of the two
+  constrained direction lines (the segment being drawn and the segment
+  arriving at the start vertex), so the loop closes *exactly* while every
+  segment keeps its 90°/45° angle. If the two directions don't intersect
+  (parallel), the editor falls back to a direct segment to the start point and
+  says so. Holding Alt closes with a free-angle segment instead.
+- **S2 Exact input** — While drawing a wall segment, the user can type a length
+  (`12'6`, `9'0 1/8`) to place the next vertex at exactly that distance along
+  the current (snapped) direction, measured on the reference line (see S1a).
+  Dimensions of the segment being drawn are shown live.
+- **S2a Placement by offset (temporary dimensions)** — When a pending point is
+  snapped onto an existing wall (S3a projection), **temporary dimensions**
+  appear along the host wall: live distance chips from the pending point to
+  the nearest perpendicular feature on each side (a crossing wall's face, a
+  corner, a junction). These measure **face to face** by default — from the
+  neighbouring wall's facing face to the *near face of the wall about to be
+  drawn* (its thickness and reference side are known from the tool presets) —
+  because that is what a tape measure gives. Typing a value (e.g. `12'5`) sets
+  the highlighted dimension exactly and locks the point; **Tab** switches
+  which side's dimension the typed value applies to, and the dimension chip
+  can be clicked to cycle its anchor (near face / reference line / far face)
+  for the rare non-face measurement. The same mechanism applies when dragging
+  an existing wall segment or vertex along a host wall.
+- **S3 Editing** — Walls can be selected, moved, split, joined; connected
+  walls stay connected. **Vertex drag preserves angles by default**: candidate
+  positions are constrained so both adjacent segments stay on allowed
+  0°/45°/90° directions (the vertex snaps to intersections of allowed
+  direction lines through its neighbours); hold **Alt** to drag freely.
+  **Segment drag** translates a wall segment parallel to itself, stretching
+  the two adjacent segments while keeping their directions — the primary way
+  to resize a room without breaking its right angles.
+- **S3a Wall-to-wall snapping** — Starting or ending a wall near an existing
+  wall snaps to the *projected point* on that wall (its reference line or
+  faces), creating a T-junction; the junction stays attached when either wall
+  moves. Endpoint-to-endpoint snapping takes priority over projection when
+  both are in range.
+- **S3b Locks and exact-dimension editing** — Each wall segment has a
+  **locked/free** flag (padlock toggle in the properties panel and context
+  menu; lock-all/unlock-all per chain). Selecting a free segment and typing a
+  length sets it exactly: the edit propagates by translating neighbouring
+  segments parallel to themselves (angles always preserved, same machinery as
+  segment drag) until absorbed by the first *free* segment parallel to the
+  edit direction. **Locked segments never move or change length** — they are
+  also immune to drags — so propagation routes around them; when every route
+  is blocked, the edit is rejected with the blocking locks highlighted on the
+  canvas. No simultaneous constraint solving: edits are sequential and
+  deterministic. Intended workflow: trace the loop roughly over the underlay,
+  then walk it wall by wall — type the tape measurement, lock, repeat — each
+  correction pushed into the remaining free walls.
+- **S3c Misclosure feedback** — In a closed loop where all segments but the
+  ones being verified are locked, the residual difference between a segment's
+  drawn length and the typed measurement is the loop's *misclosure* (real tape
+  measurements rarely close perfectly). The editor reports it explicitly
+  (e.g. "loop closes with 1½" left over on this wall") instead of silently
+  distorting geometry, so the user can decide where the error belongs.
+  Out of scope: constraints between non-adjacent walls, equality/symmetry
+  constraints, or any general parametric solver.
+- **S4 Doors** — Placed onto a wall (snap to wall); properties: width (default
+  32"), hinge side, swing direction. Rendered with the conventional swing arc.
+- **S5 Windows** — Placed onto a wall; property: width. Rendered with the
+  conventional double-line symbol.
+- **S6 Stairs** — A rectangular stair run with direction arrow; properties:
+  width, length, direction ("up"/"down" label).
+- **S7 Room labels** — Free-placed text labels (name + optional computed-free
+  area text). Font size adjustable.
+- **S8 Dimension annotations** — The user can add persistent dimension lines
+  between two points; they display the real distance and update live when the
+  geometry moves.
+
+### 5.4 Device catalog
+
+Devices are placed from a searchable palette. Each type has a distinct
+pictogram (drawn as SVG, consistent with common electrical-plan symbols and the
+hand-drawn legend). Initial catalog:
+
+| Device | Legend origin | Mount | Voltage | Default load |
+|---|---|---|---|---|
+| Outlet (duplex) | Prise électrique | wall | 120 V | 180 VA¹ |
+| GFCI outlet | Prise DDFT | wall | 120 V | 180 VA¹ |
+| Switch, single-pole | Interrupteur simple | wall | — | 0 |
+| Switch, 3-way | Interrupteur 3-way | wall | — | 0 |
+| Ceiling light | Luminaire plafond | ceiling | 120 V | 15 W |
+| Wall light | Luminaire mural | wall | 120 V | 15 W |
+| Baseboard heater | Plinthe électrique | wall | 240 V | 1000 W |
+| Thermostat | Thermostat | wall | 240 V | 0 |
+| Water heater | Chauffe-eau (WH) | free | 240 V | 3800 W |
+| Air exchanger | Échangeur d'air (EA) | free | 120 V | 150 W |
+| Central vacuum unit | Aspirateur central (VAC) | free | 120 V | 1400 W |
+| Vacuum inlet | Prise aspirateur | wall | low-V | 0 |
+| Smoke detector | Détecteur de fumée (SD) | ceiling | 120 V | 5 W |
+| Network jack | Câble réseau | wall | data | 0 |
+| Electrical panel | Panneau électrique | wall | — | source |
+
+¹ Placeholder per-receptacle allowance; editable per device.
+
+- **D1** — Wall-mounted devices snap onto walls and slide along them; they keep
+  their wall attachment when the wall moves. Ceiling/free devices place
+  anywhere. Placement and sliding reuse the temporary-dimension mechanism
+  (S2a): live offsets to the nearest corners/walls, typed value to position
+  exactly.
+- **D2** — Every placed device has editable properties: label (optional),
+  load override (watts), notes. Baseboards additionally have a length and
+  wattage; the pictogram scales with length.
+- **D3** — Devices can be copied/pasted and duplicated by drag+modifier.
+- **D4** — Device pictograms keep a constant on-screen legibility: they scale
+  with zoom but are clamped to a minimum screen size.
+- **D5** — The catalog is data-driven (a device-type registry), so new types
+  can be added without touching editor logic.
+- **D6** — Control links: a switch can be linked to the light(s) it controls
+  (and 3-way switches paired). Links render as a subtle dashed arc on hover or
+  when a linked element is selected. No load impact; documentation value only.
+
+### 5.5 Circuits
+
+- **C1** — A plan has exactly one electrical panel device; circuits are defined
+  in a circuits panel (sidebar) listing: colour, name, breaker rating (15 A,
+  20 A, 30 A...), voltage (120 V / 240 V).
+- **C2** — Colour is the circuit's identity on the canvas. The app proposes a
+  distinguishable default palette; the user can override any colour. Two
+  circuits cannot share the exact same colour.
+- **C3** — Devices join a circuit by being wired into it (see 5.6). A device
+  belongs to at most one circuit (exception: network jacks and vacuum inlets
+  join "data"/"low-voltage" pseudo-circuits that carry no load and no breaker).
+- **C4 Load tracking** — The circuits panel shows, per circuit:
+  `computed load (W and A) / breaker rating`, with amps = watts ÷ voltage.
+  A warning state appears above 80 % of the breaker rating (continuous-load
+  rule of thumb) and an error state above 100 %. Warnings are informative,
+  never blocking.
+- **C5** — Selecting a circuit in the panel highlights all its wires and
+  devices on the canvas and dims the rest; devices not on any circuit can be
+  listed ("unassigned") for review.
+- **C6** — Per-circuit wire visibility toggles (show/hide each colour) to
+  reduce clutter, matching how one reads the paper plan one colour at a time.
+
+### 5.6 Wires
+
+- **W1** — A wire connects two devices (or a device and the panel). Drawing:
+  click a source device, click a target device; the wire is created on the
+  currently active circuit and inherits its colour.
+- **W2** — Wires render as smooth curves (cubic Bézier splines). A new wire
+  gets a gentle auto-curve; the user can then drag the curve or its control
+  handles to route it exactly where they want (matching the hand-drawn look,
+  e.g. hugging walls or fanning out from the panel).
+- **W3** — Wire endpoints stay attached to their devices when devices move;
+  interior control points move proportionally.
+- **W4** — Connectivity defines membership: a device is "on" circuit X when a
+  wire path connects it (through other devices) to the panel on circuit X.
+  Devices wired together but not reaching the panel are flagged "floating" in
+  the circuits panel.
+- **W5** — Deleting a device offers to reconnect or delete its wires.
+
+### 5.7 Selection and editing UX
+
+- **E1** — Tools: Select (default), Wall, Door, Window, Stairs, Label,
+  Dimension, Device (with type picker), Wire, Measure (ephemeral tape),
+  Calibrate. Single-key shortcuts (V, W, D, ...) shown in tooltips.
+- **E2** — Select tool: click to select, shift-click to add, drag for rubber
+  band selection, drag selection to move. Selected elements show handles and a
+  contextual properties panel.
+- **E3** — Full undo/redo (Ctrl+Z / Ctrl+Shift+Z) across every mutating
+  action, including property edits, with a practical history depth (≥100).
+- **E4** — Esc cancels the in-progress action; Delete removes the selection;
+  arrow keys nudge by 1" (Shift = 12").
+- **E5** — Viewport: pan (space-drag / middle-drag / trackpad), zoom to cursor
+  (wheel), zoom-to-fit, 100 % zoom. 60 fps interaction target on plans of
+  realistic size (≤ 200 devices, ≤ 300 wires, ≤ 500 wall segments).
+- **E6** — Snapping is always visualized (snap markers, alignment guides)
+  before the click commits, so the user can trust what will happen.
+- **E7** — Layers panel: show/hide and lock per layer (underlay, structure,
+  devices, annotations, each circuit). Locked layers are not selectable.
+
+### 5.8 Export
+
+- **X1 JSON** — Lossless export/import of the full plan document (the same
+  schema used for persistence). Re-importing a JSON produces an identical plan.
+- **X2 SVG** — Vector export, real-unit coordinates, with layers as named
+  `<g>` groups (structure, devices, one group per circuit, annotations), so it
+  is editable in Inkscape/Illustrator.
+- **X3 PNG** — Raster export with selectable resolution/scale and optional
+  transparent background.
+- **X4** — Export dialog offers: layers to include, with/without underlay,
+  with/without dimension annotations.
+
+### 5.9 Settings and user-settable properties
+
+Guiding rule: **anything that varies in the physical world is settable per
+instance**; catalogs and presets provide defaults, never hard limits. Three
+tiers, from global to local:
+
+**Tier 1 — App preferences** (stored in the browser, apply to all plans):
+display resolution (1/8" default), grid size, default snap toggles, panel
+collapsed states, last-used tool options.
+
+**Tier 2 — Plan settings** (stored in the plan document, so plans are
+self-contained): wall thickness presets (default list: 12" exterior,
+4½" interior, 3½" interior *default*; user-editable), device catalog defaults
+(per-type default load — e.g. change "baseboard default" from 1000 W to
+750 W; affects future placements, with an explicit "apply to existing" action,
+never a silent retroactive change).
+
+**Tier 3 — Per-element properties** (the Inspector panel):
+
+| Element | Settable properties |
+|---|---|
+| Wall | thickness (preset or custom), reference side, per-segment locks |
+| Door | width, hinge side, swing direction |
+| Window | width |
+| Device (all) | label, notes, load override (W) |
+| Baseboard heater | + length along wall, wattage (presets 500/750/1000/1250/1500/2000 W or custom; amps derived at 240 V) |
+| Circuit | name, colour, breaker rating, voltage, kind (power/data/low-V) |
+| Wire | curve shape (control handles) |
+| Underlay | opacity, visible, locked, recalibrate |
+| Label | text, size |
+| Dimension | anchor points, side offset |
+
+---
+
+## 6. UI layout & UX principles
+
+### 6.1 Layout — docked panels
+
+Fixed, predictable homes for everything; no floating windows.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ ◂ plans │ Basement ✎        saved ✓     100% ▾  ⤢  ↶ ↷  ⇓ │  top bar
+├───┬───────────────────────────────────────────┬────────────┤
+│ V │                                           │ Inspector  │
+│ W │                                           │ Circuits ⚠ │
+│ D │            C A N V A S                    │ Layers     │
+│ … │   rulers ∙ grid ∙ snap guides             │────────────│
+│ ⚡ │                                           │ (active    │
+│ ~ │                                           │  tab body) │
+├───┴───────────────────────────────────────────┴────────────┤
+│ snap: ⊞ grid ∠ 90° ⊢ walls │ ref: inside │ 12'5 ⏎ │ x, y   │  status bar
+└────────────────────────────────────────────────────────────┘
+```
+
+- **Top bar**: back to plan list, inline-renamable plan name, autosave
+  indicator, zoom controls / zoom-to-fit, undo/redo, export.
+- **Left tool rail**: icon-only tools (Select, Wall, Door, Window, Stairs,
+  Label, Dimension, Device, Wire, Measure, Calibrate), each with a single-key
+  shortcut shown in its tooltip. The Device tool opens a searchable pictogram
+  flyout with most-recently-used types on top.
+- **Right panel**, three tabs, collapsible as a whole:
+  - **Inspector** — contextual: properties of the current selection; with no
+    selection, the active tool's options (e.g. wall thickness preset +
+    reference side); with nothing active, plan settings.
+  - **Circuits** — the circuit list with colour swatch, name,
+    `load / breaker` bar and warning badges; the tab itself carries a ⚠ badge
+    when any circuit is over 80 %. Selecting a circuit highlights it on
+    canvas (C5); this is also where circuits are created and wires toggled.
+  - **Layers** — visibility/lock rows: underlay, structure, devices,
+    annotations, one row per circuit.
+- **Bottom status bar**: live snap toggles, wall reference side (during wall
+  drawing), the typed-input echo (what you type — `12'5` — appears here before
+  Enter commits it), cursor coordinates in feet/inches.
+
+### 6.2 UX principles
+
+- **Canvas-first** — panels are slim and collapsible; the drawing dominates.
+  No ribbons, no menu bars, no nested menus.
+- **Contextual, not modal** — properties always live in the Inspector, never
+  in pop-up dialogs. The only modal dialogs in the app: export options and
+  permanent-delete confirmation.
+- **Keyboard-first, mouse-complete** — every tool and toggle has a single-key
+  shortcut, discoverable via tooltips and a `?` shortcut overlay; but every
+  action is also reachable by mouse alone.
+- **Typed precision everywhere** — any time a length is being determined
+  (drawing, temporary dimensions, dragging), typing digits switches to exact
+  input, echoed in the status bar. The keyboard is the tape measure.
+- **Always show what will happen** — snap targets, angle locks, close
+  affordances, reference-side previews and drag outcomes are visualized
+  *before* the click commits (E6). No surprises.
+- **Progressive disclosure** — common properties visible; rare ones (notes,
+  load overrides) behind a "More" expander in the Inspector. New-plan empty
+  state offers the two entry paths: "import a photo to trace" or "start
+  drawing walls".
+- **Quiet feedback** — autosave state, misclosure reports and load warnings
+  appear as unobtrusive indicators and badges, never interrupting dialogs.
+
+---
+
+## 7. User stories (acceptance level)
+
+1. *As the homeowner*, I import the photo of my basement drawing, calibrate it
+   with a known 10' wall, and trace all walls in under 30 minutes.
+1. *As the homeowner*, I walk the traced loop wall by wall with my tape
+   measurements: type the exact length, lock the wall, move on — each
+   correction is absorbed by the still-free walls, and at the end the editor
+   tells me my measurements close within 1".
+2. *As the homeowner*, I place all outlets, switches and lights by picking
+   pictograms and clicking on walls; outlets snap flush to walls automatically.
+3. *As the homeowner*, I create a circuit "Prises sous-sol", 15 A / 120 V,
+   pick red, and wire the panel to each outlet with curves I can reshape.
+4. *As the homeowner*, I see that my heating circuit's baseboards total
+   4750 W on a 20 A / 240 V breaker (24.7 A) and get an over-capacity error,
+   so I split it into two circuits.
+5. *As the homeowner*, I toggle every circuit off except one to verify it
+   against the paper plan colour by colour.
+6. *As the homeowner*, I export an SVG to print and annotate, and a JSON as a
+   backup.
+7. *As the homeowner*, I come back a week later; my plan reopens exactly as I
+   left it, including zoom position and layer visibility.
+
+---
+
+## 8. Data model (persistence schema, v1)
+
+A plan is stored as one versioned JSON document plus uploaded underlay images.
+
+```
+Plan
+  id: uuid            name: str           schema_version: int
+  created_at, updated_at, archived_at: datetime | null
+  viewport: { center: Point, zoom: float }
+  underlay: Underlay | null
+  walls: [Wall]           # each: id, vertices [Point] (reference line),
+                          # thickness_in, reference: center|left|right,
+                          # locked_segments: [int],  # indices of locked segments (S3b)
+                          # junctions: [{vertex_idx | t: float, wall_id}]  # T-junction attachments
+  openings: [Opening]     # door|window: id, attachment (§4.2), width_in, hinge, swing
+  stairs: [Stairs]        # id, rect, direction
+  labels: [Label]         # id, position, text, size
+  dimensions: [Dimension] # id, p1, p2, offset
+  devices: [Device]       # id, type, label, load_w override, notes,
+                          # attachment (§4.2) | position+rotation (free-standing),
+                          # props (e.g. baseboard length_in, wattage)
+  catalog_defaults: {type: load_w}   # plan-level device defaults (§5.9 tier 2)
+  thickness_presets: [float]         # plan-level wall presets (§5.9 tier 2)
+  circuits: [Circuit]     # id, name, color, breaker_a, voltage_v, kind (power|data|lowv)
+  wires: [Wire]           # id, circuit_id, from_device_id, to_device_id,
+                          # control_points: [Point]
+  control_links: [Link]   # switch_id -> device_id, kind (controls|3way-pair)
+
+Underlay
+  image_ref: str          # server-stored asset id
+  transform: { origin: Point, rotation: float, scale: float }  # from calibration
+  opacity: float          locked: bool      visible: bool
+```
+
+- Points are `{x, y}` in inches. Load values in watts.
+- `schema_version` + explicit migration step on read: old documents are
+  migrated forward, never rejected, never destroyed (a pre-migration copy is
+  kept).
+- Storage: SQLite (`aiosqlite`) — `plans` table with the JSON document in a
+  column, plus metadata columns for listing; `assets` table for underlay
+  images. Load computation is done in the backend service layer (single source
+  of truth) and returned by the API; the frontend mirrors it live during
+  editing for instant feedback.
+
+---
+
+## 9. API surface (v1)
+
+| Method & path | Purpose |
+|---|---|
+| `GET /api/plans` | List plans (metadata + thumbnail). |
+| `POST /api/plans` | Create plan. |
+| `GET /api/plans/{id}` | Full plan document. |
+| `PUT /api/plans/{id}` | Replace plan document (autosave). Optimistic concurrency via document revision. |
+| `POST /api/plans/{id}/duplicate` | Duplicate. |
+| `POST /api/plans/{id}/archive` / `restore` | Soft delete / restore. |
+| `DELETE /api/plans/{id}` | Permanent delete (requires archived state). |
+| `GET /api/plans/{id}/validation` | Circuit loads, over-capacity, floating devices. |
+| `POST /api/assets` / `GET /api/assets/{id}` | Upload / serve underlay images. |
+
+Export to SVG/PNG/JSON happens client-side (the canvas is already SVG);
+no export endpoints in v1.
+
+---
+
+## 10. Architecture notes
+
+Follows the hexagonal layout and conventions in `.claude/CLAUDE.md`:
+
+- **Backend** is a thin persistence + validation service: `PlanService`
+  (CRUD, migration), `CircuitValidationService` (loads, floating devices),
+  `AssetService` (underlay images) behind repository interfaces
+  (`PlanRepository`, `AssetRepository`) implemented on SQLite; wired with
+  dishka. FastAPI serves the built SPA in production.
+- **Frontend** owns all editing interaction. Rendering is a single SVG
+  viewport (which makes X2 nearly free). Editor state lives in Pinia stores
+  (`plans`, `editor`); behaviours in composables (`useViewport`,
+  `useSnapping`, `useHistory`, `useWireEditing`, `useExport`...). The
+  undo/redo history is command-based and lives entirely client-side.
+- Autosave: debounced (~2 s after last change) `PUT` of the full document
+  with a revision counter; on 409 the client reloads and informs the user.
+
+### 10.1 Technology decisions
+
+Guiding philosophy: **the editor is the product** — own the canvas, the
+geometry and the document model; take dependencies only for commodity.
+
+| Concern | Decision | Rationale / rejected alternatives |
+|---|---|---|
+| Canvas rendering | **Plain SVG, Vue-rendered components** | ≤ ~3k nodes at realistic plan size → 60 fps is achievable with pan/zoom as a single root `<g transform>`. Crisp vectors at any zoom, DOM hit-testing and CSS hover for free, and SVG export = serialize the rendered tree (one geometry path, zero drift). *Rejected:* Konva/Fabric/PixiJS — canvas/WebGL pays off at 10k+ elements and would force custom hit-testing plus a second SVG-generation path. |
+| Pictograms | SVG `<symbol>`/`<use>` registry | Data-driven catalog (D5); one definition per device type, instanced cheaply; min-size clamp (D4) via counter-scaling. |
+| Geometry math | **In-house typed module** (`utils/geometry/`) | Needs: polyline offset, line intersection (mitres, auto-square close), point projection (snapping), cubic Béziers. A few hundred lines of pure functions, shared by render + export (§4.1), heavily Vitest-tested. *Rejected:* Turf/Clipper — GIS/boolean-ops power we don't need (openings are path gaps, not booleans). |
+| Undo/redo | Command stack with inverse operations | Single user → no Immer/Yjs/CRDT. Commands double as the mutation API of the editor store. |
+| UI chrome | Tailwind + bespoke components, **no component kit** | Tool rail / inspector / status bar are exactly what kits do badly. Icons from Lucide (tree-shakeable) as the only UI dependency. |
+| Units I/O | In-house feet-inches parser/formatter (`12'5 1/8"`) | Trivial, and precision rules (§3) are ours. |
+| PNG export | Serialize SVG → offscreen canvas → blob | No dependency needed. |
+| Backend stack | FastAPI + Pydantic v2, aiosqlite, dishka, loguru (per scaffold) | Thin persistence/validation layer; underlay images on disk under a data dir (path via pydantic-settings), metadata in SQLite. Beyond persistence, the REST API is the app's **automation surface**: fixtures, integration tests, state inspection, and agent-driven workflows (e.g. generating a plan document programmatically) all go through it — impossible with browser-local storage. |
+| Document storage | SQLite as a document store (JSON column + metadata columns) | "NoSQL" is a schema decision, not an engine: we need atomic writes (autosave must never tear a document), a revision counter, list-page metadata without parsing documents, one-file backup — SQLite gives all four. *Rejected:* JSON files on disk (reimplements transactions/indexing badly; git-diffability is covered by JSON export), document-DB servers (ops burden absurd for single-user). Escape hatch: SQLite generated columns over `json_extract` can index any document field later, no engine migration. |
+
+---
+
+## 11. Milestones
+
+1. **M1 Skeleton** — backend CRUD + SQLite, SPA shell, plans home page,
+   editor page with pan/zoom viewport, autosave loop.
+2. **M2 Structure** — walls with snapping and exact input, doors, windows,
+   stairs, labels, dimensions, undo/redo.
+3. **M3 Underlay** — image upload, calibration, opacity/lock.
+4. **M4 Devices** — catalog, wall snapping, properties panel, copy/paste.
+5. **M5 Circuits & wires** — circuits panel, Bézier wires, connectivity,
+   load tracking, highlight/isolate, control links.
+6. **M6 Export & polish** — SVG/PNG/JSON export, layers panel, thumbnails,
+   keyboard shortcut reference, performance pass.
+7. **M7 Demo plan** — digitize the hand-drawn basement plan
+   (`hand-drawn-basement-floor-plan.jpg`) as a bundled "demo" plan, as close
+   as possible to the original drawing: photo as calibrated underlay, all
+   walls/openings/stairs traced, every legend device placed, all circuits
+   wired with their original colours. Installed on first run as both a
+   showcase and the definitive end-to-end acceptance test of M1–M6 (positions
+   proportional from the photo; exact dimensions refinable later via the S3b
+   lock workflow).
+
+Each milestone ends with `poe check` green and the relevant user stories
+demonstrable in the running app.
