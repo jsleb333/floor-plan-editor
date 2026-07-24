@@ -64,7 +64,7 @@ even for additive changes.
    builder and a test walking v5 → v6; the existing older-version tests
    already assert the walk ends at `CURRENT_SCHEMA_VERSION`, so they cover
    the new step transitively.
-7. **Demo plan** — `backend/demo/basement_demo.json` is a version-5 document;
+7. **Demo plan** — `backend/app/demo/basement_demo.json` is a version-5 document;
    it migrates on first read, so it only needs regenerating if you want it
    to exercise the new field.
 

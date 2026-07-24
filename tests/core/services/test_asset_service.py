@@ -9,13 +9,12 @@ from backend.core.errors import (
     AssetTooLargeError,
     UnsupportedAssetTypeError,
 )
-from backend.core.services.asset_service import AssetService
+from backend.core.services.asset_service import AssetService, MaxAssetSizeBytes
 from backend.interfaces.asset_repository import AssetRepository
 from backend.models.asset import Asset
-from backend.settings import AppSettings
 
 
-MAX_SIZE_BYTES = 64
+MAX_SIZE_BYTES = MaxAssetSizeBytes(64)
 
 
 class TestAssetService:
@@ -27,7 +26,7 @@ class TestAssetService:
     @pytest.fixture
     def service(self, repo: AssetRepository) -> AssetService:
         """Service under test with a small configured size limit."""
-        return AssetService(repo, AppSettings(max_asset_size_bytes=MAX_SIZE_BYTES))
+        return AssetService(repo, MAX_SIZE_BYTES)
 
     async def test_upload__when_content_is_valid__stores_and_returns_asset(
         self, service: AssetService, repo: AssetRepository

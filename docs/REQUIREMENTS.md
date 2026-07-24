@@ -583,7 +583,7 @@ geometry and the document model; take dependencies only for commodity.
 6. **M6 Export & polish** — SVG/PNG/JSON export, layers panel, thumbnails,
    keyboard shortcut reference, performance pass.
 7. **M7 Demo plan** — digitize the hand-drawn basement plan
-   (`hand-drawn-basement-floor-plan.jpg`) as a bundled "demo" plan, as close
+   (bundled as `backend/app/demo/basement_photo.jpg`) as a "demo" plan, as close
    as possible to the original drawing: photo as calibrated underlay, all
    walls/openings/stairs traced, every legend device placed, all circuits
    wired with their original colours. Installed on first run as both a

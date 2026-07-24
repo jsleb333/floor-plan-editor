@@ -91,7 +91,7 @@ poe api                        # serves API + SPA on http://127.0.0.1:47825
 ## Configuration
 
 Settings are loaded from environment variables prefixed with `FLOORPLAN_`
-(see [backend/settings.py](backend/settings.py)):
+(see [backend/app/settings.py](backend/app/settings.py)):
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -124,13 +124,12 @@ npm run build    # type-check (vue-tsc) + production build
 ```
 backend/
   api/           # FastAPI routes (thin) + Pydantic schemas
-  core/          # Business logic: services, orchestrators, plan migration
+  core/          # Business logic: services, plan migration
   interfaces/    # ABC interfaces (ports)
   models/        # Pydantic domain + persistence models
   infra/         # Adapters: SQLite plan repository, file asset repository
-  demo/          # Bundled demo plan document + underlay photo
-  container.py   # Dishka wiring (infra -> services -> orchestrators)
-  main.py        # App factory (serves the built SPA in prod)
+  app/           # Composition root: settings, Dishka container, app factory,
+                 # demo-seeding startup task + bundled demo plan and photo
 
 frontend/src/
   api/           # Fetch client, one module per domain

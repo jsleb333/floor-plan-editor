@@ -35,7 +35,7 @@ dev = [
 
 [tool.poe.tasks.api]
 help = "Start the backend API server (--dev for auto-reload)"
-script = "uvicorn:run('backend.main:app', host='127.0.0.1', port=47825, reload=dev, reload_dirs=['backend'])"
+script = "uvicorn:run('backend.app.main:app', host='127.0.0.1', port=47825, reload=dev, reload_dirs=['backend'])"
 args = [{ name = "dev", options = ["--dev"], type = "boolean", default = false, help = "Run with auto-reload" }]
 
 [tool.poe.tasks.ui]
@@ -96,9 +96,9 @@ src = ["backend", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "INP001", "D", "SLF", "PLR6301", "PLR2004", "RUF029", "RUF069", "PLC0415", "ARG001"]
-"backend/container.py" = ["PLR6301"]  # Dishka @provide methods must be instance methods
-"backend/main.py" = ["RUF029"]  # @asynccontextmanager requires async even without await
-"backend/core/orchestrators/demo_plan_seeder.py" = ["BLE001"]  # First-run seeding must never crash app startup: any failure is logged and swallowed
+"backend/app/container.py" = ["PLR6301"]  # Dishka @provide methods must be instance methods
+"backend/app/main.py" = ["RUF029"]  # @asynccontextmanager requires async even without await
+"backend/app/demo_plan_seeder.py" = ["BLE001"]  # First-run seeding must never crash app startup: any failure is logged and swallowed
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
