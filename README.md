@@ -17,6 +17,8 @@ Single-user, locally hosted.
   geometry pipeline, editor state and tools, backend layering, persistence.
 - [docs/RECIPES.md](docs/RECIPES.md) — step-by-step guides for recurring
   changes: add a device type, a schema migration, an editor tool.
+- [docs/TUTORIAL.md](docs/TUTORIAL.md) — design spec for the in-editor
+  interactive tutorial (proposed, not yet built).
 - [.claude/CLAUDE.md](.claude/CLAUDE.md) — coding conventions and layering
   rules.
 
