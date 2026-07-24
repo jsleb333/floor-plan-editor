@@ -167,5 +167,23 @@ function tickPoints(chip: ChipView, end: 'from' | 'to'): string {
       class="fill-surface stroke-accent-strong"
       :stroke-width="1.5 * hairline"
     />
+
+    <g v-if="preview.underlayRotationHandle" aria-label="Underlay rotation handle">
+      <line
+        :x1="preview.underlayRotationHandle.anchor.x"
+        :y1="preview.underlayRotationHandle.anchor.y"
+        :x2="preview.underlayRotationHandle.point.x"
+        :y2="preview.underlayRotationHandle.point.y"
+        class="stroke-accent-strong"
+        :stroke-width="hairline"
+      />
+      <circle
+        :cx="preview.underlayRotationHandle.point.x"
+        :cy="preview.underlayRotationHandle.point.y"
+        :r="(HANDLE_HALF_PX + 1) * hairline"
+        class="fill-surface stroke-accent-strong cursor-grab"
+        :stroke-width="1.5 * hairline"
+      />
+    </g>
   </g>
 </template>

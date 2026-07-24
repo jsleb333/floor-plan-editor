@@ -9,6 +9,7 @@ import type { SnapSettings } from '@/composables/useSnapping'
 import { UNDERLAY_ELEMENT_ID, useEditorStore } from '@/stores/editor'
 import type { PlanDocument, Wall } from '@/types/plan'
 import type { ImageSize } from '@/utils/imageSize'
+import { underlayToWorld } from '@/utils/underlay'
 import {
   makeCircuit,
   makeDevice,
@@ -561,6 +562,73 @@ describe('useSelectTool', () => {
     store.undo()
     expect(store.document?.underlay?.transform.origin).toEqual({ x: 0, y: 0 })
     expect(store.canUndo).toBe(false)
+  })
+
+  it('shows the rotation handle only while the unlocked underlay is selected', async () => {
+    const { store, tool } = await setupDocument({ underlay: makeUnderlay() }, IMAGE_SIZE)
+    expect(tool.preview.value.underlayRotationHandle).toBeNull()
+
+    click(tool, 150, 150)
+    // 24 screen px at 2 px/in = 12" above the top-centre of the 200x200 image.
+    const handle = tool.preview.value.underlayRotationHandle
+    expect(handle?.anchor.x).toBeCloseTo(100, 9)
+    expect(handle?.anchor.y).toBeCloseTo(0, 9)
+    expect(handle?.point.x).toBeCloseTo(100, 9)
+    expect(handle?.point.y).toBeCloseTo(-12, 9)
+
+    store.mutate({ type: 'setUnderlay', underlay: makeUnderlay({ locked: true }) })
+    expect(tool.preview.value.underlayRotationHandle).toBeNull()
+  })
+
+  it('rotates the underlay about its centre by dragging the handle, as one undo step', async () => {
+    const { store, tool } = await setupDocument({ underlay: makeUnderlay() }, IMAGE_SIZE)
+    click(tool, 150, 150)
+
+    // Grab the handle at (100, -12) and drag due east of the centre: +90°.
+    tool.onPointerDown({ x: 100, y: -12 }, NO_MODIFIERS)
+    tool.onPointerMove({ x: 250, y: 100 })
+    tool.onPointerUp({ x: 250, y: 100 })
+
+    const transform = store.document?.underlay?.transform
+    expect(transform?.rotation_deg).toBe(90)
+    // The image centre stayed fixed while rotating.
+    const centre = transform ? underlayToWorld(transform, { x: 100, y: 100 }) : null
+    expect(centre?.x).toBeCloseTo(100, 6)
+    expect(centre?.y).toBeCloseTo(100, 6)
+
+    store.undo()
+    expect(store.document?.underlay?.transform.rotation_deg).toBe(0)
+    expect(store.canUndo).toBe(false)
+  })
+
+  it('snaps handle rotation to 15° while angle snap is on and Escape cancels it', async () => {
+    const { store, tool } = await setupDocument({ underlay: makeUnderlay() }, IMAGE_SIZE)
+    click(tool, 150, 150)
+
+    // Drag the handle to 50° clockwise of its grab angle: snaps to 45.
+    const rad = ((-90 + 50) * Math.PI) / 180
+    const target = { x: 100 + 150 * Math.cos(rad), y: 100 + 150 * Math.sin(rad) }
+    tool.onPointerDown({ x: 100, y: -12 }, NO_MODIFIERS)
+    tool.onPointerMove(target)
+    expect(store.document?.underlay?.transform.rotation_deg).toBe(45)
+
+    tool.handleKey('Escape')
+    expect(store.document?.underlay?.transform.rotation_deg).toBe(0)
+    expect(store.document?.underlay?.transform.origin).toEqual({ x: 0, y: 0 })
+    expect(store.canUndo).toBe(false)
+  })
+
+  it('rotates the underlay freely when angle snapping is off', async () => {
+    snapSettings.angle.value = false
+    const { store, tool } = await setupDocument({ underlay: makeUnderlay() }, IMAGE_SIZE)
+    click(tool, 150, 150)
+
+    const rad = ((-90 + 50) * Math.PI) / 180
+    tool.onPointerDown({ x: 100, y: -12 }, NO_MODIFIERS)
+    tool.onPointerMove({ x: 100 + 150 * Math.cos(rad), y: 100 + 150 * Math.sin(rad) })
+    tool.onPointerUp({ x: 100 + 150 * Math.cos(rad), y: 100 + 150 * Math.sin(rad) })
+
+    expect(store.document?.underlay?.transform.rotation_deg).toBeCloseTo(50, 6)
   })
 
   it('slides an attached device along its wall and flips side across the wall', async () => {

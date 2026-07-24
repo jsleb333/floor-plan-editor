@@ -50,7 +50,13 @@ import {
 } from '@/utils/geometry'
 import type { Bounds, DeviceGaps, FaceGap } from '@/utils/geometry'
 import type { ImageSize } from '@/utils/imageSize'
-import { underlayContains } from '@/utils/underlay'
+import {
+  normalizeDegrees,
+  rotatedAboutCenter,
+  underlayContains,
+  underlayRotationHandleWorld,
+  underlayToWorld,
+} from '@/utils/underlay'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
 import { GRID_STEP_IN, useSnapping } from './useSnapping'
@@ -63,6 +69,10 @@ const DRAG_START_PX = 4
 const HANDLE_RADIUS_PX = 6
 /** Capture radius (screen px) for clicking a wire's Bézier curve (spec W2). */
 const WIRE_HIT_PX = 6
+/** Screen-px distance of the underlay rotation handle above the image's top edge. */
+const ROTATION_HANDLE_OFFSET_PX = 24
+/** Underlay rotation snap step (degrees) while angle snapping is on. */
+const ROTATION_SNAP_DEG = 15
 /** How long the locked-segment refusal highlight stays visible. */
 const LOCK_FLASH_MS = 700
 /** Arrow-key nudge steps (spec E4): 1", or 12" with Shift. */
@@ -135,6 +145,8 @@ export interface SelectToolPreview {
   wireHandles: { wireId: string; handleIndex: number; point: Point }[]
   /** Endpoint markers (device centres) of the selected wire (spec W2). */
   wireEndpoints: Point[]
+  /** Drag-to-rotate handle of the selected, unlocked underlay (spec U3). */
+  underlayRotationHandle: { anchor: Point; point: Point } | null
   chips: DimensionChip[]
   lockFlash: LockFlash | null
   dragging: boolean
@@ -172,6 +184,7 @@ type DragIntent =
   | { kind: 'device'; deviceId: string }
   | { kind: 'wire'; wireId: string }
   | { kind: 'wireHandle'; wireId: string; handleIndex: number }
+  | { kind: 'underlayRotate' }
   | { kind: 'body'; refs: ElementRef[] }
 
 /** Originals of every translatable element captured when a body drag starts. */
@@ -203,6 +216,13 @@ type PointerState =
   | { mode: 'dimensionOffset'; original: Dimension }
   | { mode: 'wireDrag'; original: Wire; startWorld: Point }
   | { mode: 'wireHandleDrag'; original: Wire; handleIndex: number }
+  | {
+      mode: 'underlayRotate'
+      original: Underlay
+      size: ImageSize
+      centre: Point
+      startPointerDeg: number
+    }
   | { mode: 'bodyDrag'; originals: BodyOriginals; startWorld: Point }
 
 function wallRef(id: string): ElementRef {
@@ -245,6 +265,11 @@ function translateUnderlay(underlay: Underlay, delta: Point): Underlay {
     ...underlay,
     transform: { ...underlay.transform, origin: add(underlay.transform.origin, delta) },
   }
+}
+
+/** Angle (degrees) of `point` about `centre` in screen orientation (y-down, like SVG rotate). */
+function pointerAngleDeg(centre: Point, point: Point): number {
+  return (Math.atan2(point.y - centre.y, point.x - centre.x) * 180) / Math.PI
 }
 
 /** Segment indices adjacent to (touching) a vertex, respecting closed-loop wrap. */
@@ -328,6 +353,7 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
       state.value.mode === 'dimensionOffset' ||
       state.value.mode === 'wireDrag' ||
       state.value.mode === 'wireHandleDrag' ||
+      state.value.mode === 'underlayRotate' ||
       state.value.mode === 'bodyDrag',
   )
 
@@ -482,6 +508,26 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
     return underlayContains(current.transform, size, point) ? current : null
   }
 
+  /** The selected, rotatable underlay (unlocked, visible, image loaded), else null. */
+  function rotatableSelectedUnderlay(): { underlay: Underlay; size: ImageSize } | null {
+    const current = underlay.value
+    const size = underlayImageSize.value
+    if (!current || !size || current.locked || !current.visible) return null
+    if (!store.isSelected({ kind: 'underlay', id: UNDERLAY_ELEMENT_ID })) return null
+    return { underlay: current, size }
+  }
+
+  /** Anchor and grab point of the underlay rotation handle when visible (spec U3). */
+  function underlayRotationHandle(): { anchor: Point; point: Point } | null {
+    const target = rotatableSelectedUnderlay()
+    if (!target) return null
+    return underlayRotationHandleWorld(
+      target.underlay.transform,
+      target.size,
+      thresholdIn(ROTATION_HANDLE_OFFSET_PX),
+    )
+  }
+
   /**
    * Topmost element under the cursor. Openings sit on walls, and annotations
    * render above the structure, so they hit before wall bodies; stairs render
@@ -558,6 +604,17 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
       state.value = {
         mode: 'pending',
         intent: { kind: 'wireHandle', ...wireHandle },
+        startWorld: { ...world },
+        additive: modifiers.shift,
+      }
+      return
+    }
+
+    const rotationHandle = underlayRotationHandle()
+    if (rotationHandle && distance(world, rotationHandle.point) <= thresholdIn(HANDLE_RADIUS_PX)) {
+      state.value = {
+        mode: 'pending',
+        intent: { kind: 'underlayRotate' },
         startWorld: { ...world },
         additive: modifiers.shift,
       }
@@ -723,6 +780,26 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
       state.value = { mode: 'wireHandleDrag', original: wire, handleIndex: intent.handleIndex }
       return
     }
+    if (intent.kind === 'underlayRotate') {
+      const target = rotatableSelectedUnderlay()
+      if (!target) {
+        state.value = { mode: 'idle' }
+        return
+      }
+      const centre = underlayToWorld(target.underlay.transform, {
+        x: target.size.width / 2,
+        y: target.size.height / 2,
+      })
+      store.beginTransaction()
+      state.value = {
+        mode: 'underlayRotate',
+        original: target.underlay,
+        size: target.size,
+        centre,
+        startPointerDeg: pointerAngleDeg(centre, pending.startWorld),
+      }
+      return
+    }
     const originals: BodyOriginals = {
       walls: new Map(),
       stairs: new Map(),
@@ -813,6 +890,8 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
       applyWireHandleDrag(current, world)
     } else if (current.mode === 'wireDrag') {
       applyWireDrag(current, world)
+    } else if (current.mode === 'underlayRotate') {
+      applyUnderlayRotate(current, world)
     } else if (current.mode === 'dimensionOffset') {
       const original = current.original
       let offset = dimensionOffsetFor(original, world)
@@ -982,6 +1061,30 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
       type: 'updateWire',
       wireId: original.id,
       wire: { ...original, control_points: controlPoints },
+    })
+  }
+
+  /**
+   * Rotates the underlay about its image centre so the handle follows the
+   * cursor (spec U3), snapping to ROTATION_SNAP_DEG steps while angle
+   * snapping is on (Alt bypasses, like vertex drags).
+   */
+  function applyUnderlayRotate(
+    current: Extract<PointerState, { mode: 'underlayRotate' }>,
+    world: Point,
+  ): void {
+    const delta = pointerAngleDeg(current.centre, world) - current.startPointerDeg
+    let degrees = current.original.transform.rotation_deg + delta
+    if (snapSettings.angle.value && !altHeld.value) {
+      degrees = Math.round(degrees / ROTATION_SNAP_DEG) * ROTATION_SNAP_DEG
+    }
+    degrees = normalizeDegrees(degrees)
+    store.mutate({
+      type: 'setUnderlay',
+      underlay: {
+        ...current.original,
+        transform: rotatedAboutCenter(current.original.transform, current.size, degrees),
+      },
     })
   }
 
@@ -1280,7 +1383,9 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
   function setAlt(held: boolean): void {
     if (altHeld.value === held) return
     altHeld.value = held
-    if (state.value.mode === 'vertexDrag' && lastWorld) applyDrag(lastWorld)
+    if ((state.value.mode === 'vertexDrag' || state.value.mode === 'underlayRotate') && lastWorld) {
+      applyDrag(lastWorld)
+    }
   }
 
   function nudge(dx: number, dy: number, big: boolean): boolean {
@@ -1419,6 +1524,7 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
       handles,
       wireHandles,
       wireEndpoints,
+      underlayRotationHandle: underlayRotationHandle(),
       chips,
       lockFlash: lockFlashState.value,
       dragging: isDragging.value,
