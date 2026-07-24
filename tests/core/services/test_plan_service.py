@@ -15,7 +15,7 @@ import aiosqlite
 import pytest
 from backend.core.errors import PlanNotArchivedError, PlanNotFoundError, RevisionConflictError
 from backend.core.plan_migrator import PlanMigrator
-from backend.core.plan_service import PlanService
+from backend.core.services.plan_service import PlanService
 from backend.infra.sqlite_plan_repository import SqlitePlanRepository
 from backend.interfaces.plan_repository import PlanRepository
 from backend.models.plan_document import PlanDocument

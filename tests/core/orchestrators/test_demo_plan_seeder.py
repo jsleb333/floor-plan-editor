@@ -5,11 +5,11 @@ from pathlib import Path
 
 import aiosqlite
 import pytest
-from backend.core.asset_service import AssetService
 from backend.core.orchestrators import demo_plan_seeder
 from backend.core.orchestrators.demo_plan_seeder import DemoPlanSeeder
 from backend.core.plan_migrator import PlanMigrator
-from backend.core.plan_service import PlanService
+from backend.core.services.asset_service import AssetService
+from backend.core.services.plan_service import PlanService
 from backend.infra.file_asset_repository import FileAssetRepository
 from backend.infra.sqlite_plan_repository import SqlitePlanRepository
 from backend.settings import AppSettings

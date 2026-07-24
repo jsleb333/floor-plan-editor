@@ -4,12 +4,12 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-from backend.core.asset_service import AssetService
 from backend.core.errors import (
     AssetNotFoundError,
     AssetTooLargeError,
     UnsupportedAssetTypeError,
 )
+from backend.core.services.asset_service import AssetService
 from backend.interfaces.asset_repository import AssetRepository
 from backend.models.asset import Asset
 from backend.settings import AppSettings

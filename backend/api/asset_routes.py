@@ -4,7 +4,7 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, UploadFile, status
 from fastapi.responses import FileResponse
 
-from backend.core.asset_service import AssetService
+from backend.core.services.asset_service import AssetService
 from backend.models.asset import Asset
 
 
