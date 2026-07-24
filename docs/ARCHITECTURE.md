@@ -68,12 +68,15 @@ Two consequences worth internalizing:
 ### Layering and dependency injection
 
 Hexagonal: `api/` (HTTP) → `core/services/` (business logic) →
-`interfaces/` (ABC ports) ← `infra/` (adapters). `backend/container.py`
-defines a single dishka `AppProvider` with `Scope.APP` — everything is a
-singleton, including one shared `aiosqlite` connection used by both
-repositories. Routes receive services via `FromDishka[...]` parameters.
-Orchestrators (currently only `DemoPlanSeeder`) are the one layer allowed to
-depend on multiple services, and are only called from routes or startup.
+`interfaces/` (ABC ports) ← `infra/` (adapters). Everything
+instance-specific sits outside the hexagon in `backend/app/` — the
+composition root: settings, container, app factory and startup tasks.
+`backend/app/container.py` defines a single dishka `AppProvider` with
+`Scope.APP` — everything is a singleton, including one shared `aiosqlite`
+connection used by both repositories. Routes receive services via
+`FromDishka[...]` parameters. Core never imports `AppSettings`: the
+container extracts the narrow values core components declare (e.g.
+`MaxAssetSizeBytes`) and injects those instead.
 
 ### Plan lifecycle, revisions, migrations
 
@@ -136,17 +139,18 @@ timestamps, `archived_at`) so listing never parses documents.
 
 ### Demo plan and error mapping
 
-`DemoPlanSeeder` (`backend/core/orchestrators/demo_plan_seeder.py`) runs at
-startup (gated by `FLOORPLAN_SEED_DEMO_PLAN`): if no plans exist, it uploads
-`backend/demo/basement_photo.jpg`, splices the resulting asset id into
+`DemoPlanSeeder` (`backend/app/demo_plan_seeder.py`) is a startup task in
+the composition root, run from the app lifespan (gated by
+`FLOORPLAN_SEED_DEMO_PLAN`): if no plans exist, it uploads
+`backend/app/demo/basement_photo.jpg`, splices the resulting asset id into
 `basement_demo.json` (replacing the `__DEMO_ASSET__` placeholder), and
 creates the demo plan. Any failure is logged and swallowed — seeding must
 never block startup.
 
-Domain exceptions map to HTTP in `backend/main.py`: not-found → 404,
-revision conflict / not-archived → 409, oversized asset → 413, unsupported
-type → 415. `main.py` also serves the built SPA (`frontend/dist`) with an
-`index.html` fallback for non-`/api` paths.
+Domain exceptions map to HTTP in `backend/api/error_handlers.py`: not-found
+→ 404, revision conflict / not-archived → 409, oversized asset → 413,
+unsupported type → 415. `backend/app/main.py` serves the built SPA
+(`frontend/dist`) with an `index.html` fallback for non-`/api` paths.
 
 ## Frontend
 

@@ -22,8 +22,8 @@ backend/
   interfaces/    # ABC interfaces (ports)
   models/        # Pydantic models (domain + persistence)
   infra/         # Client, repositories (adapters)
-  container.py   # Wires infra -> services via Dishka
-  main.py        # App factory (serves the built SPA in prod)
+  app/           # Composition root: settings, Dishka container, app
+                 # factory, startup tasks (demo seeding) + bundled assets
 
 frontend/src/
   api/           # Centralized fetch client, one module per domain
@@ -63,7 +63,7 @@ poe test                     # pytest
 - Don't add reference comments pointing to docs (e.g. `Reference: docs/...`) in source code
 - Keep separator comments (e.g. `# ----------`) minimal — class and function structure should speak for itself
 - Use dependency injection for all dependencies, and never instantiate dependencies directly in classes. This ensures loose coupling and makes testing easier. The container should be responsible for wiring everything together. Use `dishka` for dependency injection and wiring in the container.
-- Use `pydantic-settings` for configuration management, and load configuration from environment variables. The container should be responsible for loading the configuration and providing it to services that need it.
+- Use `pydantic-settings` for configuration management, and load configuration from environment variables. Settings must NEVER be imported by `core/` — the settings object belongs to the composition root (`app/`). The container extracts the narrow values core components declare (e.g. a `NewType` like `MaxAssetSizeBytes`) and injects those instead.
 - Log important events using `loguru`, and log at appropriate levels (e.g. `info` for high-level events, `debug` for detailed info useful in debugging, `error` for exceptions and errors)
 - Use `pathlib` for all file path manipulations, avoid `os.path` unless necessary for specific functions that `pathlib` doesn't cover.
 - Constants are defined in ALL_CAPS with underscores, and can either be defined at the *top* (right after imports) of a module file if the constant is only relevant to that module, or defined in a `constants.py` file if they are shared across multiple modules. Constants are always better than magic values as they are self-explanatory. Be considerate about whether a constant is a true constant (e.g. `PI = 3.14159`) or a configuration value that should be injected.
@@ -117,6 +117,7 @@ class MyService:
 - Repositories, clients and connectors implement interfaces and contain all external interaction logic.
 - Services contain business logic surrounding domain entities, and use injected repositories and clients to perform operations. Services can never depend on each other services, only on repositories and clients. This ensures a clear separation of concerns and prevents tight coupling between services. Favor more services or orchestrators rather than having services depend on each other.
 - Complex flows that involve multiple services are defined in `Orchestrator` classes in the `core/orchestrators/` directory. These are the only classes that accept services as injected dependencies, and they are responsible for coordinating the calls to multiple services to perform complex operations. Orchestrators can never be called by services or other orchestrators, they can only be called by the API routes.
+- Everything specific to *this instance of the app* lives in `app/`, the composition root: settings, the Dishka container, the app factory (`main.py`) and startup tasks (installs, seeding). Startup tasks are not orchestrators — they sit outside the hexagon, may depend on multiple services, and are invoked only from the app lifespan.
 - A container wires everything together, with repositories and clients depending on interfaces, services depending on repositories and clients, and orchestrators depending on services.
 - API routes are thin and only responsible for handling HTTP requests, validating input with Pydantic schemas, calling the appropriate service or orchestrator, handling exceptions, and returning HTTP responses. They should never contain business logic or interact directly with the database or external services.
 

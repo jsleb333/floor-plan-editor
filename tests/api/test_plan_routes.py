@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
-from backend.main import create_app
+from backend.app.main import create_app
 from httpx import ASGITransport, AsyncClient
 
 

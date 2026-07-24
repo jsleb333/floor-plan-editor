@@ -1,6 +1,7 @@
 """Business logic for asset uploads and retrieval."""
 
 from pathlib import Path
+from typing import NewType
 
 from loguru import logger
 
@@ -12,7 +13,10 @@ from backend.core.errors import (
 )
 from backend.interfaces.asset_repository import AssetRepository
 from backend.models.asset import Asset
-from backend.settings import AppSettings
+
+
+MaxAssetSizeBytes = NewType("MaxAssetSizeBytes", int)
+"""Configured upload size limit, injected by the composition root."""
 
 
 class AssetService:
@@ -25,16 +29,16 @@ class AssetService:
         once, never modified.
     """
 
-    def __init__(self, repo: AssetRepository, settings: AppSettings) -> None:
+    def __init__(self, repo: AssetRepository, max_size_bytes: MaxAssetSizeBytes) -> None:
         """Store the persistence and configuration dependencies.
 
         Args:
             repo: Asset persistence port used for all storage operations.
-            settings: Application settings providing the maximum accepted
-                asset size.
+            max_size_bytes: Maximum accepted asset size, provided by the
+                composition root from the application configuration.
         """
         self._repo = repo
-        self._max_size_bytes = settings.max_asset_size_bytes
+        self._max_size_bytes = max_size_bytes
 
     async def upload(self, content: bytes, content_type: str) -> Asset:
         """Validate and store a new asset.
