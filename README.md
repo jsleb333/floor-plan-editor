@@ -7,8 +7,18 @@ devices, and wire them into colour-coded circuits fed from the electrical
 panel — with real dimensions (feet and inches) and real electrical loads
 tracked against breaker ratings.
 
-Single-user, locally hosted. See [REQUIREMENTS.md](REQUIREMENTS.md) for the
-full requirements, data model and design rationale.
+Single-user, locally hosted.
+
+## Documentation
+
+- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) — full requirements, user
+  stories, data model, and design rationale.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the system works:
+  geometry pipeline, editor state and tools, backend layering, persistence.
+- [docs/RECIPES.md](docs/RECIPES.md) — step-by-step guides for recurring
+  changes: add a device type, a schema migration, an editor tool.
+- [.claude/CLAUDE.md](.claude/CLAUDE.md) — coding conventions and layering
+  rules.
 
 ## Features
 
@@ -137,8 +147,9 @@ tests/           # Backend tests (pytest), mirroring backend/ layout
 frontend/tests/  # Frontend tests (vitest), mirroring frontend/src/ layout
 ```
 
-Architecture conventions (hexagonal layering, DI rules, code style) are
-documented in [.claude/CLAUDE.md](.claude/CLAUDE.md).
+How these pieces fit together is documented in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); coding conventions (hexagonal
+layering, DI rules, code style) in [.claude/CLAUDE.md](.claude/CLAUDE.md).
 
 ### API surface
 

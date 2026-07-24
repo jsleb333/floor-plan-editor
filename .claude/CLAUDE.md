@@ -2,8 +2,9 @@
 
 Interactive web editor for residential floor plans and their electrical
 layout — walls, electrical devices, and colour-coded circuits. Plans are
-editable, layer-based, and exportable (SVG / PNG / JSON). See `REQUIREMENTS.md`
-for the full requirements and user stories.
+editable, layer-based, and exportable (SVG / PNG / JSON). See
+`docs/REQUIREMENTS.md` for the full requirements and user stories, and the
+other files under `docs/` for architecture and how-to guides.
 
 ## Stack
 
