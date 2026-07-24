@@ -344,7 +344,11 @@ const activePlaceholder = computed(
       class="flex-1 overflow-y-auto p-4"
     >
       <CircuitsPanel v-if="activeTabId === 'circuits'" />
-      <LayersPanel v-else-if="activeTabId === 'layers'" @recalibrate="emit('recalibrate')" />
+      <LayersPanel
+        v-else-if="activeTabId === 'layers'"
+        :underlay-image-size="underlayImageSize"
+        @recalibrate="emit('recalibrate')"
+      />
       <WallToolOptions
         v-else-if="showWallOptions"
         :presets-in="wallThicknessPresetsIn"

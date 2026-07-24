@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Crosshair, Eye, EyeOff, Lock, LockOpen, Trash2 } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 
+import { useUnderlayRotation } from '@/composables/useUnderlayRotation'
 import type { Underlay } from '@/types/plan'
 import type { ImageSize } from '@/utils/imageSize'
-import { rotatedAboutCenter } from '@/utils/underlay'
 import { formatFeetInches } from '@/utils/units'
 
 const props = defineProps<{
@@ -20,8 +20,15 @@ const emit = defineEmits<{
   'remove-underlay': []
 }>()
 
-const rotationDraft = ref('')
-const rotationError = ref(false)
+const {
+  draft: rotationDraft,
+  error: rotationError,
+  apply: applyRotation,
+} = useUnderlayRotation({
+  underlay: computed(() => props.underlay),
+  imageSize: computed(() => props.imageSize),
+  commit: (underlay) => emit('update-underlay', underlay),
+})
 
 const opacityPercent = computed(() => Math.round(props.underlay.opacity * 100))
 
@@ -33,41 +40,6 @@ function applyOpacity(event: Event): void {
   if (!(event.target instanceof HTMLInputElement)) return
   update({ opacity: Number.parseInt(event.target.value, 10) / 100 })
 }
-
-/** Wraps any angle into (-180, 180]. */
-function normalizeDegrees(deg: number): number {
-  const wrapped = ((deg % 360) + 360) % 360
-  return wrapped > 180 ? wrapped - 360 : wrapped
-}
-
-function applyRotation(): void {
-  if (rotationDraft.value.trim() === '') {
-    rotationError.value = false
-    return
-  }
-  const parsed = Number.parseFloat(rotationDraft.value)
-  if (!Number.isFinite(parsed)) {
-    rotationError.value = true
-    return
-  }
-  rotationError.value = false
-  rotationDraft.value = ''
-  const degrees = normalizeDegrees(parsed)
-  // Rotate about the image CENTRE so the picture pivots in place (spec U3);
-  // without the natural size the origin is the only anchor available.
-  const transform = props.imageSize
-    ? rotatedAboutCenter(props.underlay.transform, props.imageSize, degrees)
-    : { ...props.underlay.transform, rotation_deg: degrees }
-  update({ transform })
-}
-
-watch(
-  () => props.underlay.image_ref,
-  () => {
-    rotationDraft.value = ''
-    rotationError.value = false
-  },
-)
 </script>
 
 <template>

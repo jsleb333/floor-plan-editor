@@ -3,11 +3,18 @@ import { Crosshair, Eye, EyeOff, ImageUp, Lock, LockOpen, Trash2 } from 'lucide-
 import { computed, ref } from 'vue'
 
 import { assetUrl, uploadAsset } from '@/api/assets'
+import { useUnderlayRotation } from '@/composables/useUnderlayRotation'
 import { useEditorStore } from '@/stores/editor'
 import { useLayersStore } from '@/stores/layers'
 import type { Underlay } from '@/types/plan'
 import { loadImageSize } from '@/utils/imageSize'
+import type { ImageSize } from '@/utils/imageSize'
 import { DEFAULT_UNDERLAY_OPACITY, initialUnderlayTransform } from '@/utils/underlay'
+
+const props = defineProps<{
+  /** Natural pixel size of the underlay image; rotation pivots about its centre when known. */
+  underlayImageSize: ImageSize | null
+}>()
 
 const emit = defineEmits<{
   /** The user asked to (re)calibrate — the page activates the Calibrate tool (spec U2). */
@@ -32,6 +39,16 @@ const underlay = computed<Underlay | null>(() => {
 const opacityPercent = computed(() =>
   underlay.value ? Math.round(underlay.value.opacity * 100) : 0,
 )
+
+const {
+  draft: rotationDraft,
+  error: rotationError,
+  apply: applyRotation,
+} = useUnderlayRotation({
+  underlay,
+  imageSize: computed(() => props.underlayImageSize),
+  commit: (next) => editorStore.mutate({ type: 'setUnderlay', underlay: next }),
+})
 
 function update(patch: Partial<Underlay>): void {
   if (!underlay.value) return
@@ -157,6 +174,26 @@ function removeUnderlay(): void {
             @input="applyOpacity"
           />
         </label>
+
+        <label class="block">
+          <span class="text-ink-muted">Rotation</span>
+          <input
+            v-model="rotationDraft"
+            type="text"
+            :placeholder="`${underlay.transform.rotation_deg}°`"
+            class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 outline-none"
+            aria-label="Underlay rotation in degrees"
+            @keydown.enter.prevent="applyRotation"
+            @blur="applyRotation"
+          />
+        </label>
+        <p
+          v-if="rotationError"
+          role="alert"
+          class="bg-danger-soft text-danger rounded-md px-2 py-1.5 leading-snug"
+        >
+          Enter the rotation in degrees, between -180 and 180.
+        </p>
 
         <p class="text-ink-muted tabular-nums" aria-label="Underlay scale">
           1 px = {{ underlay.transform.scale.toFixed(3) }}"

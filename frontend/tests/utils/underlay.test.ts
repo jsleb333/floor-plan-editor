@@ -5,6 +5,7 @@ import {
   DEFAULT_UNDERLAY_SPAN_IN,
   calibrationScale,
   initialUnderlayTransform,
+  normalizeDegrees,
   rotatedAboutCenter,
   scaledAboutAnchor,
   underlayContains,
@@ -22,6 +23,22 @@ function closeTo(actual: { x: number; y: number }, expected: { x: number; y: num
   expect(actual.x).toBeCloseTo(expected.x, 6)
   expect(actual.y).toBeCloseTo(expected.y, 6)
 }
+
+describe('normalizeDegrees', () => {
+  it('wraps any angle into (-180, 180]', () => {
+    expect(normalizeDegrees(0)).toBe(0)
+    expect(normalizeDegrees(45)).toBe(45)
+    expect(normalizeDegrees(190)).toBe(-170)
+    expect(normalizeDegrees(-190)).toBe(170)
+    expect(normalizeDegrees(360)).toBe(0)
+    expect(normalizeDegrees(540)).toBe(180)
+  })
+
+  it('maps both boundary angles to +180', () => {
+    expect(normalizeDegrees(180)).toBe(180)
+    expect(normalizeDegrees(-180)).toBe(180)
+  })
+})
 
 describe('calibrationScale', () => {
   it('returns the scale that makes the reference segment measure its known length', () => {

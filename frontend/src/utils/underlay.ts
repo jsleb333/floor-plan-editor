@@ -17,6 +17,12 @@ export const DEFAULT_UNDERLAY_SPAN_IN = 480
 /** Default underlay opacity (spec U3: ~40%). */
 export const DEFAULT_UNDERLAY_OPACITY = 0.4
 
+/** Wraps any angle in degrees into (-180, 180]. */
+export function normalizeDegrees(deg: number): number {
+  const wrapped = ((deg % 360) + 360) % 360
+  return wrapped > 180 ? wrapped - 360 : wrapped
+}
+
 /** `v` rotated by `deg` degrees (clockwise on screen in y-down space, like SVG `rotate`). */
 function rotate(v: Point, deg: number): Point {
   const rad = deg * DEG_TO_RAD
@@ -92,6 +98,20 @@ export function rotatedAboutCenter(
     rotation_deg: newRotationDeg,
     scale: transform.scale,
   }
+}
+
+/**
+ * Anchor (top-centre of the image edge) and grab point of the on-canvas
+ * rotation handle, `offsetIn` inches out along the image's local up
+ * direction so the handle rides with the current rotation (U3).
+ */
+export function underlayRotationHandleWorld(
+  transform: UnderlayTransform,
+  size: ImageSize,
+  offsetIn: number,
+): { anchor: Point; point: Point } {
+  const anchor = underlayToWorld(transform, { x: size.width / 2, y: 0 })
+  return { anchor, point: add(anchor, rotate({ x: 0, y: -offsetIn }, transform.rotation_deg)) }
 }
 
 /** Identity transform for a fresh import: image centred on `centre`, ~40' wide (U1). */
