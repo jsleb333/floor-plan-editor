@@ -10,7 +10,7 @@ class CircuitLoad(BaseModel):
 
     Role:
         Read-only result of
-        :class:`backend.core.circuit_validation_service.CircuitValidationService`
+        :class:`backend.core.services.circuit_validation_service.CircuitValidationService`
         for a single circuit: the summed load in watts over the devices
         connected to the panel, the derived amperage (``None`` for
         data/low-voltage circuits, which carry no load), the breaker rating it

@@ -9,8 +9,8 @@ from backend.api.schemas import (
     PlanRenameRequest,
     RevisionResponse,
 )
-from backend.core.circuit_validation_service import CircuitValidationService
-from backend.core.plan_service import PlanService
+from backend.core.services.circuit_validation_service import CircuitValidationService
+from backend.core.services.plan_service import PlanService
 from backend.models.plan import Plan
 from backend.models.plan_summary import PlanSummary
 from backend.models.plan_validation import PlanValidation

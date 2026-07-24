@@ -1,8 +1,8 @@
 """Tests for CircuitValidationService connectivity, load and finding computation."""
 
 import pytest
-from backend.core.circuit_validation_service import CircuitValidationService
 from backend.core.device_load_resolver import DeviceLoadResolver
+from backend.core.services.circuit_validation_service import CircuitValidationService
 from backend.models.circuit import Circuit
 from backend.models.device import Device
 from backend.models.device_attachment import DeviceAttachment

@@ -5,8 +5,8 @@ from pathlib import Path
 
 from loguru import logger
 
-from backend.core.asset_service import AssetService
-from backend.core.plan_service import PlanService
+from backend.core.services.asset_service import AssetService
+from backend.core.services.plan_service import PlanService
 from backend.models.plan_document import PlanDocument
 
 

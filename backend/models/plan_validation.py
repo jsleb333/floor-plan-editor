@@ -11,7 +11,7 @@ class PlanValidation(BaseModel):
     Role:
         Read-only payload returned by ``GET /api/plans/{id}/validation``,
         computed by
-        :class:`backend.core.circuit_validation_service.CircuitValidationService`.
+        :class:`backend.core.services.circuit_validation_service.CircuitValidationService`.
         Carries the per-circuit loads (:class:`CircuitLoad`), the powered
         devices wired to nothing (``unassigned_device_ids``, spec C5,
         informational), the devices wired into more than one circuit in
