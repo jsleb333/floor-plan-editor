@@ -44,6 +44,15 @@ export {
 } from './angles'
 export { alignFree, alignOnRay, type StartAlignment } from './startAlignment'
 export {
+  anchorAlignFree,
+  anchorAlignOnRay,
+  collectAlignmentAnchors,
+  type AlignmentAnchor,
+  type AlignmentAnchorKind,
+  type AlignmentGuide,
+  type AnchorAlignment,
+} from './anchorAlignment'
+export {
   offsetPolyline,
   wallFaceOffsets,
   wallOutline,

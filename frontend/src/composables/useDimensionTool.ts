@@ -3,6 +3,7 @@ import type { ComputedRef, ShallowRef } from 'vue'
 
 import type { Dimension, Point } from '@/types/plan'
 import { EPSILON, distance } from '@/utils/geometry'
+import type { AlignmentGuide } from '@/utils/geometry'
 
 import type { SnapMarkerKind, UseSnappingReturn } from './useSnapping'
 
@@ -20,6 +21,8 @@ export interface DimensionToolPreview {
   /** Snapped cursor point (the anchor the next click would place). */
   point: Point | null
   marker: { kind: SnapMarkerKind; point: Point } | null
+  /** Alignment guides through nearby geometry anchors when `point` snapped onto them (spec S1e). */
+  alignmentGuides: readonly AlignmentGuide[]
 }
 
 export interface UseDimensionToolOptions {
@@ -78,6 +81,7 @@ export function useDimensionTool(options: UseDimensionToolOptions): UseDimension
       start,
       point,
       marker: snap?.marker && point ? { kind: snap.marker, point } : null,
+      alignmentGuides: snap?.alignmentGuides ?? [],
     }
   })
 
