@@ -31,6 +31,7 @@ export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 /** The only way to change the plan document; grows one variant per mutating action. */
 export type EditorCommand =
   | { type: 'setViewport'; viewport: Viewport }
+  | { type: 'setActiveTool'; toolId: string }
   | { type: 'addWall'; wall: Wall; index?: number }
   | { type: 'updateWall'; wallId: string; wall: Wall }
   | { type: 'removeWall'; wallId: string }
@@ -113,6 +114,8 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
           zoom: command.viewport.zoom,
         },
       }
+    case 'setActiveTool':
+      return { ...document, active_tool: command.toolId }
     case 'addWall':
       return { ...document, walls: insertAt(document.walls, command.wall, command.index) }
     case 'updateWall':
@@ -193,9 +196,9 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
 
 /**
  * Inverse of `command` against the document it is ABOUT to be applied to.
- * `null` marks a valid but non-undoable command (viewport changes save but
- * never enter the history, spec E3); `undefined` marks a no-op whose target
- * is missing, which the caller must skip entirely.
+ * `null` marks a valid but non-undoable command (viewport and active-tool
+ * changes save but never enter the history, spec E3/P4); `undefined` marks a
+ * no-op whose target is missing, which the caller must skip entirely.
  */
 function invertCommand(
   document: PlanDocument,
@@ -203,6 +206,8 @@ function invertCommand(
 ): EditorCommand | null | undefined {
   switch (command.type) {
     case 'setViewport':
+      return null
+    case 'setActiveTool':
       return null
     case 'addWall':
       return { type: 'removeWall', wallId: command.wall.id }

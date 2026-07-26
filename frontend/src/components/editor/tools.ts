@@ -13,6 +13,8 @@ import {
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 
+import type { PlanDocument } from '@/types/plan'
+
 export type ToolId =
   | 'select'
   | 'wall'
@@ -55,3 +57,19 @@ export const TOOLS: readonly ToolDefinition[] = [
   { id: 'measure', name: 'Measure', shortcut: 'm', icon: Ruler, enabled: false },
   { id: 'calibrate', name: 'Calibrate', shortcut: 'c', icon: Crosshair, enabled: true },
 ]
+
+/** Whether `value` names an enabled tool a saved session may restore (spec P4). */
+export function isRestorableToolId(value: string | null): value is ToolId {
+  return TOOLS.some((tool) => tool.id === value && tool.enabled)
+}
+
+/**
+ * The tool to arm when a plan opens (spec E9, content-aware startup): a plan
+ * with no walls arms the wall tool — the empty state's one job is getting the
+ * first wall drawn — otherwise the saved session's tool is restored (spec P4),
+ * defaulting to Select on missing or unknown values.
+ */
+export function startupToolFor(document: PlanDocument): ToolId {
+  if (document.walls.length === 0) return 'wall'
+  return isRestorableToolId(document.active_tool) ? document.active_tool : 'select'
+}

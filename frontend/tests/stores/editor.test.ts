@@ -146,6 +146,22 @@ describe('useEditorStore autosave', () => {
     })
   })
 
+  it('setActiveTool writes the tool into the document and autosaves it like the viewport', async () => {
+    vi.mocked(getPlan).mockResolvedValue(makePlan())
+    vi.mocked(savePlanDocument).mockResolvedValue({ revision: 4 })
+    const store = useEditorStore()
+    await store.loadPlan('plan-1')
+
+    store.mutate({ type: 'setActiveTool', toolId: 'wall' })
+
+    expect(store.document?.active_tool).toBe('wall')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(savePlanDocument).toHaveBeenCalledWith('plan-1', {
+      revision: 3,
+      document: makeDocument({ active_tool: 'wall' }),
+    })
+  })
+
   it('mutate does nothing before a plan is loaded', async () => {
     const store = useEditorStore()
     store.mutate({ type: 'setViewport', viewport: { center: { x: 1, y: 1 }, zoom: 1 } })
@@ -217,6 +233,17 @@ describe('useEditorStore undo/redo', () => {
 
     store.undo()
     expect(store.document?.walls.map((w) => w.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('excludes setActiveTool from the history: undo skips over tool changes', async () => {
+    const store = await loadedStore()
+    store.mutate({ type: 'addWall', wall: makeWall({ id: 'w1' }) })
+    store.mutate({ type: 'setActiveTool', toolId: 'device' })
+
+    store.undo()
+    expect(store.document?.walls).toEqual([])
+    expect(store.document?.active_tool).toBe('device')
+    expect(store.canUndo).toBe(false)
   })
 
   it('excludes setViewport from the history: undo skips over viewport changes', async () => {

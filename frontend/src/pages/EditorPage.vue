@@ -9,6 +9,7 @@ import ControlLinksLayer from '@/components/editor/ControlLinksLayer.vue'
 import DeviceToolOverlay from '@/components/editor/DeviceToolOverlay.vue'
 import DevicesLayer from '@/components/editor/DevicesLayer.vue'
 import DimensionsLayer from '@/components/editor/DimensionsLayer.vue'
+import EditorEmptyState from '@/components/editor/EditorEmptyState.vue'
 import EditorSidePanel from '@/components/editor/EditorSidePanel.vue'
 import ExportDialog from '@/components/editor/ExportDialog.vue'
 import EditorStatusBar from '@/components/editor/EditorStatusBar.vue'
@@ -24,7 +25,7 @@ import ViewportCanvas from '@/components/editor/ViewportCanvas.vue'
 import WallToolOverlay from '@/components/editor/WallToolOverlay.vue'
 import WallsLayer from '@/components/editor/WallsLayer.vue'
 import WiresLayer from '@/components/editor/WiresLayer.vue'
-import { TOOLS } from '@/components/editor/tools'
+import { TOOLS, startupToolFor } from '@/components/editor/tools'
 import type { ToolId } from '@/components/editor/tools'
 import { useCalibrateTool } from '@/composables/useCalibrateTool'
 import { useCircuitValidation } from '@/composables/useCircuitValidation'
@@ -64,6 +65,7 @@ import { deviceWorldPlacement } from '@/utils/geometry'
 import { deviceAtPoint } from '@/utils/hitTest'
 import { loadImageSize } from '@/utils/imageSize'
 import type { ImageSize } from '@/utils/imageSize'
+import { formatInches } from '@/utils/units'
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready' }
 
@@ -77,6 +79,9 @@ const ARROW_NUDGES: Record<string, { dx: number; dy: number }> = {
   ArrowUp: { dx: 0, dy: -1 },
   ArrowDown: { dx: 0, dy: 1 },
 }
+
+/** How long a transient status-bar notice stays visible (spec §6.2, quiet feedback). */
+const STATUS_NOTICE_MS = 4000
 
 const route = useRoute()
 const editorStore = useEditorStore()
@@ -132,6 +137,27 @@ const requestedTab = ref<'inspector' | 'circuits' | 'layers' | null>(null)
 const showExportDialog = ref(false)
 /** Whether the keyboard-shortcut reference overlay is open (spec §6, '?'). */
 const showShortcuts = ref(false)
+/** Transient quiet notice shown in the status bar (spec §6.2), else null. */
+const statusNotice = ref<string | null>(null)
+let statusNoticeTimer: ReturnType<typeof setTimeout> | null = null
+/**
+ * Whether the empty-state hint was dismissed for this plan (spec E9): once
+ * the user starts a wall, imports an underlay or picks an entry path, the
+ * hint never comes back for the session, even if the plan empties again.
+ */
+const emptyStateDismissed = ref(false)
+
+/** Whether the plan already contains a closed wall loop (spec S1d). */
+const hasClosedLoop = computed(() => documentWalls.value.some((wall) => wall.closed))
+
+/** The E9 empty-state hint: only over a truly empty plan (no walls, no underlay). */
+const showEmptyState = computed(
+  () =>
+    loadState.value.status === 'ready' &&
+    !emptyStateDismissed.value &&
+    documentWalls.value.length === 0 &&
+    documentUnderlay.value === null,
+)
 
 /** Circuit ids currently shown on the canvas — the export dialog's default selection. */
 const visibleCircuitIds = computed<string[]>(() =>
@@ -173,6 +199,10 @@ const snapping = useSnapping({
 
 const wallTool = useWallTool({
   snapping,
+  presetsIn: thicknessPresetsIn,
+  hasClosedLoop,
+  onAutoPreset: (thicknessIn) =>
+    showStatusNotice(`Interior preset selected — ${formatInches(thicknessIn)}`),
   commit: (wall) => editorStore.mutate({ type: 'addWall', wall }),
 })
 const {
@@ -337,13 +367,39 @@ async function load(): Promise<void> {
     const loaded = await editorStore.loadPlan(planId.value)
     initialViewport.value = loaded.document.viewport
     currentViewport.value = loaded.document.viewport
+    emptyStateDismissed.value = false
     loadState.value = { status: 'ready' }
+    applyStartupTool(startupToolFor(loaded.document))
   } catch (error) {
     loadState.value = {
       status: 'error',
       message: error instanceof Error ? error.message : 'Failed to load the plan',
     }
   }
+}
+
+/**
+ * Content-aware startup (spec E9): arms the wall tool on a wall-less plan,
+ * else restores the saved session's tool. Changing `activeTool` arms through
+ * its watcher; when the resolved tool is already active (e.g. switching
+ * between two empty plans) the wall tool is re-armed explicitly so the S1d
+ * smart preset still applies.
+ */
+function applyStartupTool(tool: ToolId): void {
+  if (activeTool.value === tool) {
+    if (tool === 'wall') wallTool.arm()
+    return
+  }
+  activeTool.value = tool
+}
+
+function showStatusNotice(message: string): void {
+  statusNotice.value = message
+  if (statusNoticeTimer) clearTimeout(statusNoticeTimer)
+  statusNoticeTimer = setTimeout(() => {
+    statusNotice.value = null
+    statusNoticeTimer = null
+  }, STATUS_NOTICE_MS)
 }
 
 function handleViewportChange(viewport: Viewport): void {
@@ -731,6 +787,7 @@ watch(
 )
 
 watch(activeTool, (tool, previous) => {
+  if (tool === 'wall' && previous !== 'wall') wallTool.arm()
   if (previous === 'wall' && tool !== 'wall') wallTool.deactivate()
   if (previous === 'select' && tool !== 'select') selectTool.deactivate()
   if ((previous === 'door' || previous === 'window') && tool !== 'door' && tool !== 'window') {
@@ -751,12 +808,28 @@ watch(activeTool, (tool, previous) => {
     })
   }
   if (previous === 'calibrate' && tool !== 'calibrate') calibrateTool.deactivate()
+  // Persist the tool choice into the document (spec P4). Like the viewport,
+  // it rides the debounced autosave and never enters the undo history.
+  if (planDocument.value && planDocument.value.active_tool !== tool) {
+    editorStore.mutate({ type: 'setActiveTool', toolId: tool })
+  }
+})
+
+// The first pending wall vertex or an underlay import retires the empty-state
+// hint for good (spec E9) — undoing back to an empty plan won't resurrect it.
+watch(wallDrawing, (drawing) => {
+  if (drawing) emptyStateDismissed.value = true
+})
+
+watch(documentUnderlay, (underlay) => {
+  if (underlay) emptyStateDismissed.value = true
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onWindowKeyDown, true)
   window.removeEventListener('keyup', onWindowKeyUp)
   window.removeEventListener('blur', onWindowBlur)
+  if (statusNoticeTimer) clearTimeout(statusNoticeTimer)
   void editorStore.flushPendingSave()
 })
 </script>
@@ -861,6 +934,8 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
+        <EditorEmptyState v-if="showEmptyState" @start-drawing="emptyStateDismissed = true" />
+
         <p
           v-if="pageError"
           role="alert"
@@ -931,6 +1006,7 @@ onBeforeUnmount(() => {
       :snap-walls="snapWalls"
       :wall-reference="activeTool === 'wall' ? wallReference : null"
       :input-buffer="statusInputBuffer"
+      :notice="statusNotice"
       :active-circuit-name="activeTool === 'wire' ? (activeCircuit?.name ?? null) : null"
       :active-circuit-color="activeTool === 'wire' ? (activeCircuit?.color ?? null) : null"
       @toggle-snap="toggleSnap"

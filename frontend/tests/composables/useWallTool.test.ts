@@ -11,6 +11,7 @@ import { makeWall } from '../helpers/planFactory'
 interface Harness {
   tool: UseWallToolReturn
   committed: Wall[]
+  hasClosedLoop: Ref<boolean>
 }
 
 interface HarnessOverrides {
@@ -18,6 +19,9 @@ interface HarnessOverrides {
   grid?: boolean
   angle?: boolean
   wallSnaps?: boolean
+  presetsIn?: readonly number[]
+  hasClosedLoop?: boolean
+  onAutoPreset?: (thicknessIn: number) => void
 }
 
 /** Wall tool over an in-memory snap engine (pixelsPerInch 1 → threshold 10"). */
@@ -33,8 +37,23 @@ function makeTool(overrides: HarnessOverrides = {}): Harness {
     },
   })
   const committed: Wall[] = []
-  const tool = useWallTool({ snapping, commit: (wall) => committed.push(wall) })
-  return { tool, committed }
+  const hasClosedLoop = ref(overrides.hasClosedLoop ?? false)
+  const tool = useWallTool({
+    snapping,
+    presetsIn: ref<readonly number[]>(overrides.presetsIn ?? []),
+    hasClosedLoop,
+    onAutoPreset: overrides.onAutoPreset,
+    commit: (wall) => committed.push(wall),
+  })
+  return { tool, committed, hasClosedLoop }
+}
+
+/** Draws and closes a rectangle-ish loop via the close-loop affordance. */
+function drawClosedLoop(tool: UseWallToolReturn): void {
+  tool.onClick({ x: 0, y: 0 })
+  tool.onClick({ x: 240, y: 0 })
+  tool.onClick({ x: 240, y: 120 })
+  tool.onClick({ x: 1, y: 1 })
 }
 
 function type(tool: UseWallToolReturn, text: string): void {
@@ -445,6 +464,93 @@ describe('useWallTool preview', () => {
     expect(committed).toHaveLength(0)
     expect(tool.isDrawing.value).toBe(false)
     expect(tool.preview.value).toBeNull()
+  })
+})
+
+describe('useWallTool smart thickness (spec S1d)', () => {
+  const PRESETS = [12, 4.5, 3.5] as const
+
+  it('arming on a plan without a closed loop selects the exterior preset', () => {
+    const { tool } = makeTool({ presetsIn: PRESETS })
+    tool.arm()
+    expect(tool.thicknessIn.value).toBe(12)
+  })
+
+  it('arming on a plan with a closed loop selects the interior default (last preset)', () => {
+    const { tool } = makeTool({ presetsIn: PRESETS, hasClosedLoop: true })
+    tool.arm()
+    expect(tool.thicknessIn.value).toBe(3.5)
+  })
+
+  it('arming without presets keeps the current thickness', () => {
+    const { tool } = makeTool()
+    tool.arm()
+    expect(tool.thicknessIn.value).toBe(3.5)
+  })
+
+  it('closing a loop switches to the interior default for the next wall and announces it', () => {
+    const notices: number[] = []
+    const { tool, committed } = makeTool({
+      presetsIn: PRESETS,
+      onAutoPreset: (thicknessIn) => notices.push(thicknessIn),
+    })
+    tool.arm()
+    drawClosedLoop(tool)
+
+    expect(committed).toHaveLength(1)
+    expect(committed[0].closed).toBe(true)
+    // The wall just drawn keeps the exterior thickness; only the NEXT one changes.
+    expect(committed[0].thickness_in).toBe(12)
+    expect(tool.thicknessIn.value).toBe(3.5)
+    expect(notices).toEqual([3.5])
+  })
+
+  it('finishing an open wall never auto-switches the preset', () => {
+    const notices: number[] = []
+    const { tool } = makeTool({
+      presetsIn: PRESETS,
+      onAutoPreset: (thicknessIn) => notices.push(thicknessIn),
+    })
+    tool.arm()
+    tool.onClick({ x: 0, y: 0 })
+    tool.onClick({ x: 120, y: 0 })
+    tool.handleKey('Enter')
+
+    expect(tool.thicknessIn.value).toBe(12)
+    expect(notices).toEqual([])
+  })
+
+  it('an explicit pick suppresses the loop-close switch until the tool is re-armed', () => {
+    const notices: number[] = []
+    const { tool, committed, hasClosedLoop } = makeTool({
+      presetsIn: PRESETS,
+      onAutoPreset: (thicknessIn) => notices.push(thicknessIn),
+    })
+    tool.arm()
+    tool.setThickness(12)
+    drawClosedLoop(tool)
+
+    expect(committed[0].closed).toBe(true)
+    expect(tool.thicknessIn.value).toBe(12)
+    expect(notices).toEqual([])
+
+    hasClosedLoop.value = true
+    tool.arm()
+    expect(tool.thicknessIn.value).toBe(3.5)
+  })
+
+  it('closing a loop leaves a non-exterior active thickness alone', () => {
+    const notices: number[] = []
+    const { tool } = makeTool({
+      presetsIn: PRESETS,
+      hasClosedLoop: true,
+      onAutoPreset: (thicknessIn) => notices.push(thicknessIn),
+    })
+    tool.arm()
+    drawClosedLoop(tool)
+
+    expect(tool.thicknessIn.value).toBe(3.5)
+    expect(notices).toEqual([])
   })
 })
 

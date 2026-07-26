@@ -191,10 +191,11 @@ export interface Underlay {
 
 /**
  * The versioned plan document — everything the editor persists via autosave.
- * Schema version 5: adds the electrical layout — colour-coded `circuits`, the
- * `wires` connecting devices into them (spec §5.6) and the documentary switch
- * `control_links` (spec D6) — on top of the v4 devices, catalog defaults,
- * structure collections, wall thickness presets and tracing underlay.
+ * Schema version 6: adds the persisted `active_tool` (spec P4/E9) on top of
+ * the v5 electrical layout — colour-coded `circuits`, the `wires` connecting
+ * devices into them (spec §5.6) and the documentary switch `control_links`
+ * (spec D6) — the v4 devices and catalog defaults, structure collections,
+ * wall thickness presets and tracing underlay.
  */
 export interface PlanDocument {
   schema_version: number
@@ -215,6 +216,8 @@ export interface PlanDocument {
   wires: Wire[]
   /** Documentary switch-to-target control links (spec D6). */
   control_links: ControlLink[]
+  /** Tool armed when the session was last saved, restored on open (spec P4/E9). */
+  active_tool: string | null
 }
 
 /** The computed electrical state of one circuit (spec C4/W4). Mirrors backend `CircuitLoad`. */

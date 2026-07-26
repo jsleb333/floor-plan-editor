@@ -34,7 +34,7 @@ class TestPlanRoutes:
         created = await self._create_plan(client, "Basement")
         assert created["name"] == "Basement"
         assert created["revision"] == 1
-        assert created["document"]["schema_version"] == 5
+        assert created["document"]["schema_version"] == 6
         assert created["document"]["underlay"] is None
         assert created["document"]["walls"] == []
         assert created["document"]["devices"] == []
@@ -43,6 +43,7 @@ class TestPlanRoutes:
         assert created["document"]["circuits"] == []
         assert created["document"]["wires"] == []
         assert created["document"]["control_links"] == []
+        assert created["document"]["active_tool"] is None
 
         listed = (await client.get("/api/plans")).json()
         assert [summary["id"] for summary in listed] == [created["id"]]
@@ -67,10 +68,10 @@ class TestPlanRoutes:
     async def test_update_plan_document__when_document_has_structure_elements__roundtrips(
         self, client: AsyncClient
     ) -> None:
-        """A full v5 document with an underlay and one of each structure element survives a PUT/GET roundtrip byte for byte."""
+        """A full v6 document with an underlay and one of each structure element survives a PUT/GET roundtrip byte for byte."""
         created = await self._create_plan(client, "Basement")
         document = {
-            "schema_version": 5,
+            "schema_version": 6,
             "viewport": {"center": {"x": 120.0, "y": 90.0}, "zoom": 1.5},
             "underlay": {
                 "image_ref": "abc123",
@@ -165,6 +166,7 @@ class TestPlanRoutes:
             "circuits": [],
             "wires": [],
             "control_links": [],
+            "active_tool": "wall",
         }
 
         updated = await client.put(
@@ -177,7 +179,7 @@ class TestPlanRoutes:
         assert refetched["revision"] == 2
         assert refetched["document"] == document
 
-    async def test_update_plan_document__when_body_is_v2_shaped__stores_it_normalized_to_v5(
+    async def test_update_plan_document__when_body_is_v2_shaped__stores_it_normalized_to_v6(
         self, client: AsyncClient
     ) -> None:
         """A PUT from an older client (schema_version 2, no underlay key) still validates; the stored document claims the current schema version with an empty underlay, so no read-time migration is needed."""
@@ -201,12 +203,13 @@ class TestPlanRoutes:
 
         refetched = (await client.get(f"/api/plans/{created['id']}")).json()
         assert refetched["revision"] == 2
-        assert refetched["document"]["schema_version"] == 5
+        assert refetched["document"]["schema_version"] == 6
         assert refetched["document"]["underlay"] is None
         assert refetched["document"]["devices"] == []
         assert refetched["document"]["circuits"] == []
         assert refetched["document"]["wires"] == []
         assert refetched["document"]["control_links"] == []
+        assert refetched["document"]["active_tool"] is None
         assert refetched["document"]["viewport"] == v2_document["viewport"]
 
     async def test_update_plan_document__when_document_has_devices__roundtrips_them(
@@ -277,7 +280,7 @@ class TestPlanRoutes:
         refetched = (await client.get(f"/api/plans/{created['id']}")).json()
         assert refetched["revision"] == 2
         assert refetched["document"] == document
-        assert refetched["document"]["schema_version"] == 5
+        assert refetched["document"]["schema_version"] == 6
 
     async def test_update_plan_document__when_device_placement_is_invalid__returns_422(
         self, client: AsyncClient
