@@ -84,7 +84,9 @@ export function startupToolFor(document: PlanDocument): ToolId {
  * The device type to arm when the Device tool is entered (spec E8/§6.1,
  * content-aware default): a plan with no devices yet arms the **panel** —
  * an electrical layout has to start from its source before anything else
- * makes sense to place. Once the plan has devices, the most-recently-used
+ * makes sense to place. A storey fed from another floor has no panel of its
+ * own, so the picker's Sources group offers the inter-floor feeds right next
+ * to it. Once the plan has devices, the most-recently-used
  * type from the MRU store floats up so repeat placement never requires
  * reopening the picker; with devices but no MRU history yet (e.g. a plan
  * imported from JSON on a fresh browser), the picker is offered instead

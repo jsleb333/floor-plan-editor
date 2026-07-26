@@ -8,7 +8,7 @@ from backend.core.device_load_resolver import DeviceLoadResolver
 from backend.models.circuit import Circuit
 from backend.models.circuit_load import CircuitLoad
 from backend.models.device import Device
-from backend.models.device_type import DEVICE_CATALOG, DeviceType
+from backend.models.device_type import DEVICE_CATALOG
 from backend.models.plan_document import PlanDocument
 from backend.models.plan_validation import PlanValidation
 from backend.models.wire import Wire
@@ -20,14 +20,22 @@ class CircuitValidationService:
     Role:
         Single source of truth for the electrical validation surfaced by
         ``GET /api/plans/{id}/validation`` (spec C4/C5/W4). For each circuit it
-        walks the wire graph from the electrical panel to decide which devices
+        walks the wire graph from every SOURCE device to decide which devices
         are connected versus floating (spec W4), sums the resolved loads of the
         connected devices on power circuits and rates them against the breaker
         (spec C4). It also reports plan-wide findings: powered devices wired to
         nothing (spec C5), devices wired into more than one circuit (spec C3),
-        wires referencing a missing device or circuit, and whether a panel
+        wires referencing a missing device or circuit, and whether a source
         exists at all (spec C1). Pure and read-only; it never mutates the
         document.
+
+        A source is any device type whose catalog row is flagged ``is_source``:
+        the electrical panel, and the inter-floor feeds that let a storey with
+        no panel of its own be fed from another floor. Sources root the graph
+        and never appear in the connected, floating, unassigned or
+        multi-circuit findings, so a feed's own ``load_w`` override never
+        reaches a circuit sum — it is documentary on this plan, recording what
+        the feed draws where it actually originates.
     """
 
     def __init__(self, load_resolver: DeviceLoadResolver) -> None:
@@ -50,27 +58,29 @@ class CircuitValidationService:
         Returns:
             The full validation result: per-circuit loads with connected and
             floating devices, the unassigned powered devices, the multi-circuit
-            and dangling-wire findings, and whether a panel exists.
+            and dangling-wire findings, and whether a source exists.
         """
         devices_by_id = {device.id: device for device in document.devices}
         circuits_by_id = {circuit.id: circuit for circuit in document.circuits}
-        panel_ids = {device.id for device in document.devices if device.type == DeviceType.PANEL}
+        source_ids = {
+            device.id for device in document.devices if DEVICE_CATALOG[device.type].is_source
+        }
 
         valid_wires, dangling_wire_ids = self._split_wires(
             document.wires, devices_by_id, circuits_by_id
         )
 
         circuit_loads = [
-            self._validate_circuit(circuit, valid_wires, devices_by_id, panel_ids, document)
+            self._validate_circuit(circuit, valid_wires, devices_by_id, source_ids, document)
             for circuit in document.circuits
         ]
 
         return PlanValidation(
             circuits=circuit_loads,
             unassigned_device_ids=self._unassigned_device_ids(document.devices, valid_wires),
-            multi_circuit_device_ids=self._multi_circuit_device_ids(valid_wires, panel_ids),
+            multi_circuit_device_ids=self._multi_circuit_device_ids(valid_wires, source_ids),
             dangling_wire_ids=dangling_wire_ids,
-            has_panel=bool(panel_ids),
+            has_source=bool(source_ids),
         )
 
     @staticmethod
@@ -108,7 +118,7 @@ class CircuitValidationService:
         circuit: Circuit,
         valid_wires: list[Wire],
         devices_by_id: dict[str, Device],
-        panel_ids: set[str],
+        source_ids: set[str],
         document: PlanDocument,
     ) -> CircuitLoad:
         """Compute the connectivity and load of a single circuit.
@@ -117,7 +127,7 @@ class CircuitValidationService:
             circuit: The circuit to evaluate.
             valid_wires: The document's non-dangling wires.
             devices_by_id: Devices keyed by id.
-            panel_ids: Ids of the panel devices (the connectivity roots).
+            source_ids: Ids of the source devices (the connectivity roots).
             document: The document, for the plan-level catalog defaults used in
                 load resolution.
 
@@ -127,7 +137,7 @@ class CircuitValidationService:
             connected and floating device ids.
         """
         circuit_wires = [wire for wire in valid_wires if wire.circuit_id == circuit.id]
-        connected, floating = self._connectivity(circuit_wires, panel_ids)
+        connected, floating = self._connectivity(circuit_wires, source_ids)
 
         if circuit.kind != "power":
             return CircuitLoad(
@@ -156,21 +166,23 @@ class CircuitValidationService:
         )
 
     @staticmethod
-    def _connectivity(circuit_wires: list[Wire], panel_ids: set[str]) -> tuple[set[str], set[str]]:
+    def _connectivity(
+        circuit_wires: list[Wire], source_ids: set[str]
+    ) -> tuple[set[str], set[str]]:
         """Split a circuit's wired devices into connected and floating sets.
 
         Builds the undirected device graph of the circuit's wires and marks a
-        device connected when a path of those wires reaches a panel device
+        device connected when a path of those wires reaches any source device
         (spec W4); devices wired on the circuit but with no such path are
-        floating. Panel devices are the roots and appear in neither set.
+        floating. Source devices are the roots and appear in neither set.
 
         Args:
             circuit_wires: The valid wires belonging to this circuit.
-            panel_ids: Ids of the panel devices.
+            source_ids: Ids of the source devices.
 
         Returns:
-            The connected (panel-reachable, non-panel) device ids and the
-            floating (unreachable, non-panel) device ids.
+            The connected (source-reachable, non-source) device ids and the
+            floating (unreachable, non-source) device ids.
         """
         adjacency: dict[str, set[str]] = defaultdict(set)
         wired_ids: set[str] = set()
@@ -181,7 +193,7 @@ class CircuitValidationService:
             wired_ids.add(wire.to_device_id)
 
         reachable: set[str] = set()
-        queue: deque[str] = deque(panel_ids & wired_ids)
+        queue: deque[str] = deque(source_ids & wired_ids)
         reachable.update(queue)
         while queue:
             current = queue.popleft()
@@ -190,8 +202,8 @@ class CircuitValidationService:
                     reachable.add(neighbour)
                     queue.append(neighbour)
 
-        connected = reachable - panel_ids
-        floating = wired_ids - reachable - panel_ids
+        connected = reachable - source_ids
+        floating = wired_ids - reachable - source_ids
         return connected, floating
 
     @staticmethod
@@ -222,7 +234,7 @@ class CircuitValidationService:
 
         Returns:
             The sorted ids of load-bearing device types (a positive catalog
-            default load or a defined voltage), excluding the panel, that
+            default load or a defined voltage), excluding the sources, that
             appear in no wire at all.
         """
         wired_ids: set[str] = set()
@@ -231,33 +243,33 @@ class CircuitValidationService:
             wired_ids.add(wire.to_device_id)
         unassigned: list[str] = []
         for device in devices:
-            if device.type == DeviceType.PANEL or device.id in wired_ids:
-                continue
             entry = DEVICE_CATALOG[device.type]
+            if entry.is_source or device.id in wired_ids:
+                continue
             if entry.default_load_w > 0 or entry.voltage_v is not None:
                 unassigned.append(device.id)
         return sorted(unassigned)
 
     @staticmethod
     def _multi_circuit_device_ids(
-        valid_wires: list[Wire], panel_ids: set[str]
+        valid_wires: list[Wire], source_ids: set[str]
     ) -> dict[str, list[str]]:
         """Find devices wired into more than one circuit (spec C3 violation).
 
         Args:
             valid_wires: The document's non-dangling wires.
-            panel_ids: Ids of the panel devices, excluded because the panel
-                feeds every circuit by design.
+            source_ids: Ids of the source devices, excluded because a source
+                feeds every circuit it roots by design.
 
         Returns:
             A mapping of each offending device id to the sorted list of circuit
-            ids it is wired to; empty when every non-panel device is on at most
+            ids it is wired to; empty when every non-source device is on at most
             one circuit.
         """
         circuits_by_device: dict[str, set[str]] = defaultdict(set)
         for wire in valid_wires:
             for device_id in (wire.from_device_id, wire.to_device_id):
-                if device_id not in panel_ids:
+                if device_id not in source_ids:
                     circuits_by_device[device_id].add(wire.circuit_id)
         return {
             device_id: sorted(circuit_ids)

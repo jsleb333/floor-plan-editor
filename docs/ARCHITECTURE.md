@@ -115,14 +115,24 @@ un-validated dict, the bridge that lets migrations run before validation).
 
 `CircuitValidationService` (`backend/core/services/circuit_validation_service.py`)
 is pure and read-only, exposed at `GET /api/plans/{id}/validation`. Per
-circuit it builds an undirected device graph from the wires and BFSes from
-the panel(s): devices reached are *connected*, wired-but-unreachable devices
+circuit it builds an undirected device graph from the wires and BFSes from the
+**sources**: devices reached are *connected*, wired-but-unreachable devices
 are *floating* (REQUIREMENTS W4). Load is summed over connected devices only,
 with per-device precedence **override → plan `catalog_defaults` → built-in
 catalog default** (`DeviceLoadResolver`); `amps = watts / voltage`; status is
 `warning` at ≥ 80 % of the breaker rating and `over` above 100 %. It also
 reports unassigned powered devices, devices wired into multiple circuits,
-and dangling wires.
+dangling wires, and whether any source exists at all (`has_source`,
+REQUIREMENTS C1).
+
+A source is any device type whose catalog row is flagged `is_source`
+(`backend/models/device_catalog_entry.py`): the electrical panel, plus the
+`feed_up` / `feed_down` inter-floor feeds that give a storey with no panel of
+its own a connectivity root. The flag is the *only* place the role is defined —
+sources root the BFS and are excluded from the connected, floating, unassigned
+and multi-circuit findings, so a feed's own `load_w` override never reaches a
+circuit sum: it is documentary on this plan. There is no cross-plan link
+between floors.
 
 The frontend never calls this endpoint during editing — it mirrors the exact
 computation in `frontend/src/utils/circuits.ts` for instant feedback (see
@@ -354,7 +364,8 @@ aggregates the active tool's buffer into the status bar echo
 ### Client-side circuit validation
 
 `frontend/src/utils/circuits.ts` mirrors the backend service exactly — same
-BFS connectivity from the panel, same load precedence, same 80 % warning
+BFS connectivity from the sources (`isSourceType`, the client's copy of the
+`is_source` catalog flag), same load precedence, same 80 % warning
 threshold — and `useCircuitValidation` recomputes it per `documentVersion`
 tick. It feeds the Circuits panel rows, the warning badge count, and circuit
 isolation highlighting. If you change validation logic, change **both**

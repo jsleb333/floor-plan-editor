@@ -43,6 +43,18 @@ def _panel(device_id: str = "panel") -> Device:
     return Device(id=device_id, type=DeviceType.PANEL, position=Point(x=0.0, y=0.0))
 
 
+def _feed(
+    device_id: str, device_type: DeviceType = DeviceType.FEED_DOWN, load_w: float | None = None
+) -> Device:
+    """Build a wall-attached inter-floor circuit feed with an optional load override."""
+    return Device(
+        id=device_id,
+        type=device_type,
+        attachment=DeviceAttachment(wall_id="wall-1", segment_index=0, t=6.0),
+        load_w=load_w,
+    )
+
+
 def _outlet(device_id: str, load_w: float | None = None) -> Device:
     """Build a wall-attached duplex outlet with an optional load override."""
     return Device(
@@ -112,7 +124,7 @@ class TestCircuitValidationService:
 
         result = service.validate(document)
 
-        assert result.has_panel is True
+        assert result.has_source is True
         assert len(result.circuits) == 1
         load = result.circuits[0]
         assert load.connected_device_ids == ["out-1", "out-2"]
@@ -206,10 +218,10 @@ class TestCircuitValidationService:
         assert result.dangling_wire_ids == ["w-missing-circuit", "w-missing-device"]
         assert result.circuits[0].connected_device_ids == ["out-1"]
 
-    def test_validate__when_wires_exist_without_panel__has_panel_is_false(
+    def test_validate__when_wires_exist_without_source__has_source_is_false(
         self, service: CircuitValidationService
     ) -> None:
-        """A document with wires but no panel device reports has_panel False; nothing reaches a panel so no device connects."""
+        """A document with wires but no source device reports has_source False; nothing reaches a source so no device connects."""
         document = PlanDocument(
             devices=[_outlet("out-1"), _outlet("out-2")],
             circuits=[_power_circuit()],
@@ -218,10 +230,69 @@ class TestCircuitValidationService:
 
         result = service.validate(document)
 
-        assert result.has_panel is False
+        assert result.has_source is False
         assert result.circuits[0].connected_device_ids == []
         assert result.circuits[0].floating_device_ids == ["out-1", "out-2"]
         assert result.circuits[0].load_w == 0.0
+
+    def test_validate__when_the_only_source_is_a_feed__it_roots_the_circuit(
+        self, service: CircuitValidationService
+    ) -> None:
+        """A storey with no panel of its own, fed from below, still connects and sums: the feed is a connectivity root like the panel, and is never itself reported."""
+        document = PlanDocument(
+            devices=[_feed("feed-1"), _outlet("out-1"), _outlet("out-2")],
+            circuits=[_power_circuit()],
+            wires=[
+                _wire("w-1", "circ-1", "feed-1", "out-1"),
+                _wire("w-2", "circ-1", "out-1", "out-2"),
+            ],
+        )
+
+        result = service.validate(document)
+
+        assert result.has_source is True
+        load = result.circuits[0]
+        assert load.connected_device_ids == ["out-1", "out-2"]
+        assert load.floating_device_ids == []
+        assert load.load_w == 360.0
+
+    def test_validate__when_a_feed_carries_a_load_override__it_stays_out_of_the_circuit_sum(
+        self, service: CircuitValidationService
+    ) -> None:
+        """A feed's load_w documents what it draws where it originates; sources never join the connected-device sum, so only the outlet's 180 W is counted here."""
+        document = PlanDocument(
+            devices=[_feed("feed-1", load_w=3000.0), _outlet("out-1")],
+            circuits=[_power_circuit()],
+            wires=[_wire("w-1", "circ-1", "feed-1", "out-1")],
+        )
+
+        load = service.validate(document).circuits[0]
+
+        assert load.connected_device_ids == ["out-1"]
+        assert load.load_w == 180.0
+
+    def test_validate__when_a_feed_is_unwired_or_on_two_circuits__it_is_never_flagged(
+        self, service: CircuitValidationService
+    ) -> None:
+        """Feeds inherit every panel exemption: wiring one into two circuits is no spec C3 violation, and an unwired one is not unassigned."""
+        document = PlanDocument(
+            devices=[
+                _feed("feed-1", load_w=1500.0),
+                _feed("feed-lonely", device_type=DeviceType.FEED_UP, load_w=2000.0),
+                _outlet("out-1"),
+                _outlet("out-2"),
+            ],
+            circuits=[_power_circuit("circ-1"), _power_circuit("circ-2")],
+            wires=[
+                _wire("w-1", "circ-1", "feed-1", "out-1"),
+                _wire("w-2", "circ-2", "feed-1", "out-2"),
+            ],
+        )
+
+        result = service.validate(document)
+
+        assert result.multi_circuit_device_ids == {}
+        assert result.unassigned_device_ids == []
 
     def test_validate__when_circuit_is_data__it_carries_no_load(
         self, service: CircuitValidationService

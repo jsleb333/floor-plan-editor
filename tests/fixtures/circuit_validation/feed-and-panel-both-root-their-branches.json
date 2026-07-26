@@ -1,6 +1,6 @@
 {
-  "name": "dangling-wire-missing-entities",
-  "description": "Wires pointing at a missing device or a missing circuit are reported as dangling and excluded from connectivity.",
+  "name": "feed-and-panel-both-root-their-branches",
+  "description": "Every source roots the BFS: on one circuit, the branch hanging off the panel and the branch hanging off a feed_up both connect, and neither source is reported itself.",
   "document": {
     "devices": [
       {
@@ -12,12 +12,30 @@
         }
       },
       {
+        "id": "feed-1",
+        "type": "feed_up",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 6.0
+        }
+      },
+      {
         "id": "out-1",
         "type": "outlet",
         "attachment": {
           "wall_id": "wall-1",
           "segment_index": 0,
           "t": 12.0
+        }
+      },
+      {
+        "id": "out-2",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 24.0
         }
       }
     ],
@@ -39,16 +57,10 @@
         "to_device_id": "out-1"
       },
       {
-        "id": "w-missing-device",
+        "id": "w-2",
         "circuit_id": "circ-1",
-        "from_device_id": "panel",
-        "to_device_id": "ghost"
-      },
-      {
-        "id": "w-missing-circuit",
-        "circuit_id": "circ-ghost",
-        "from_device_id": "panel",
-        "to_device_id": "out-1"
+        "from_device_id": "feed-1",
+        "to_device_id": "out-2"
       }
     ]
   },
@@ -56,22 +68,20 @@
     "circuits": [
       {
         "circuit_id": "circ-1",
-        "load_w": 180.0,
-        "amps": 1.5,
+        "load_w": 360.0,
+        "amps": 3.0,
         "breaker_a": 15,
         "status": "ok",
         "connected_device_ids": [
-          "out-1"
+          "out-1",
+          "out-2"
         ],
         "floating_device_ids": []
       }
     ],
     "unassigned_device_ids": [],
     "multi_circuit_device_ids": {},
-    "dangling_wire_ids": [
-      "w-missing-circuit",
-      "w-missing-device"
-    ],
+    "dangling_wire_ids": [],
     "has_source": true
   }
 }

@@ -9,6 +9,7 @@ import {
   effectiveDefaultLoad,
   effectiveDeviceFootprint,
   effectiveDeviceLoad,
+  isSourceType,
 } from '@/devices/catalog'
 import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { ControlLink, Device, Wall } from '@/types/plan'
@@ -92,6 +93,8 @@ const baseboardAmps = computed(() => {
 const isSwitch = computed(
   () => single.value?.type === 'switch' || single.value?.type === 'switch_3way',
 )
+
+const isSource = computed(() => (single.value ? isSourceType(single.value.type) : false))
 
 const switchLinks = computed<ControlLink[]>(() => {
   const device = single.value
@@ -236,6 +239,10 @@ watch(
         <span class="text-ink-muted">W</span>
       </div>
       <p class="text-ink-faint mt-1">Leave blank to use the {{ loadPlaceholder }}.</p>
+      <p v-if="isSource" class="text-ink-faint mt-1">
+        This device feeds circuits rather than drawing from them, so its load is documentary here —
+        it never counts toward a circuit total on this plan.
+      </p>
     </label>
 
     <div v-if="footprint" aria-label="Device dimensions">

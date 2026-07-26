@@ -121,6 +121,33 @@ export const DEVICE_PICTOGRAMS: Record<DeviceType, readonly PictogramShape[]> = 
     { kind: 'line', x1: 8.4, y1: 9, x2: 11.4, y2: 3 },
     { kind: 'line', x1: 0.6, y1: 6, x2: 3, y2: 3 },
   ],
+  // The two feeds are deliberate mirror images: one slab line crossed by one
+  // shaft, the arrowhead alone naming the direction (away from the wall face
+  // for `feed_up`, into it for `feed_down`).
+  feed_up: [
+    { kind: 'line', x1: 1.2, y1: PICTOGRAM_CENTER, x2: 10.8, y2: PICTOGRAM_CENTER },
+    { kind: 'line', x1: PICTOGRAM_CENTER, y1: 10.4, x2: PICTOGRAM_CENTER, y2: 1.6 },
+    {
+      kind: 'polyline',
+      points: [
+        [4.1, 3.9],
+        [PICTOGRAM_CENTER, 1.6],
+        [7.9, 3.9],
+      ],
+    },
+  ],
+  feed_down: [
+    { kind: 'line', x1: 1.2, y1: PICTOGRAM_CENTER, x2: 10.8, y2: PICTOGRAM_CENTER },
+    { kind: 'line', x1: PICTOGRAM_CENTER, y1: 1.6, x2: PICTOGRAM_CENTER, y2: 10.4 },
+    {
+      kind: 'polyline',
+      points: [
+        [4.1, 8.1],
+        [PICTOGRAM_CENTER, 10.4],
+        [7.9, 8.1],
+      ],
+    },
+  ],
 }
 
 /**
@@ -140,6 +167,8 @@ const PICTOGRAM_BASELINE_Y: Partial<Record<DeviceType, number>> = {
   vacuum_inlet: 11.5,
   network_jack: 9.6,
   panel: 9,
+  feed_up: 10.4,
+  feed_down: 10.4,
 }
 
 /**

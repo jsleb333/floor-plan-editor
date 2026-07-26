@@ -128,8 +128,8 @@ function deviceLabel(type: string): string {
     </header>
 
     <p v-if="circuits.length === 0" class="text-ink-muted leading-relaxed">
-      No circuits yet. Create one, then draw wires with the Wire tool (R) to connect the panel to
-      your devices.
+      No circuits yet. Create one, then draw wires with the Wire tool (R) to connect a source — the
+      panel, or a feed from another floor — to your devices.
     </p>
 
     <ul class="flex flex-col gap-2">
@@ -261,7 +261,7 @@ function deviceLabel(type: string): string {
           class="text-amber-600 mt-1 flex items-center gap-1"
         >
           <TriangleAlert :size="12" aria-hidden="true" />
-          {{ loadFor(circuit.id)?.floating_device_ids.length }} floating (not reaching the panel)
+          {{ loadFor(circuit.id)?.floating_device_ids.length }} floating (not reaching a source)
         </p>
       </li>
     </ul>

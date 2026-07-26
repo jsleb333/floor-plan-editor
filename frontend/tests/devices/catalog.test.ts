@@ -8,6 +8,7 @@ import {
   effectiveDefaultLoad,
   effectiveDeviceFootprint,
   effectiveDeviceLoad,
+  isSourceType,
   searchDeviceTypes,
 } from '@/devices/catalog'
 import type { DeviceType } from '@/types/plan'
@@ -30,11 +31,13 @@ const BACKEND_TYPES: readonly DeviceType[] = [
   'smoke_detector',
   'network_jack',
   'panel',
+  'feed_up',
+  'feed_down',
 ]
 
 describe('device catalog', () => {
-  it('covers every device type exactly once (15/15)', () => {
-    expect(DEVICE_TYPES).toHaveLength(15)
+  it('covers every device type exactly once (17/17)', () => {
+    expect(DEVICE_TYPES).toHaveLength(17)
     expect(new Set(DEVICE_TYPES)).toEqual(new Set(BACKEND_TYPES))
     for (const type of BACKEND_TYPES) {
       expect(DEVICE_CATALOG[type]).toBeDefined()
@@ -59,6 +62,23 @@ describe('device catalog', () => {
     })
     expect(DEVICE_CATALOG.smoke_detector.mount).toBe('ceiling')
     expect(DEVICE_CATALOG.switch.voltage_v).toBeNull()
+  })
+
+  it('gives the inter-floor feeds a wall mount and no load of their own', () => {
+    for (const type of ['feed_up', 'feed_down'] as const) {
+      expect(DEVICE_CATALOG[type]).toMatchObject({
+        mount: 'wall',
+        voltage_v: null,
+        default_load_w: 0,
+        group: 'sources',
+      })
+    }
+  })
+})
+
+describe('isSourceType', () => {
+  it('flags exactly the connectivity roots: the panel and the two feeds (spec C1/W4)', () => {
+    expect(DEVICE_TYPES.filter(isSourceType)).toEqual(['panel', 'feed_up', 'feed_down'])
   })
 })
 

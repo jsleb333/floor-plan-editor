@@ -410,7 +410,7 @@ class TestPlanRoutes:
 
         validation = (await client.get(f"/api/plans/{created['id']}/validation")).json()
 
-        assert validation["has_panel"] is True
+        assert validation["has_source"] is True
         assert validation["dangling_wire_ids"] == []
         assert validation["multi_circuit_device_ids"] == {}
         assert validation["unassigned_device_ids"] == ["outlet-floating"]

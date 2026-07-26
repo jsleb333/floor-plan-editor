@@ -14,6 +14,12 @@ class DeviceType(StrEnum):
         is one member, and ``DEVICE_CATALOG`` maps each member to its physical
         defaults. Adding a device type means adding a member and its catalog
         row — no editor logic changes.
+
+        The connectivity roots (``is_source`` rows) are the panel and the two
+        inter-floor feeds: ``FEED_UP`` passes through the ceiling to the floor
+        above, ``FEED_DOWN`` through the floor to the storey below. Direction is
+        intrinsic identity, hence two members rather than one parameterised
+        type — exactly like ``SWITCH`` versus ``SWITCH_3WAY``.
     """
 
     OUTLET = "outlet"
@@ -31,6 +37,8 @@ class DeviceType(StrEnum):
     SMOKE_DETECTOR = "smoke_detector"
     NETWORK_JACK = "network_jack"
     PANEL = "panel"
+    FEED_UP = "feed_up"
+    FEED_DOWN = "feed_down"
 
 
 DEVICE_CATALOG: dict[DeviceType, DeviceCatalogEntry] = {
@@ -76,6 +84,13 @@ DEVICE_CATALOG: dict[DeviceType, DeviceCatalogEntry] = {
         mount="wall",
         voltage_v=None,
         default_load_w=0.0,
+        is_source=True,
         footprint=DeviceFootprint(along_in=14.0, across_in=4.0),
+    ),
+    DeviceType.FEED_UP: DeviceCatalogEntry(
+        mount="wall", voltage_v=None, default_load_w=0.0, is_source=True
+    ),
+    DeviceType.FEED_DOWN: DeviceCatalogEntry(
+        mount="wall", voltage_v=None, default_load_w=0.0, is_source=True
     ),
 }

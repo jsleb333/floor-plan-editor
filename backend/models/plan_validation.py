@@ -18,12 +18,13 @@ class PlanValidation(BaseModel):
         violation of spec C3 (``multi_circuit_device_ids`` maps each such
         device id to the circuit ids it is wired to), the wires referencing a
         missing device or circuit (``dangling_wire_ids``) and whether the plan
-        has an electrical panel at all (``has_panel``; spec C1 expects exactly
-        one). All lists are sorted for deterministic output.
+        has any connectivity root at all (``has_source``; spec C1 expects at
+        least one — the electrical panel, or a feed from another floor). All
+        lists are sorted for deterministic output.
     """
 
     circuits: list[CircuitLoad] = Field(default_factory=list)
     unassigned_device_ids: list[str] = Field(default_factory=list)
     multi_circuit_device_ids: dict[str, list[str]] = Field(default_factory=dict)
     dangling_wire_ids: list[str] = Field(default_factory=list)
-    has_panel: bool = False
+    has_source: bool = False

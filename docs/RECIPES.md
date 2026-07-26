@@ -14,7 +14,8 @@ sides enforce it.
 
 1. **Backend registry** — `backend/models/device_type.py`: add the member to
    the `DeviceType` enum and its row to `DEVICE_CATALOG` (`mount`:
-   wall/ceiling/free, `voltage_v` or `None`, `default_load_w`).
+   wall/ceiling/free, `voltage_v` or `None`, `default_load_w`, plus
+   `is_source=True` if the type is a circuit source — see below).
 2. **Frontend type** — `frontend/src/types/plan.ts`: add the same string to
    the `DeviceType` union.
 3. **Frontend catalog** — `frontend/src/devices/catalog.ts`: add the type to
@@ -32,11 +33,13 @@ sides enforce it.
    `frontend/tests/devices/catalog.test.ts` (`BACKEND_TYPES` array + count).
 
 Only step outside the registries when the type needs *behavior*, not just a
-symbol. A real physical size is not such a case: a `footprint` on the catalog
-row is enough for `utils/geometry/devices.ts` to draw and hit-test the type at
-true scale and for the Inspector and tool options to expose its dimensions. The
-one remaining special case to imitate is the panel (circuit source —
-`utils/circuits.ts`, `EditorPage.vue`).
+symbol. Neither of the two roles a type can carry is such a case: a `footprint`
+on the catalog row is enough for `utils/geometry/devices.ts` to draw and
+hit-test the type at true scale and for the Inspector and tool options to
+expose its dimensions, and `is_source` on both catalog rows is enough to make
+the type a connectivity root everywhere (`circuit_validation_service.py`,
+`utils/circuits.ts`, `EditorPage.vue` all read the flag). A new source type
+also wants a fixture in `tests/fixtures/circuit_validation/`.
 
 ## Add a plan schema migration
 

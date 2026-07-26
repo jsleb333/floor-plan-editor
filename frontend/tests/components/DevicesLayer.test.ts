@@ -11,10 +11,10 @@ import { useLayersStore } from '@/stores/layers'
 import { makeDevice, makeDocument, makeWall } from '../helpers/planFactory'
 
 describe('DevicePictogram', () => {
-  it('registers one symbol per device type (15/15)', () => {
+  it('registers one symbol per device type (17/17)', () => {
     const wrapper = mount(DevicePictogram)
     const ids = wrapper.findAll('symbol').map((symbol) => symbol.attributes('id'))
-    expect(ids).toHaveLength(15)
+    expect(ids).toHaveLength(17)
     expect(new Set(ids)).toEqual(new Set(DEVICE_TYPES.map(pictogramSymbolId)))
   })
 })

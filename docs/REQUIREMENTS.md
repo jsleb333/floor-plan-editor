@@ -20,7 +20,8 @@ A single-user, locally-hosted web app where the user can:
 2. Draw a dimensionally accurate floor plan (imperial units, feet and inches).
 3. Place electrical devices from a catalog of pictograms on walls or ceilings.
 4. Draw smooth, hand-routed wires between devices, grouped into colour-coded
-   circuits anchored at the electrical panel.
+   circuits anchored at a source — the electrical panel, or a feed from another
+   floor.
 5. Track the electrical load of each circuit against its breaker rating.
 6. Export the result as SVG, PNG or JSON.
 
@@ -334,12 +335,19 @@ hand-drawn legend). Initial catalog:
 | Smoke detector | Détecteur de fumée (SD) | ceiling | 120 V | 5 W | symbol |
 | Network jack | Câble réseau | wall | data | 0 | symbol |
 | Electrical panel | Panneau électrique | wall | — | source | 14" × 4" |
+| Feed from above | Alimentation de l'étage supérieur | wall | — | source³ | symbol |
+| Feed from below | Alimentation de l'étage inférieur | wall | — | source³ | symbol |
 
 ¹ Placeholder per-receptacle allowance; editable per device.
 
 ² Footprint of the physically sized types, along the wall × into the room, drawn
 at true scale and editable per device (D2). `symbol` means the type has no real
 size and always draws as a fixed-size pictogram.
+
+³ The inter-floor feeds are the circuit source of a storey with no panel of its
+own: one passes through the ceiling to the floor above, the other through the
+floor to the storey below. They carry no load on this plan — their load override
+(D2) documents what the feed draws where it actually originates.
 
 - **D1** — Wall-mounted devices snap onto walls and slide along them; they keep
   their wall attachment when the wall moves. Ceiling/free devices place
@@ -366,9 +374,11 @@ size and always draws as a fixed-size pictogram.
 
 ### 5.5 Circuits
 
-- **C1** — A plan has exactly one electrical panel device; circuits are defined
-  in a circuits panel (sidebar) listing: colour, name, breaker rating (15 A,
-  20 A, 30 A...), voltage (120 V / 240 V).
+- **C1** — A plan has at least one **source**: the electrical panel, or a feed
+  from another floor for a storey fed from elsewhere (§5.4). Every circuit
+  starts at a source. Circuits are defined in a circuits panel (sidebar)
+  listing: colour, name, breaker rating (15 A, 20 A, 30 A...), voltage
+  (120 V / 240 V).
 - **C2** — Colour is the circuit's identity on the canvas. The app proposes a
   distinguishable default palette; the user can override any colour. Two
   circuits cannot share the exact same colour.
@@ -398,9 +408,10 @@ size and always draws as a fixed-size pictogram.
 - **W3** — Wire endpoints stay attached to their devices when devices move;
   interior control points move proportionally.
 - **W4** — Connectivity defines membership: a device is "on" circuit X when a
-  wire path connects it (through other devices) to the panel on circuit X.
-  Devices wired together but not reaching the panel are flagged "floating" in
-  the circuits panel.
+  wire path connects it (through other devices) to a source on circuit X.
+  Devices wired together but not reaching a source are flagged "floating" in
+  the circuits panel. Sources are the roots: they are neither connected nor
+  floating, and their own load never joins a circuit sum.
 - **W5** — Deleting a device offers to reconnect or delete its wires.
 
 ### 5.7 Selection and editing UX

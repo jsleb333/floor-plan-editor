@@ -115,6 +115,6 @@
     "dangling_wire_ids": [
       "bad"
     ],
-    "has_panel": true
+    "has_source": true
   }
 }
