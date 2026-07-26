@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { isRestorableToolId, startupToolFor } from '@/components/editor/tools'
-import { makeDocument, makeUnderlay, makeWall } from '../helpers/planFactory'
+import { armedDeviceTypeFor, isRestorableToolId, startupToolFor } from '@/components/editor/tools'
+import { makeDevice, makeDocument, makeUnderlay, makeWall } from '../helpers/planFactory'
 
 describe('startupToolFor', () => {
   it('arms the wall tool on a plan with no walls, whatever tool was saved', () => {
@@ -46,5 +46,21 @@ describe('isRestorableToolId', () => {
     expect(isRestorableToolId('measure')).toBe(false)
     expect(isRestorableToolId('teleport')).toBe(false)
     expect(isRestorableToolId(null)).toBe(false)
+  })
+})
+
+describe('armedDeviceTypeFor', () => {
+  it('arms the panel when the plan has no devices yet, whatever the MRU holds', () => {
+    expect(armedDeviceTypeFor([], [])).toBe('panel')
+    expect(armedDeviceTypeFor([], ['outlet', 'ceiling_light'])).toBe('panel')
+  })
+
+  it('arms the most-recently-used type once the plan has devices', () => {
+    const devices = [makeDevice()]
+    expect(armedDeviceTypeFor(devices, ['ceiling_light', 'outlet'])).toBe('ceiling_light')
+  })
+
+  it('falls back to the picker when the plan has devices but no MRU history', () => {
+    expect(armedDeviceTypeFor([makeDevice()], [])).toBeNull()
   })
 })

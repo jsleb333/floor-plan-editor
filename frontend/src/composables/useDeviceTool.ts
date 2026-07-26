@@ -20,6 +20,19 @@ const PLACEMENT_RADIUS_PX = 16
 /** Placeholder id of the preview device (never committed). */
 const PREVIEW_ID = 'device-preview'
 
+/**
+ * Per-type draft applied to the next placed device (spec E8/§6.1): edited
+ * live in the Device tool options while a type is armed. Fields left unset
+ * (`null`) fall back to `baseDevice`'s hardcoded defaults, never to another
+ * type's draft — the map this lives in is keyed by `DeviceType` precisely so
+ * a water heater's load override can never leak onto the next outlet.
+ */
+export interface DeviceDraft {
+  label: string | null
+  load_w: number | null
+  length_in: number | null
+}
+
 export interface UseDeviceToolOptions {
   /** The armed device type, or `null` when the picker is shown (spec §6.1). */
   armedType: Ref<DeviceType | null>
@@ -31,6 +44,13 @@ export interface UseDeviceToolOptions {
   snapSettings: SnapSettings
   /** Receives each placed device; the caller dispatches the store command. */
   commit: (device: Device) => void
+  /**
+   * Last-used per-type draft (label/load/baseboard length), owned by the
+   * page like the armed type itself (spec E8) and edited by
+   * `DeviceToolOptions`. A type absent from the map places with the plain
+   * catalog defaults.
+   */
+  drafts: Ref<Partial<Record<DeviceType, DeviceDraft>>>
   /** Display precision for the dimension chips (spec §5.9 tier 2); 1/8" when omitted. */
   displayPrecisionIn?: Ref<number> | ComputedRef<number>
 }
@@ -76,7 +96,7 @@ export interface UseDeviceToolReturn {
  * methods, so the machine is testable without a DOM.
  */
 export function useDeviceTool(options: UseDeviceToolOptions): UseDeviceToolReturn {
-  const { armedType, walls, pixelsPerInch, snapSettings, commit } = options
+  const { armedType, walls, pixelsPerInch, snapSettings, commit, drafts } = options
 
   const cursor: ShallowRef<Point | null> = shallowRef(null)
   const inputBuffer = ref('')
@@ -91,13 +111,15 @@ export function useDeviceTool(options: UseDeviceToolOptions): UseDeviceToolRetur
   }
 
   function baseDevice(type: DeviceType): Omit<Device, 'attachment' | 'position'> {
+    const draft = drafts.value[type]
     return {
       id: PREVIEW_ID,
       type,
       rotation_deg: 0,
-      label: null,
-      load_w: null,
-      length_in: type === 'baseboard_heater' ? DEFAULT_BASEBOARD_LENGTH_IN : null,
+      label: draft?.label ?? null,
+      load_w: draft?.load_w ?? null,
+      length_in:
+        draft?.length_in ?? (type === 'baseboard_heater' ? DEFAULT_BASEBOARD_LENGTH_IN : null),
       notes: null,
     }
   }

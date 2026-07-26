@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DEVICE_CATALOG,
+  DEVICE_GROUPS,
   DEVICE_TYPES,
   effectiveDefaultLoad,
   effectiveDeviceLoad,
@@ -56,6 +57,21 @@ describe('device catalog', () => {
     })
     expect(DEVICE_CATALOG.smoke_detector.mount).toBe('ceiling')
     expect(DEVICE_CATALOG.switch.voltage_v).toBeNull()
+  })
+})
+
+describe('device groups', () => {
+  it('assigns a non-empty group to every device type', () => {
+    for (const type of DEVICE_TYPES) {
+      expect(DEVICE_CATALOG[type].group).toBeTruthy()
+    }
+  })
+
+  it('gives every declared group at least one device type', () => {
+    for (const group of DEVICE_GROUPS) {
+      const membersOf = DEVICE_TYPES.filter((type) => DEVICE_CATALOG[type].group === group.id)
+      expect(membersOf.length).toBeGreaterThan(0)
+    }
   })
 })
 
