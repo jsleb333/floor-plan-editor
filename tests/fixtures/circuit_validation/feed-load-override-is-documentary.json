@@ -1,25 +1,26 @@
 {
-  "name": "warning-at-eighty-percent",
-  "description": "A 2900 W baseboard heater at 240 V is 12.08 A, at or above the 12.0 A (80% of a 15 A breaker) continuous-load threshold -> status warning.",
+  "name": "feed-load-override-is-documentary",
+  "description": "A feed's own load_w override documents what it draws where it originates: sources are excluded from the connected-device sum, so the circuit reports only the outlet's 180 W.",
   "document": {
     "devices": [
       {
-        "id": "panel",
-        "type": "panel",
-        "position": {
-          "x": 0.0,
-          "y": 0.0
-        }
-      },
-      {
-        "id": "bb-1",
-        "type": "baseboard_heater",
+        "id": "feed-1",
+        "type": "feed_down",
         "attachment": {
           "wall_id": "wall-1",
           "segment_index": 0,
-          "t": 24.0
+          "t": 6.0
         },
-        "load_w": 2900.0
+        "load_w": 3000.0
+      },
+      {
+        "id": "out-1",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 12.0
+        }
       }
     ],
     "circuits": [
@@ -28,7 +29,7 @@
         "name": "Circuit 1",
         "color": "#dc2626",
         "breaker_a": 15,
-        "voltage_v": 240,
+        "voltage_v": 120,
         "kind": "power"
       }
     ],
@@ -36,8 +37,8 @@
       {
         "id": "w-1",
         "circuit_id": "circ-1",
-        "from_device_id": "panel",
-        "to_device_id": "bb-1"
+        "from_device_id": "feed-1",
+        "to_device_id": "out-1"
       }
     ]
   },
@@ -45,12 +46,12 @@
     "circuits": [
       {
         "circuit_id": "circ-1",
-        "load_w": 2900.0,
-        "amps": 12.083333333333334,
+        "load_w": 180.0,
+        "amps": 1.5,
         "breaker_a": 15,
-        "status": "warning",
+        "status": "ok",
         "connected_device_ids": [
-          "bb-1"
+          "out-1"
         ],
         "floating_device_ids": []
       }

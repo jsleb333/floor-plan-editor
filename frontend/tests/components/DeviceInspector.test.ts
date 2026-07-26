@@ -112,6 +112,21 @@ describe('DeviceInspector', () => {
     expect(wrapper.findAll('[aria-label="Wattage presets"] button')).toHaveLength(6)
   })
 
+  it('lets a feed carry a load override but says it is documentary here', async () => {
+    const feed: Device = { ...outlet('f'), type: 'feed_down' }
+    const wrapper = mountInspector([feed])
+
+    const input = wrapper.get('input[aria-label="Load override in watts"]')
+    await input.setValue('3000')
+    await input.trigger('blur')
+
+    expect(wrapper.emitted('update-device')?.at(-1)).toEqual([
+      expect.objectContaining({ id: 'f', load_w: 3000 }),
+    ])
+    expect(wrapper.text()).toContain('documentary')
+    expect(mountInspector([outlet('a')]).text()).not.toContain('documentary')
+  })
+
   it('applies a typed load override to every device in a multi selection', async () => {
     const wrapper = mountInspector([outlet('a'), outlet('b')])
 

@@ -107,7 +107,50 @@ describe('validatePlan', () => {
     expect(load.load_w).toBe(500 + 750 + 15)
   })
 
-  it('lists unassigned powered devices, multi-circuit devices, dangling wires and panel presence', () => {
+  it('roots the BFS at a feed when the plan has no panel of its own', () => {
+    const document = makeDocument({
+      circuits: [powerCircuit()],
+      devices: [device('f', 'feed_down'), device('o1', 'outlet'), device('o2', 'outlet')],
+      wires: [wire('w1', 'f', 'o1'), wire('w2', 'o1', 'o2')],
+    })
+
+    const result = validatePlan(document)
+    expect(result.has_source).toBe(true)
+    expect(result.circuits[0].connected_device_ids).toEqual(['o1', 'o2'])
+    expect(result.circuits[0].floating_device_ids).toEqual([])
+    expect(result.circuits[0].load_w).toBe(360)
+  })
+
+  it("keeps a feed's own load override out of the circuit sum (documentary only)", () => {
+    const document = makeDocument({
+      circuits: [powerCircuit()],
+      devices: [device('f', 'feed_up', { load_w: 3000 }), device('o1', 'outlet')],
+      wires: [wire('w1', 'f', 'o1')],
+    })
+
+    const load = validatePlan(document).circuits[0]
+    expect(load.connected_device_ids).toEqual(['o1'])
+    expect(load.load_w).toBe(180)
+  })
+
+  it('never reports a feed as unassigned or multi-circuit, exactly like the panel', () => {
+    const document = makeDocument({
+      circuits: [powerCircuit({ id: 'c' }), powerCircuit({ id: 'c2' })],
+      devices: [
+        device('f', 'feed_down', { load_w: 1500 }),
+        device('lonely-feed', 'feed_up', { load_w: 2000 }),
+        device('o1', 'outlet'),
+        device('o2', 'outlet'),
+      ],
+      wires: [wire('w1', 'f', 'o1', 'c'), wire('w2', 'f', 'o2', 'c2')],
+    })
+
+    const result = validatePlan(document)
+    expect(result.unassigned_device_ids).toEqual([])
+    expect(result.multi_circuit_device_ids).toEqual({})
+  })
+
+  it('lists unassigned powered devices, multi-circuit devices, dangling wires and source presence', () => {
     const document = makeDocument({
       circuits: [powerCircuit({ id: 'c' }), powerCircuit({ id: 'c2' })],
       devices: [
@@ -124,7 +167,7 @@ describe('validatePlan', () => {
     })
 
     const result = validatePlan(document)
-    expect(result.has_panel).toBe(true)
+    expect(result.has_source).toBe(true)
     expect(result.unassigned_device_ids).toEqual(['lonely'])
     expect(result.multi_circuit_device_ids).toEqual({ o1: ['c', 'c2'] })
     expect(result.dangling_wire_ids).toEqual(['bad'])

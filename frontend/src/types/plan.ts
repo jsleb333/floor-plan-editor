@@ -107,6 +107,8 @@ export type DeviceType =
   | 'smoke_detector'
   | 'network_jack'
   | 'panel'
+  | 'feed_up'
+  | 'feed_down'
 
 /**
  * Parametric host address of a wall-mounted device (spec §4.2). `t` is the
@@ -224,7 +226,7 @@ export interface PlanDocument {
    * from the map means "use that list's built-in defaults".
    */
   preset_lists: Record<string, number[]>
-  /** Colour-coded circuits fed from the electrical panel (spec §5.5). */
+  /** Colour-coded circuits fed from a source device (spec §5.5). */
   circuits: Circuit[]
   /** Curved connections wiring devices into circuits (spec §5.6). */
   wires: Wire[]
@@ -256,7 +258,8 @@ export interface PlanValidation {
   unassigned_device_ids: string[]
   multi_circuit_device_ids: Record<string, string[]>
   dangling_wire_ids: string[]
-  has_panel: boolean
+  /** Whether the plan has at least one connectivity root: a panel or a feed (spec C1). */
+  has_source: boolean
 }
 
 /** A full plan as returned by the API. */

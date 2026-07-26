@@ -14,6 +14,12 @@ class DeviceLoadResolver:
         the built-in catalog default (spec section 5.4). Stateless and pure;
         provided by the container so validation services can share one
         implementation.
+
+        Every device type resolves the same way, sources included: an
+        inter-floor feed with a ``load_w`` override resolves to that override
+        like any other device. Because sources are excluded from the
+        connected-device sums, a feed's load is documentary on this plan — it
+        records what the feed draws on the storey that actually feeds it.
     """
 
     @staticmethod

@@ -1,14 +1,15 @@
 {
-  "name": "dangling-wire-missing-entities",
-  "description": "Wires pointing at a missing device or a missing circuit are reported as dangling and excluded from connectivity.",
+  "name": "feed-down-only-source-connects-devices",
+  "description": "A storey with no panel, fed by a feed_down from the storey below: the feed roots the circuit, so both outlets connect and their loads sum (2x180 W at 120 V is 3.0 A).",
   "document": {
     "devices": [
       {
-        "id": "panel",
-        "type": "panel",
-        "position": {
-          "x": 0.0,
-          "y": 0.0
+        "id": "feed-1",
+        "type": "feed_down",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 6.0
         }
       },
       {
@@ -18,6 +19,15 @@
           "wall_id": "wall-1",
           "segment_index": 0,
           "t": 12.0
+        }
+      },
+      {
+        "id": "out-2",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 24.0
         }
       }
     ],
@@ -35,20 +45,14 @@
       {
         "id": "w-1",
         "circuit_id": "circ-1",
-        "from_device_id": "panel",
+        "from_device_id": "feed-1",
         "to_device_id": "out-1"
       },
       {
-        "id": "w-missing-device",
+        "id": "w-2",
         "circuit_id": "circ-1",
-        "from_device_id": "panel",
-        "to_device_id": "ghost"
-      },
-      {
-        "id": "w-missing-circuit",
-        "circuit_id": "circ-ghost",
-        "from_device_id": "panel",
-        "to_device_id": "out-1"
+        "from_device_id": "out-1",
+        "to_device_id": "out-2"
       }
     ]
   },
@@ -56,22 +60,20 @@
     "circuits": [
       {
         "circuit_id": "circ-1",
-        "load_w": 180.0,
-        "amps": 1.5,
+        "load_w": 360.0,
+        "amps": 3.0,
         "breaker_a": 15,
         "status": "ok",
         "connected_device_ids": [
-          "out-1"
+          "out-1",
+          "out-2"
         ],
         "floating_device_ids": []
       }
     ],
     "unassigned_device_ids": [],
     "multi_circuit_device_ids": {},
-    "dangling_wire_ids": [
-      "w-missing-circuit",
-      "w-missing-device"
-    ],
+    "dangling_wire_ids": [],
     "has_source": true
   }
 }

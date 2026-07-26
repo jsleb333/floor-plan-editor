@@ -45,6 +45,7 @@ import { isTypingTarget, useToolShortcuts } from '@/composables/useToolShortcuts
 import { BASE_PIXELS_PER_INCH } from '@/composables/useViewport'
 import { useWireTool } from '@/composables/useWireTool'
 import { isBufferKey, useWallTool } from '@/composables/useWallTool'
+import { isSourceType } from '@/devices/catalog'
 import { planContentBounds } from '@/export/svgExport'
 import { planIdFromRoute } from '@/router'
 import { useDeviceMruStore } from '@/stores/deviceMru'
@@ -213,7 +214,8 @@ const activeCircuit = computed<Circuit | null>(
 
 /**
  * Devices kept full-colour under circuit isolation (spec C5): the isolated
- * circuit's connected devices plus every panel. `null` = no isolation.
+ * circuit's connected devices plus every source — the panel and any feed from
+ * another floor. `null` = no isolation.
  */
 const isolationHighlightIds = computed<ReadonlySet<string> | null>(() => {
   const isolated = editorStore.isolatedCircuitId
@@ -222,7 +224,7 @@ const isolationHighlightIds = computed<ReadonlySet<string> | null>(() => {
   const load = validation.value.circuits.find((circuit) => circuit.circuit_id === isolated)
   for (const id of load?.connected_device_ids ?? []) ids.add(id)
   for (const device of documentDevices.value) {
-    if (device.type === 'panel') ids.add(device.id)
+    if (isSourceType(device.type)) ids.add(device.id)
   }
   return ids
 })

@@ -7,7 +7,7 @@ class TestDeviceType:
     def test_device_catalog__when_compared_to_the_enum__covers_every_type(self) -> None:
         """Every catalog type has exactly one entry, so lookups can never fail."""
         assert set(DEVICE_CATALOG) == set(DeviceType)
-        assert len(DeviceType) == 15
+        assert len(DeviceType) == 17
 
     def test_device_catalog__when_reading_spec_rows__matches_the_spec_values(self) -> None:
         """Spot-check the spec section 5.4 rows most likely to matter for load tracking."""
@@ -29,6 +29,12 @@ class TestDeviceType:
         network_jack = DEVICE_CATALOG[DeviceType.NETWORK_JACK]
         assert network_jack.voltage_v is None
         assert network_jack.default_load_w == 0.0
+
+        for feed_type in (DeviceType.FEED_UP, DeviceType.FEED_DOWN):
+            feed = DEVICE_CATALOG[feed_type]
+            assert feed.mount == "wall"
+            assert feed.voltage_v is None
+            assert feed.default_load_w == 0.0
 
     def test_device_catalog__when_a_type_has_a_real_size__carries_its_default_footprint(
         self,
@@ -70,6 +76,16 @@ class TestDeviceType:
             DeviceType.VACUUM_INLET,
             DeviceType.NETWORK_JACK,
             DeviceType.PANEL,
+            DeviceType.FEED_UP,
+            DeviceType.FEED_DOWN,
         ):
             assert DEVICE_CATALOG[no_voltage_type].voltage_v is None
             assert DEVICE_CATALOG[no_voltage_type].default_load_w == 0.0
+
+    def test_device_catalog__when_reading_the_source_role__flags_exactly_the_roots(self) -> None:
+        """The connectivity roots (spec C1/W4) are the panel and the two inter-floor feeds; every other type draws from a circuit rather than feeding one."""
+        sources = {
+            device_type for device_type in DeviceType if DEVICE_CATALOG[device_type].is_source
+        }
+
+        assert sources == {DeviceType.PANEL, DeviceType.FEED_UP, DeviceType.FEED_DOWN}

@@ -1,6 +1,6 @@
 {
   "name": "no-panel-device-present",
-  "description": "A document with wires but no panel device reports has_panel false; nothing reaches a panel so no device connects.",
+  "description": "A document with wires but no source device reports has_source false; nothing reaches a source so no device connects.",
   "document": {
     "devices": [
       {
@@ -59,6 +59,6 @@
     "unassigned_device_ids": [],
     "multi_circuit_device_ids": {},
     "dangling_wire_ids": [],
-    "has_panel": false
+    "has_source": false
   }
 }

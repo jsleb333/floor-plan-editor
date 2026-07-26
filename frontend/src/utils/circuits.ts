@@ -1,4 +1,4 @@
-import { DEVICE_CATALOG, effectiveDeviceLoad } from '@/devices/catalog'
+import { DEVICE_CATALOG, effectiveDeviceLoad, isSourceType } from '@/devices/catalog'
 import type {
   CircuitLoad,
   ControlLink,
@@ -14,9 +14,16 @@ import type {
  * The server (`GET /api/plans/{id}/validation`) stays the single source of
  * truth for tests and tooling, but live editing must not wait on round trips,
  * so this module recomputes the SAME result from the in-memory document —
- * connectivity BFS from the panel per circuit, load summation with the
- * override > plan-default > catalog precedence, and the 80 %/100 % thresholds.
- * Pure functions only, mirroring `CircuitValidationService` semantics exactly.
+ * connectivity BFS from every source device per circuit, load summation with
+ * the override > plan-default > catalog precedence, and the 80 %/100 %
+ * thresholds. Pure functions only, mirroring `CircuitValidationService`
+ * semantics exactly.
+ *
+ * A SOURCE is any type whose catalog row is flagged `is_source`: the panel, or
+ * a feed from another floor for a storey with no panel of its own. Sources root
+ * the graph and are excluded from every device-level finding, so a feed's own
+ * `load_w` override never reaches a circuit sum — it is documentary on this
+ * plan, recording what the feed draws where it actually originates.
  */
 
 /** Continuous-load rule of thumb: warn at or above 80 % of the breaker (spec C4). */
@@ -90,13 +97,13 @@ function splitWires(
 }
 
 /**
- * Splits a circuit's wired devices into panel-reachable (connected) and
- * unreachable (floating) sets via BFS over the wire graph (spec W4). Panel
+ * Splits a circuit's wired devices into source-reachable (connected) and
+ * unreachable (floating) sets via BFS over the wire graph (spec W4). Source
  * devices are the roots and appear in neither set.
  */
 function connectivity(
   circuitWires: readonly Wire[],
-  panelIds: ReadonlySet<string>,
+  sourceIds: ReadonlySet<string>,
 ): { connected: Set<string>; floating: Set<string> } {
   const adjacency = new Map<string, Set<string>>()
   const wired = new Set<string>()
@@ -114,7 +121,7 @@ function connectivity(
 
   const reachable = new Set<string>()
   const queue: string[] = []
-  for (const id of panelIds) {
+  for (const id of sourceIds) {
     if (wired.has(id)) {
       reachable.add(id)
       queue.push(id)
@@ -132,7 +139,7 @@ function connectivity(
   const connected = new Set<string>()
   const floating = new Set<string>()
   for (const id of wired) {
-    if (panelIds.has(id)) continue
+    if (sourceIds.has(id)) continue
     if (reachable.has(id)) connected.add(id)
     else floating.add(id)
   }
@@ -166,15 +173,15 @@ export function validatePlan(document: PlanDocument): PlanValidation {
   const deviceIds = new Set(devices.map((device) => device.id))
   const circuitIds = new Set(circuits.map((circuit) => circuit.id))
   const devicesById = new Map(devices.map((device) => [device.id, device]))
-  const panelIds = new Set(
-    devices.filter((device) => device.type === 'panel').map((device) => device.id),
+  const sourceIds = new Set(
+    devices.filter((device) => isSourceType(device.type)).map((device) => device.id),
   )
 
   const { valid, dangling } = splitWires(wires, deviceIds, circuitIds)
 
   const circuitLoads: CircuitLoad[] = circuits.map((circuit) => {
     const circuitWires = valid.filter((wire) => wire.circuit_id === circuit.id)
-    const { connected, floating } = connectivity(circuitWires, panelIds)
+    const { connected, floating } = connectivity(circuitWires, sourceIds)
     if (circuit.kind !== 'power') {
       return {
         circuit_id: circuit.id,
@@ -211,14 +218,14 @@ export function validatePlan(document: PlanDocument): PlanValidation {
 
   const unassigned: string[] = []
   for (const device of devices) {
-    if (device.type === 'panel' || wiredIds.has(device.id)) continue
+    if (isSourceType(device.type) || wiredIds.has(device.id)) continue
     if (isPoweredType(device.type)) unassigned.push(device.id)
   }
 
   const circuitsByDevice = new Map<string, Set<string>>()
   for (const wire of valid) {
     for (const id of [wire.from_device_id, wire.to_device_id]) {
-      if (panelIds.has(id)) continue
+      if (sourceIds.has(id)) continue
       const set = circuitsByDevice.get(id) ?? new Set<string>()
       set.add(wire.circuit_id)
       circuitsByDevice.set(id, set)
@@ -234,7 +241,7 @@ export function validatePlan(document: PlanDocument): PlanValidation {
     unassigned_device_ids: unassigned.sort(),
     multi_circuit_device_ids: multiCircuit,
     dangling_wire_ids: dangling,
-    has_panel: panelIds.size > 0,
+    has_source: sourceIds.size > 0,
   }
 }
 

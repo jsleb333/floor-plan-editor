@@ -25,10 +25,18 @@ export interface DeviceCatalogEntry {
   legendFr: string
   /** How the device attaches: on a wall, on the ceiling, or free-standing. */
   mount: DeviceMount
-  /** Nominal voltage; `null` for no-load control/data devices and the panel. */
+  /** Nominal voltage; `null` for no-load control/data devices and the sources. */
   voltage_v: number | null
   /** Default electrical load in watts (before plan-level or per-device overrides). */
   default_load_w: number
+  /**
+   * Whether the type is a connectivity ROOT of the wire graph (spec C1/W4):
+   * the panel and the inter-floor feeds. Absent means it is not. Circuits are
+   * walked from every source device, and sources never appear in the
+   * connected, floating, unassigned or multi-circuit findings — so a feed's
+   * own `load_w` override is documentary on this plan (see `utils/circuits.ts`).
+   */
+  is_source?: boolean
   /**
    * Default physical size in inches, drawn at TRUE world size and editable per
    * device (spec D2). Absent means the type is SYMBOLIC: it has no real size
@@ -75,6 +83,8 @@ export const DEVICE_TYPES: readonly DeviceType[] = [
   'smoke_detector',
   'network_jack',
   'panel',
+  'feed_up',
+  'feed_down',
 ]
 
 /**
@@ -219,8 +229,29 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     mount: 'wall',
     voltage_v: null,
     default_load_w: 0,
+    is_source: true,
     footprint: { along_in: 14, across_in: 4 },
     searchTerms: ['breaker', 'panneau', 'load center', 'distribution'],
+    group: 'sources',
+  },
+  feed_up: {
+    label: 'Feed from above',
+    legendFr: "Alimentation de l'étage supérieur",
+    mount: 'wall',
+    voltage_v: null,
+    default_load_w: 0,
+    is_source: true,
+    searchTerms: ['feed', 'riser', 'ceiling', 'upstairs', 'alimentation', 'etage'],
+    group: 'sources',
+  },
+  feed_down: {
+    label: 'Feed from below',
+    legendFr: "Alimentation de l'étage inférieur",
+    mount: 'wall',
+    voltage_v: null,
+    default_load_w: 0,
+    is_source: true,
+    searchTerms: ['feed', 'riser', 'floor', 'downstairs', 'alimentation', 'etage'],
     group: 'sources',
   },
 }
@@ -231,6 +262,15 @@ export const BASEBOARD_WATTAGE_PRESETS: readonly number[] = [500, 750, 1000, 125
 /** The catalog entry for a device type. */
 export function catalogEntry(type: DeviceType): DeviceCatalogEntry {
   return DEVICE_CATALOG[type]
+}
+
+/**
+ * Whether a type is a connectivity ROOT — the panel, or a feed from another
+ * floor (spec C1/W4). Circuit connectivity starts at these, and they are
+ * excluded from every device-level finding.
+ */
+export function isSourceType(type: DeviceType): boolean {
+  return DEVICE_CATALOG[type].is_source === true
 }
 
 /**

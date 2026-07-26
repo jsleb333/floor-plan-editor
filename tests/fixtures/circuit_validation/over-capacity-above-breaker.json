@@ -58,6 +58,6 @@
     "unassigned_device_ids": [],
     "multi_circuit_device_ids": {},
     "dangling_wire_ids": [],
-    "has_panel": true
+    "has_source": true
   }
 }

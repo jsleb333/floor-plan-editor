@@ -10,7 +10,7 @@ const EMPTY_VALIDATION: PlanValidation = {
   unassigned_device_ids: [],
   multi_circuit_device_ids: {},
   dangling_wire_ids: [],
-  has_panel: false,
+  has_source: false,
 }
 
 export interface UseCircuitValidationReturn {

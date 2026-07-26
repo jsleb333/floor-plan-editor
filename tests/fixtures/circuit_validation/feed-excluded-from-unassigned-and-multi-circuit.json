@@ -1,15 +1,26 @@
 {
-  "name": "chain-reaches-panel",
-  "description": "A panel wired through two outlets connects both and sums their loads (2x180 W at 120 V is 3.0 A, well under a 15 A breaker).",
+  "name": "feed-excluded-from-unassigned-and-multi-circuit",
+  "description": "Sources are exempt from the device-level findings: a feed_down wired into two circuits is not a spec C3 violation (it feeds both by design), and an unwired feed_up carrying a load override is never reported unassigned.",
   "document": {
     "devices": [
       {
-        "id": "panel",
-        "type": "panel",
+        "id": "feed-1",
+        "type": "feed_down",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 6.0
+        },
+        "load_w": 1500.0
+      },
+      {
+        "id": "feed-lonely",
+        "type": "feed_up",
         "position": {
-          "x": 0.0,
+          "x": 48.0,
           "y": 0.0
-        }
+        },
+        "load_w": 2000.0
       },
       {
         "id": "out-1",
@@ -38,19 +49,27 @@
         "breaker_a": 15,
         "voltage_v": 120,
         "kind": "power"
+      },
+      {
+        "id": "circ-2",
+        "name": "Circuit 2",
+        "color": "#2563eb",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
       }
     ],
     "wires": [
       {
         "id": "w-1",
         "circuit_id": "circ-1",
-        "from_device_id": "panel",
+        "from_device_id": "feed-1",
         "to_device_id": "out-1"
       },
       {
         "id": "w-2",
-        "circuit_id": "circ-1",
-        "from_device_id": "out-1",
+        "circuit_id": "circ-2",
+        "from_device_id": "feed-1",
         "to_device_id": "out-2"
       }
     ]
@@ -59,12 +78,22 @@
     "circuits": [
       {
         "circuit_id": "circ-1",
-        "load_w": 360.0,
-        "amps": 3.0,
+        "load_w": 180.0,
+        "amps": 1.5,
         "breaker_a": 15,
         "status": "ok",
         "connected_device_ids": [
-          "out-1",
+          "out-1"
+        ],
+        "floating_device_ids": []
+      },
+      {
+        "circuit_id": "circ-2",
+        "load_w": 180.0,
+        "amps": 1.5,
+        "breaker_a": 15,
+        "status": "ok",
+        "connected_device_ids": [
           "out-2"
         ],
         "floating_device_ids": []
