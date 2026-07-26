@@ -66,6 +66,7 @@ import type {
   Wall,
   Wire,
 } from '@/types/plan'
+import { circuitsByDevice } from '@/utils/circuitMembership'
 import { controlLinkKind } from '@/utils/circuits'
 import { deviceWorldPlacement } from '@/utils/geometry'
 import { deviceAtPoint } from '@/utils/hitTest'
@@ -202,7 +203,7 @@ const showEmptyState = computed(
 /** Circuit ids currently shown on the canvas — the export dialog's default selection. */
 const visibleCircuitIds = computed<string[]>(() =>
   documentCircuits.value
-    .filter((circuit) => layersStore.isCircuitWiresVisible(circuit.id))
+    .filter((circuit) => layersStore.isCircuitAxisVisible(circuit.id, 'wires'))
     .map((circuit) => circuit.id),
 )
 
@@ -228,6 +229,15 @@ const isolationHighlightIds = computed<ReadonlySet<string> | null>(() => {
   }
   return ids
 })
+
+/**
+ * Every device's circuits in document order (spec C2/C6), computed once here
+ * and passed to the devices layer — it shares this page's single validation
+ * pass instead of running a second BFS of its own.
+ */
+const circuitMembership = computed<ReadonlyMap<string, readonly Circuit[]>>(() =>
+  circuitsByDevice(validation.value, documentCircuits.value),
+)
 
 const snapSettings = useSnapSettings()
 const { grid: snapGrid, angle: snapAngle, walls: snapWalls } = snapSettings
@@ -265,7 +275,7 @@ const selectTool = useSelectTool({
   dimensions: documentDimensions,
   devices: documentDevices,
   wires: documentWires,
-  isCircuitWiresVisible: (circuitId) => layersStore.isCircuitWiresVisible(circuitId),
+  isCircuitWiresVisible: (circuitId) => layersStore.isCircuitAxisVisible(circuitId, 'wires'),
   underlay: documentUnderlay,
   underlayImageSize,
   pixelsPerInch,
@@ -1051,6 +1061,7 @@ onBeforeUnmount(() => {
               :pixels-per-inch="pixelsPerInch"
               :preview="devicePreview"
               :highlight-device-ids="isolationHighlightIds"
+              :membership="circuitMembership"
             />
             <LabelsLayer :hairline="hairline" />
             <DimensionsLayer :hairline="hairline" :preview="dimensionPreview" />

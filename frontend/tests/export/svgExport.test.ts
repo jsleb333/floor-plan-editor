@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { DEVICE_STROKE_IN, EXPORT_INK } from '@/export/exportTheme'
 import {
   buildPlanSvg,
   embedUnderlay,
@@ -7,7 +8,7 @@ import {
   slugify,
   type UnderlayEmbed,
 } from '@/export/svgExport'
-import type { PlanDocument } from '@/types/plan'
+import type { PlanDocument, Point } from '@/types/plan'
 import { deviceWorldPlacement, wallOutline } from '@/utils/geometry'
 import { ringsToPath } from '@/utils/svgPath'
 
@@ -23,6 +24,12 @@ import {
   makeWall,
   makeWire,
 } from '../helpers/planFactory'
+
+/** The default circuit colour of `makeCircuit`, and a contrasting second one. */
+const RED = '#dc2626'
+const BLUE = '#2563eb'
+/** Where the free-standing panel sits in these documents. */
+const PANEL: Point = { x: 0, y: -20 }
 
 /** A document carrying one of every element, all resolvable, for whole-file assertions. */
 function makeRichDocument(overrides: Partial<PlanDocument> = {}): PlanDocument {
@@ -140,6 +147,78 @@ describe('buildPlanSvg', () => {
       width: 38,
       height: 36,
     })
+  })
+
+  it('paints a device on a circuit in the circuit colour, footprint rectangle and glyph alike', () => {
+    const heater = makeDevice({ id: 'bb', type: 'baseboard_heater', length_in: 36 })
+    const document = makeRichDocument({
+      devices: [
+        heater,
+        makeDevice({ id: 'panel', type: 'panel', attachment: null, position: PANEL }),
+      ],
+      wires: [makeWire({ id: 'w1', from_device_id: 'panel', to_device_id: 'bb' })],
+    })
+    const placement = deviceWorldPlacement(heater, document.walls)
+    if (!placement?.footprintRect) throw new Error('expected a footprint rectangle')
+
+    const svg = buildPlanSvg(document)
+    const points = placement.footprintRect.map((p) => `${p.x},${p.y}`).join(' ')
+    expect(svg).toContain(`<polygon points="${points}" fill="none" stroke="${RED}"`)
+    // The heater's inscribed glyph strokes in the same colour, not in ink.
+    expect(svg).toContain(`<rect x="1" y="4.6" width="10" height="2.8" fill="none" stroke="${RED}"`)
+  })
+
+  it('keeps a source in ink and leaves a device on no circuit in ink', () => {
+    const svg = buildPlanSvg(makeRichDocument({ wires: [] }))
+    // The panel's own 14" x 4" footprint rectangle, and the outlet's glyph circle.
+    expect(svg).toContain(`stroke="${EXPORT_INK}" stroke-width="${1.2 * DEVICE_STROKE_IN}"`)
+    expect(svg).toContain(`<circle cx="6" cy="6" r="3.6" fill="none" stroke="${EXPORT_INK}"`)
+    expect(svg).not.toContain(`<circle cx="6" cy="6" r="3.6" fill="none" stroke="${RED}"`)
+  })
+
+  it('paints a multi-circuit device with the FIRST circuit in document order (spec C3)', () => {
+    const power = makeCircuit({ id: 'circuit-1', color: RED })
+    const data = makeCircuit({ id: 'circuit-2', name: 'Data', kind: 'data', color: BLUE })
+    const document = makeRichDocument({
+      devices: [
+        makeDevice({ id: 'jack', type: 'network_jack' }),
+        makeDevice({ id: 'panel', type: 'panel', attachment: null, position: PANEL }),
+      ],
+      circuits: [power, data],
+      wires: [
+        makeWire({
+          id: 'w1',
+          circuit_id: 'circuit-2',
+          from_device_id: 'panel',
+          to_device_id: 'jack',
+        }),
+        makeWire({
+          id: 'w2',
+          circuit_id: 'circuit-1',
+          from_device_id: 'panel',
+          to_device_id: 'jack',
+        }),
+      ],
+    })
+
+    expect(buildPlanSvg(document)).toContain(`stroke="${RED}" stroke-width="${DEVICE_STROKE_IN}"`)
+    expect(buildPlanSvg({ ...document, circuits: [data, power] })).toContain(
+      `stroke="${BLUE}" stroke-width="${DEVICE_STROKE_IN}"`,
+    )
+  })
+
+  it('colours devices independently of the circuitIds wire filter, exactly like the canvas', () => {
+    const document = makeRichDocument({
+      devices: [
+        makeDevice({ id: 'device-1' }),
+        makeDevice({ id: 'panel', type: 'panel', attachment: null, position: PANEL }),
+      ],
+      wires: [makeWire({ id: 'w1', from_device_id: 'panel', to_device_id: 'device-1' })],
+    })
+
+    const svg = buildPlanSvg(document, { circuitIds: [] })
+    expect(svg).not.toContain('data-circuit="Circuit 1"')
+    expect(svg).toContain(`<circle cx="6" cy="6" r="3.6" fill="none" stroke="${RED}"`)
   })
 
   it('emits one slugged, data-attributed group per circuit carrying its wire in the circuit colour', () => {

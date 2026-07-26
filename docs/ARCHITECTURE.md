@@ -257,6 +257,17 @@ from `deviceWorldPlacement().footprintRect` — real geometry, so never
 counter-scaled — with the pictogram inscribed at the rectangle's centre, still
 clamped. `length_in`/`depth_in` on the device override that footprint.
 
+Device colour is the circuit's identity (REQUIREMENTS C2/C5). `DevicesLayer`
+resolves it once, in `resolveTint`, with a fixed precedence: placement preview
+→ selection → circuit colour → ink. The circuit colour comes from
+`utils/circuitMembership.ts` (below) and rides on the SVG `color` presentation
+attribute, since a per-circuit hex has no Tailwind token and every pictogram
+shape strokes with `currentColor`; the theme cases stay Tailwind classes.
+Isolation dimming is orthogonal — it only lowers opacity, so a dimmed device
+keeps its colour. `stores/layers.ts` can hide a circuit's devices independently
+of its wires (C6): a device drops out once EVERY circuit it belongs to is
+device-hidden, while devices on no circuit and the sources always render.
+
 ### Export
 
 `frontend/src/export/svgExport.ts` builds the export **as a string** — it
@@ -266,9 +277,12 @@ into named groups (`#underlay`, `#structure`, `#devices`,
 `#circuit-<slug>`, `#annotations`) with real-inch coordinates, so the file is
 layer-editable in Inkscape/Illustrator (X2). Colours and stroke widths come
 from constants in `exportTheme.ts` (kept in sync with the Tailwind theme)
-instead of CSS. `pngExport.ts` rasterizes that same SVG string on an
-offscreen canvas (capped ~16 MP), and `jsonExport.ts` round-trips the raw
-`PlanDocument` — so all three exports share one geometry source.
+instead of CSS — except device colours, which run through the same
+`deviceCircuitColor` rule the canvas uses (falling back to `EXPORT_INK`), so a
+printed device reads as the circuit it shows on screen. `pngExport.ts`
+rasterizes that same SVG string on an offscreen canvas (capped ~16 MP), and
+`jsonExport.ts` round-trips the raw `PlanDocument` — so all three exports share
+one geometry source.
 
 ### Editor store: commands, undo/redo, transactions
 
@@ -378,13 +392,23 @@ and `frontend/tests/utils/circuitsCorpus.test.ts` parametrize over every file
 in that directory, so a rule added to only one implementation fails the other
 suite. Add a new fixture whenever you add a rule to either side.
 
+Everything that needs the reverse mapping — device → its circuits — reads it
+from `frontend/src/utils/circuitMembership.ts`, a deliberate sibling of the
+pinned mirror rather than an addition to it: `circuitsByDevice(validation,
+circuits)` only *consumes* a `PlanValidation`, inverting the per-circuit
+`connected_device_ids`/`floating_device_ids` into a device-major map in document
+order (a floating device IS on its circuit — the panel's amber warning is what
+says it does not reach a source). `deviceCircuitColor(device, membership)` is
+the one colour rule the canvas and the SVG export share: first circuit in
+document order, `null` for a source or a device on no circuit.
+
 ### Stores overview
 
 | Store | Scope |
 |---|---|
 | `stores/editor.ts` | The open plan: document, history, selection, autosave, circuit session, clipboard |
 | `stores/plans.ts` | Home-page plan list (summaries, CRUD, thumbnail document cache, JSON import) |
-| `stores/layers.ts` | Session-only layer visibility (structure/devices/annotations booleans + hidden circuit ids) |
+| `stores/layers.ts` | Session-only layer visibility (structure/devices/annotations booleans + the hidden-circuit id set per axis, wires and devices) |
 | `stores/deviceMru.ts` | Most-recently-used device types for the picker (`localStorage`, capped at 6) |
 
 ## Testing

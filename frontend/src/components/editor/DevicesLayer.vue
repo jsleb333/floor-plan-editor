@@ -2,10 +2,12 @@
 import { computed } from 'vue'
 
 import DevicePictogram from '@/components/editor/DevicePictogram.vue'
+import { isSourceType } from '@/devices/catalog'
 import { pictogramSymbolId } from '@/devices/pictograms'
 import { useEditorStore } from '@/stores/editor'
 import { useLayersStore } from '@/stores/layers'
-import type { Device } from '@/types/plan'
+import type { Circuit, Device } from '@/types/plan'
+import { deviceCircuitColor } from '@/utils/circuitMembership'
 import { DEVICE_NOMINAL_IN, deviceScreenScale, deviceWorldPlacement } from '@/utils/geometry'
 
 const props = defineProps<{
@@ -20,12 +22,31 @@ const props = defineProps<{
    * colour; every other device dims. `null` means no isolation.
    */
   highlightDeviceIds?: ReadonlySet<string> | null
+  /**
+   * Every device's circuits in document order, for colour and visibility
+   * (spec C2/C6). Passed in rather than derived here: validation is one BFS
+   * over the whole document and the host already computes it.
+   */
+  membership: ReadonlyMap<string, readonly Circuit[]>
 }>()
 
 const editorStore = useEditorStore()
 const layersStore = useLayersStore()
 
 const HALF = DEVICE_NOMINAL_IN / 2
+
+/**
+ * How a device is inked. Exactly one side applies: a theme colour class, or an
+ * explicit circuit colour carried by the SVG `color` presentation attribute — a
+ * per-circuit hex has no Tailwind token, and both the footprint rectangle and
+ * every pictogram shape stroke with `currentColor`.
+ */
+interface DeviceTint {
+  /** Theme colour class, absent when an explicit circuit colour applies. */
+  className?: string
+  /** Circuit colour, absent when the class governs. */
+  color?: string
+}
 
 interface DeviceView {
   id: string
@@ -36,11 +57,46 @@ interface DeviceView {
   selected: boolean
   preview: boolean
   dimmed: boolean
+  tint: DeviceTint
 }
 
 function isDimmed(device: Device, isPreview: boolean): boolean {
   if (isPreview || !props.highlightDeviceIds) return false
   return !props.highlightDeviceIds.has(device.id)
+}
+
+/**
+ * Device colour precedence (spec C2/C5), resolved in this one place and
+ * mirrored exactly by the SVG export (`svgExport.renderDevice`):
+ *
+ *   1. the placement preview ghost — accent;
+ *   2. selected — the selection accent, which must keep winning so a selected
+ *      device stays legible on top of any circuit colour;
+ *   3. on a circuit — that circuit's colour, via `deviceCircuitColor` (sources
+ *      stay ink; a device on several circuits takes the first in document order);
+ *   4. otherwise — ink.
+ *
+ * Circuit-isolation dimming is orthogonal: it only lowers opacity, so a dimmed
+ * device keeps its circuit colour instead of falling back to ink.
+ */
+function resolveTint(device: Device, selected: boolean, isPreview: boolean): DeviceTint {
+  if (isPreview) return { className: 'text-accent' }
+  if (selected) return { className: 'text-accent-strong' }
+  const color = deviceCircuitColor(device, props.membership)
+  return color === null ? { className: 'text-ink' } : { color }
+}
+
+/**
+ * Whether per-circuit device visibility hides this device (spec C6): every
+ * circuit it belongs to has its devices hidden. A device on no circuit is never
+ * hidden this way, and sources always render — the panel and the inter-floor
+ * feeds belong to every circuit, so hiding them would only confuse.
+ */
+function isCircuitDeviceHidden(device: Device): boolean {
+  if (isSourceType(device.type)) return false
+  const circuits = props.membership.get(device.id)
+  if (circuits === undefined) return false
+  return circuits.every((circuit) => !layersStore.isCircuitAxisVisible(circuit.id, 'devices'))
 }
 
 function buildView(device: Device, selected: boolean, isPreview: boolean): DeviceView | null {
@@ -60,6 +116,7 @@ function buildView(device: Device, selected: boolean, isPreview: boolean): Devic
     selected,
     preview: isPreview,
     dimmed,
+    tint: resolveTint(device, selected, isPreview),
   }
 }
 
@@ -72,6 +129,7 @@ const deviceViews = computed<DeviceView[]>(() => {
   void editorStore.documentVersion
   const views: DeviceView[] = []
   for (const device of editorStore.document?.devices ?? []) {
+    if (isCircuitDeviceHidden(device)) continue
     const view = buildView(device, editorStore.isSelected({ kind: 'device', id: device.id }), false)
     if (view) views.push(view)
   }
@@ -81,11 +139,6 @@ const deviceViews = computed<DeviceView[]>(() => {
   }
   return views
 })
-
-function colorClass(view: DeviceView): string {
-  if (view.preview) return 'text-accent'
-  return view.selected ? 'text-accent-strong' : 'text-ink'
-}
 </script>
 
 <template>
@@ -97,7 +150,8 @@ function colorClass(view: DeviceView): string {
         :points="view.footprint"
         fill="none"
         stroke="currentColor"
-        :class="colorClass(view)"
+        :class="view.tint.className"
+        :color="view.tint.color"
         :stroke-width="(view.selected ? 1.8 : 1.2) * hairline"
         :opacity="viewOpacity(view)"
       />
@@ -108,7 +162,8 @@ function colorClass(view: DeviceView): string {
         :width="DEVICE_NOMINAL_IN"
         :height="DEVICE_NOMINAL_IN"
         :transform="view.transform"
-        :class="colorClass(view)"
+        :class="view.tint.className"
+        :color="view.tint.color"
         :opacity="viewOpacity(view)"
       />
     </template>
