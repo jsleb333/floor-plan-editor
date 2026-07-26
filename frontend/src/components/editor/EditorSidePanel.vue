@@ -11,6 +11,7 @@ import LayersPanel from '@/components/editor/LayersPanel.vue'
 import OpeningInspector from '@/components/editor/OpeningInspector.vue'
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
 import StairsInspector from '@/components/editor/StairsInspector.vue'
+import StairsToolOptions from '@/components/editor/StairsToolOptions.vue'
 import ToolPlacementHint from '@/components/editor/ToolPlacementHint.vue'
 import UnderlayInspector from '@/components/editor/UnderlayInspector.vue'
 import WallInspector from '@/components/editor/WallInspector.vue'
@@ -81,9 +82,9 @@ const TOOL_HINTS: Partial<Record<ToolId, { title: string; lines: string[] }>> = 
   stairs: {
     title: 'Stairs',
     lines: [
-      'Press to set the origin corner, drag along the run direction, release to place.',
-      'The run is 36" wide by default; a placed run stays selected below for tweaks, and clicking an existing run edits it.',
-      'Esc cancels the drag.',
+      'A ghost run follows the cursor — the options above apply to it live. Press to set the origin corner, drag along the run direction, release to place.',
+      'Tab flips up/down at any time; while dragging, type a length then Enter to place the far end exactly.',
+      'A placed run stays selected below for tweaks; clicking an existing run edits it. Esc cancels the drag.',
     ],
   },
   label: {
@@ -135,6 +136,9 @@ const props = defineProps<{
   openingWidthIn: number
   openingHinge: 'left' | 'right'
   openingSwing: 'in' | 'out'
+  /** Live stairs tool options while the stairs tool is armed (specs S6/E8). */
+  stairsWidthIn: number
+  stairsDirection: 'up' | 'down'
   /** All walls of the document (host lookup for opening inspection). */
   walls: readonly Wall[]
   /** Currently selected elements (spec E2: contextual properties panel). */
@@ -171,6 +175,8 @@ const emit = defineEmits<{
   'set-opening-width': [widthIn: number]
   'set-opening-hinge': [hinge: 'left' | 'right']
   'set-opening-swing': [swing: 'in' | 'out']
+  'set-stairs-width': [widthIn: number]
+  'set-stairs-direction': [direction: 'up' | 'down']
   'update-wall': [wall: Wall]
   'update-opening': [opening: Opening]
   'update-stairs': [stairs: Stairs]
@@ -228,6 +234,8 @@ const openingKind = computed<'door' | 'window'>(() =>
   props.activeTool === 'window' ? 'window' : 'door',
 )
 
+const showStairsOptions = computed(() => props.activeTool === 'stairs')
+
 const showDevicePicker = computed(
   () => props.activeTool === 'device' && props.deviceArmedType === null,
 )
@@ -256,6 +264,7 @@ const hasToolSection = computed(
   () =>
     showWallOptions.value ||
     showOpeningOptions.value ||
+    showStairsOptions.value ||
     showDevicePicker.value ||
     armedDeviceHint.value !== null ||
     activeHint.value !== null,
@@ -413,6 +422,20 @@ const activePlaceholder = computed(
             @set-width="emit('set-opening-width', $event)"
             @set-hinge="emit('set-opening-hinge', $event)"
             @set-swing="emit('set-opening-swing', $event)"
+          />
+          <ToolPlacementHint
+            v-if="activeHint"
+            class="mt-4"
+            :title="activeHint.title"
+            :lines="activeHint.lines"
+          />
+        </template>
+        <template v-else-if="showStairsOptions">
+          <StairsToolOptions
+            :width-in="stairsWidthIn"
+            :direction="stairsDirection"
+            @set-width="emit('set-stairs-width', $event)"
+            @set-direction="emit('set-stairs-direction', $event)"
           />
           <ToolPlacementHint
             v-if="activeHint"

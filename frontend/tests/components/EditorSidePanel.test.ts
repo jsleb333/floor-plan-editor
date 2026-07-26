@@ -6,6 +6,7 @@ import EditorSidePanel from '@/components/editor/EditorSidePanel.vue'
 import OpeningInspector from '@/components/editor/OpeningInspector.vue'
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
 import StairsInspector from '@/components/editor/StairsInspector.vue'
+import StairsToolOptions from '@/components/editor/StairsToolOptions.vue'
 import ToolPlacementHint from '@/components/editor/ToolPlacementHint.vue'
 import WallInspector from '@/components/editor/WallInspector.vue'
 import WallToolOptions from '@/components/editor/WallToolOptions.vue'
@@ -21,6 +22,8 @@ function baseProps() {
     openingWidthIn: 32,
     openingHinge: 'left' as const,
     openingSwing: 'in' as const,
+    stairsWidthIn: 36,
+    stairsDirection: 'up' as const,
     walls: [makeWall()],
     selectedWalls: [],
     selectedOpenings: [],
@@ -65,6 +68,25 @@ describe('EditorSidePanel', () => {
 
     expect(wrapper.findComponent(OpeningToolOptions).props('kind')).toBe('window')
     expect(wrapper.findComponent(ToolPlacementHint).props('title')).toBe('Window')
+  })
+
+  it('shows the stairs tool options above the stairs inspector while the stairs tool is armed', () => {
+    const stairs = makeStairs()
+    const wrapper = mount(EditorSidePanel, {
+      props: {
+        ...baseProps(),
+        activeTool: 'stairs' as const,
+        stairsWidthIn: 42,
+        stairsDirection: 'down' as const,
+        selectedStairs: [stairs],
+      },
+    })
+
+    const options = wrapper.findComponent(StairsToolOptions)
+    expect(options.props('widthIn')).toBe(42)
+    expect(options.props('direction')).toBe('down')
+    expect(wrapper.findComponent(ToolPlacementHint).props('title')).toBe('Stairs')
+    expect(wrapper.findComponent(StairsInspector).props('stairs')).toEqual(stairs)
   })
 
   it('stacks the door hint above the opening inspector when a door is selected in-tool', () => {

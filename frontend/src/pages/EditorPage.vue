@@ -272,6 +272,11 @@ const stairsTool = useStairsTool({
     editorStore.mutate({ type: 'addStairs', stairs }),
   ),
 })
+const {
+  widthIn: stairsWidthIn,
+  direction: stairsDirection,
+  inputBuffer: stairsInputBuffer,
+} = stairsTool
 
 const dimensionTool = useDimensionTool({
   snapping,
@@ -286,6 +291,7 @@ const statusInputBuffer = computed(() => {
   if (activeTool.value === 'calibrate') return calibrateInputBuffer.value
   if (activeTool.value === 'device') return deviceTool.inputBuffer.value
   if (activeTool.value === 'door' || activeTool.value === 'window') return openingInputBuffer.value
+  if (activeTool.value === 'stairs') return stairsInputBuffer.value
   return ''
 })
 
@@ -682,6 +688,9 @@ useToolShortcuts(
       ((activeTool.value === 'door' || activeTool.value === 'window') &&
         (openingTool.preview.value !== null || openingInputBuffer.value !== '') &&
         isBufferKey(event.key)) ||
+      (activeTool.value === 'stairs' &&
+        (stairsTool.isDrawing.value || stairsInputBuffer.value !== '') &&
+        isBufferKey(event.key)) ||
       (activeTool.value === 'select' &&
         (selectTool.isDragging.value || selectInputBuffer.value !== '') &&
         isBufferKey(event.key)) ||
@@ -869,6 +878,8 @@ onBeforeUnmount(() => {
         :opening-width-in="openingWidthIn"
         :opening-hinge="openingHinge"
         :opening-swing="openingSwing"
+        :stairs-width-in="stairsWidthIn"
+        :stairs-direction="stairsDirection"
         :walls="documentWalls"
         :selected-walls="selectedWalls"
         :selected-openings="selectedOpenings"
@@ -891,6 +902,8 @@ onBeforeUnmount(() => {
         @set-opening-width="openingTool.setWidth($event)"
         @set-opening-hinge="openingTool.setHinge($event)"
         @set-opening-swing="openingTool.setSwing($event)"
+        @set-stairs-width="stairsTool.setWidth($event)"
+        @set-stairs-direction="stairsTool.setDirection($event)"
         @update-wall="handleUpdateWall"
         @update-opening="handleUpdateOpening"
         @update-stairs="handleUpdateStairs"
