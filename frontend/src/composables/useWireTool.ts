@@ -37,9 +37,10 @@ export interface UseWireToolReturn {
   setCursor: (point: Point | null) => void
   onClick: (world: Point) => void
   /**
-   * Routes a key press; returns true when consumed. Escape ends the current
-   * chain (spec W1: chain placement), leaving a second Escape for the page to
-   * switch back to Select.
+   * Routes a key press; returns true when consumed. Enter or Escape ends the
+   * current chain (spec W1: chain placement) — Enter because finishing a run
+   * of wires is a commit, Escape because it cancels everywhere else — leaving
+   * a second Escape for the page to switch back to Select.
    */
   handleKey: (key: string) => boolean
   /** Clears the chain and cursor (on tool switch). */
@@ -50,7 +51,7 @@ export interface UseWireToolReturn {
  * Wire drawing tool (spec W1/W2). Requires an active circuit; a click picks the
  * source device, the next click on another device draws a gentle auto-curved
  * wire between their centres on the active circuit, and the target becomes the
- * new source so outlets daisy-chain. Escape ends the chain.
+ * new source so outlets daisy-chain. Enter or Escape ends the chain.
  *
  * Headless by design: all inputs are injected and interaction arrives via
  * methods, so the machine is testable without a DOM.
@@ -134,7 +135,7 @@ export function useWireTool(options: UseWireToolOptions): UseWireToolReturn {
   }
 
   function handleKey(key: string): boolean {
-    if (key === 'Escape' && sourceId.value !== null) {
+    if ((key === 'Escape' || key === 'Enter') && sourceId.value !== null) {
       sourceId.value = null
       return true
     }

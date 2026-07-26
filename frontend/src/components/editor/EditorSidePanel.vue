@@ -106,7 +106,7 @@ const TOOL_HINTS: Partial<Record<ToolId, { title: string; lines: string[] }>> = 
     title: 'Wire',
     lines: [
       'Wires draw on the active circuit — create or select one in the Circuits tab first.',
-      'Click a source device, then a target device to connect them. The target becomes the next source, so outlets daisy-chain. Esc ends the chain.',
+      'Click a source device, then a target device to connect them. The target becomes the next source, so outlets daisy-chain. Enter or Esc ends the chain.',
     ],
   },
 }

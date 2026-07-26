@@ -81,4 +81,12 @@ describe('useWireTool', () => {
     expect(tool.sourceId.value).toBeNull()
     expect(tool.handleKey('Escape')).toBe(false)
   })
+
+  it('Enter ends the chain, then is not consumed again', () => {
+    const { tool } = setup()
+    tool.onClick({ x: 0, y: 0 })
+    expect(tool.handleKey('Enter')).toBe(true)
+    expect(tool.sourceId.value).toBeNull()
+    expect(tool.handleKey('Enter')).toBe(false)
+  })
 })
