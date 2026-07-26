@@ -20,6 +20,7 @@ def _make_plan(plan_id: str = "plan-1", name: str = "Basement", **overrides: obj
     fields: dict[str, object] = {
         "id": plan_id,
         "name": name,
+        "description": "",
         "revision": 1,
         "created_at": datetime(2026, 1, 1, 12, 0, tzinfo=UTC),
         "updated_at": datetime(2026, 1, 1, 12, 0, tzinfo=UTC),
@@ -59,7 +60,11 @@ class TestSqlitePlanRepository:
                 )
             ],
         )
-        plan = _make_plan(document=document, archived_at=datetime(2026, 2, 1, tzinfo=UTC))
+        plan = _make_plan(
+            document=document,
+            archived_at=datetime(2026, 2, 1, tzinfo=UTC),
+            description="traced from the hand-drawn plan",
+        )
 
         await repository.create(plan)
         record = await repository.get_raw(plan.id)
@@ -67,6 +72,7 @@ class TestSqlitePlanRepository:
         assert record is not None
         assert record.id == plan.id
         assert record.name == plan.name
+        assert record.description == plan.description
         assert record.revision == plan.revision
         assert record.created_at == plan.created_at
         assert record.updated_at == plan.updated_at
@@ -81,9 +87,13 @@ class TestSqlitePlanRepository:
     async def test_list_summaries__when_plans_exist__returns_metadata_most_recent_first(
         self, repository: SqlitePlanRepository
     ) -> None:
-        """Summaries expose id, name and timestamps, ordered by last update descending."""
+        """Summaries expose id, name, description and timestamps, ordered by last update descending."""
         older = _make_plan(plan_id="old", updated_at=datetime(2026, 1, 1, tzinfo=UTC))
-        newer = _make_plan(plan_id="new", updated_at=datetime(2026, 3, 1, tzinfo=UTC))
+        newer = _make_plan(
+            plan_id="new",
+            updated_at=datetime(2026, 3, 1, tzinfo=UTC),
+            description="the newest plan",
+        )
         await repository.create(older)
         await repository.create(newer)
 
@@ -91,8 +101,10 @@ class TestSqlitePlanRepository:
 
         assert [summary.id for summary in summaries] == ["new", "old"]
         assert summaries[0].name == newer.name
+        assert summaries[0].description == "the newest plan"
         assert summaries[0].updated_at == newer.updated_at
         assert summaries[0].archived_at is None
+        assert not summaries[1].description
 
     async def test_update_document__when_revision_matches__increments_revision_and_stores(
         self, repository: SqlitePlanRepository
@@ -170,25 +182,79 @@ class TestSqlitePlanRepository:
         backups = await cursor.fetchall()
         assert [row[0] for row in backups] == [1, 2]
 
-    async def test_rename__when_plan_exists__changes_name_and_updated_at(
+    async def test_update_metadata__when_name_is_given__changes_name_and_keeps_description(
         self, repository: SqlitePlanRepository
     ) -> None:
-        plan = _make_plan()
+        """A name-only update (inline rename) leaves the stored description untouched."""
+        plan = _make_plan(description="the family basement")
         await repository.create(plan)
         new_time = datetime(2026, 5, 1, tzinfo=UTC)
 
-        renamed = await repository.rename(plan.id, "Garage", new_time)
+        updated = await repository.update_metadata(plan.id, "Garage", None, new_time)
         record = await repository.get_raw(plan.id)
 
-        assert renamed is True
+        assert updated is True
         assert record is not None
         assert record.name == "Garage"
+        assert record.description == "the family basement"
         assert record.updated_at == new_time
 
-    async def test_rename__when_id_is_unknown__returns_false(
+    async def test_update_metadata__when_description_is_given__changes_it_and_keeps_name(
         self, repository: SqlitePlanRepository
     ) -> None:
-        assert await repository.rename("missing", "Garage", datetime.now(UTC)) is False
+        """A description-only update (Inspector plan settings) leaves the stored name untouched."""
+        plan = _make_plan()
+        await repository.create(plan)
+
+        updated = await repository.update_metadata(
+            plan.id, None, "traced from the photo", datetime(2026, 5, 1, tzinfo=UTC)
+        )
+        record = await repository.get_raw(plan.id)
+
+        assert updated is True
+        assert record is not None
+        assert record.name == plan.name
+        assert record.description == "traced from the photo"
+
+    async def test_update_metadata__when_id_is_unknown__returns_false(
+        self, repository: SqlitePlanRepository
+    ) -> None:
+        assert (
+            await repository.update_metadata("missing", "Garage", None, datetime.now(UTC)) is False
+        )
+
+    async def test_initialize__when_table_predates_the_description_column__adds_it_keeping_rows(
+        self, connection: aiosqlite.Connection
+    ) -> None:
+        """Re-initializing over a legacy database adds the description column additively; existing plans survive with an empty description."""
+        await connection.execute(
+            "CREATE TABLE plans (id TEXT PRIMARY KEY, name TEXT NOT NULL,"
+            " revision INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,"
+            " archived_at TEXT NULL, document TEXT NOT NULL)"
+        )
+        await connection.execute(
+            "INSERT INTO plans (id, name, revision, created_at, updated_at, archived_at,"
+            " document) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "legacy-plan",
+                "Basement",
+                2,
+                datetime(2026, 1, 1, tzinfo=UTC).isoformat(),
+                datetime(2026, 2, 1, tzinfo=UTC).isoformat(),
+                None,
+                PlanDocument().model_dump_json(),
+            ),
+        )
+        await connection.commit()
+        repository = SqlitePlanRepository(connection)
+
+        await repository.initialize()
+        record = await repository.get_raw("legacy-plan")
+
+        assert record is not None
+        assert record.name == "Basement"
+        assert not record.description
+        assert record.revision == 2
 
     async def test_set_archived__when_toggled__stores_and_clears_archived_at(
         self, repository: SqlitePlanRepository

@@ -18,6 +18,7 @@ class RawPlanRecord(BaseModel):
 
     id: str
     name: str
+    description: str = ""
     revision: int
     created_at: datetime
     updated_at: datetime

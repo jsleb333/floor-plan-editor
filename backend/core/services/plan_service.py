@@ -6,14 +6,25 @@ from uuid import uuid4
 
 from loguru import logger
 
-from backend.constants import CURRENT_SCHEMA_VERSION, LEGACY_SCHEMA_VERSION
-from backend.core.errors import PlanNotArchivedError, PlanNotFoundError, RevisionConflictError
+from backend.constants import (
+    CURRENT_SCHEMA_VERSION,
+    DEFAULT_THICKNESS_PRESETS_IN,
+    LEGACY_SCHEMA_VERSION,
+)
+from backend.core.errors import (
+    AssetNotFoundError,
+    PlanNotArchivedError,
+    PlanNotFoundError,
+    RevisionConflictError,
+)
 from backend.core.plan_migrator import PlanMigrator
+from backend.interfaces.asset_repository import AssetRepository
 from backend.interfaces.plan_repository import PlanRepository
 from backend.models.plan import Plan
 from backend.models.plan_document import PlanDocument
 from backend.models.plan_summary import PlanSummary
 from backend.models.raw_plan_record import RawPlanRecord
+from backend.models.underlay import Underlay
 
 
 DUPLICATE_NAME_SUFFIX = " (copy)"
@@ -23,45 +34,90 @@ class PlanService:
     """Business logic for the plan lifecycle.
 
     Role:
-        Owns creation, listing, renaming, autosave document updates
-        (optimistic concurrency), duplication, soft delete (archive/restore)
-        and permanent deletion of plans. Reads migrate stored documents
-        forward to the current schema version, keeping a pre-migration backup
-        and persisting the migrated document. Persistence is delegated to the
-        injected repository; this service enforces the domain rules and
-        translates repository outcomes into domain exceptions.
+        Owns creation (optionally seeded with a description, an underlay and
+        tier-2 plan settings, spec P5), listing, metadata updates, autosave
+        document updates (optimistic concurrency), duplication, soft delete
+        (archive/restore) and permanent deletion of plans. Reads migrate
+        stored documents forward to the current schema version, keeping a
+        pre-migration backup and persisting the migrated document.
+        Persistence is delegated to the injected repositories; this service
+        enforces the domain rules and translates repository outcomes into
+        domain exceptions.
     """
 
-    def __init__(self, repo: PlanRepository, migrator: PlanMigrator) -> None:
+    def __init__(
+        self, repo: PlanRepository, migrator: PlanMigrator, asset_repo: AssetRepository
+    ) -> None:
         """Store the persistence and migration dependencies.
 
         Args:
             repo: Plan persistence port used for all storage operations.
             migrator: Brings raw stored documents up to the current schema
                 version before they are validated into domain models.
+            asset_repo: Asset persistence port, used to verify that an
+                underlay asset referenced at creation time actually exists.
         """
         self._repo = repo
         self._migrator = migrator
+        self._asset_repo = asset_repo
 
-    async def create_plan(self, name: str) -> Plan:
-        """Create a new empty plan.
+    async def create_plan(
+        self,
+        name: str,
+        *,
+        description: str = "",
+        underlay_asset_id: str | None = None,
+        thickness_presets_in: list[float] | None = None,
+        display_precision_in: float | None = None,
+    ) -> Plan:
+        """Create a new plan, optionally seeded by the creation card (spec P5).
 
         Args:
             name: Human-readable name of the plan.
+            description: Optional description shown on the home-page card.
+            underlay_asset_id: Optional id of an already-uploaded image asset;
+                when given, the new document's underlay references it with the
+                default transform and opacity, so the editor can open straight
+                into calibration.
+            thickness_presets_in: Optional plan-level wall thickness presets
+                seeding the document; None keeps the default presets.
+            display_precision_in: Optional per-plan display precision override
+                in inches; None falls back to the app preference.
 
         Returns:
-            The created plan, with a fresh uuid, revision 1 and a default
-            document.
+            The created plan, with a fresh uuid, revision 1 and a document
+            holding the seeded settings.
+
+        Raises:
+            AssetNotFoundError: When ``underlay_asset_id`` references no
+                stored asset.
         """
+        if underlay_asset_id is not None:
+            asset = await self._asset_repo.get_meta(underlay_asset_id)
+            if asset is None:
+                raise AssetNotFoundError(underlay_asset_id)
         now = datetime.now(UTC)
         plan = Plan(
             id=str(uuid4()),
             name=name,
+            description=description,
             revision=1,
             created_at=now,
             updated_at=now,
             archived_at=None,
-            document=PlanDocument(),
+            document=PlanDocument(
+                underlay=(
+                    Underlay(image_ref=underlay_asset_id)
+                    if underlay_asset_id is not None
+                    else None
+                ),
+                thickness_presets_in=(
+                    list(thickness_presets_in)
+                    if thickness_presets_in is not None
+                    else list(DEFAULT_THICKNESS_PRESETS_IN)
+                ),
+                display_precision_in=display_precision_in,
+            ),
         )
         await self._repo.create(plan)
         logger.info("Created plan '{}' ({})", plan.name, plan.id)
@@ -98,6 +154,7 @@ class PlanService:
         return Plan(
             id=record.id,
             name=record.name,
+            description=record.description,
             revision=revision,
             created_at=record.created_at,
             updated_at=updated_at,
@@ -140,12 +197,15 @@ class PlanService:
         )
         return new_revision, now
 
-    async def rename_plan(self, plan_id: str, name: str) -> Plan:
-        """Rename a plan.
+    async def update_metadata(
+        self, plan_id: str, *, name: str | None = None, description: str | None = None
+    ) -> Plan:
+        """Update a plan's listing metadata; None fields are left unchanged.
 
         Args:
-            plan_id: Identifier of the plan to rename.
-            name: New plan name.
+            plan_id: Identifier of the plan to update.
+            name: New plan name (inline rename), or None to keep it.
+            description: New plan description, or None to keep it.
 
         Returns:
             The updated plan.
@@ -153,10 +213,15 @@ class PlanService:
         Raises:
             PlanNotFoundError: When no plan has this id.
         """
-        renamed = await self._repo.rename(plan_id, name, datetime.now(UTC))
-        if not renamed:
+        updated = await self._repo.update_metadata(plan_id, name, description, datetime.now(UTC))
+        if not updated:
             raise PlanNotFoundError(plan_id)
-        logger.info("Renamed plan {} to '{}'", plan_id, name)
+        logger.info(
+            "Updated metadata of plan {} (name={!r}, description={})",
+            plan_id,
+            name,
+            "unchanged" if description is None else f"{len(description)} chars",
+        )
         return await self.get_plan(plan_id)
 
     async def update_document(
@@ -209,6 +274,7 @@ class PlanService:
         duplicate = Plan(
             id=str(uuid4()),
             name=source.name + DUPLICATE_NAME_SUFFIX,
+            description=source.description,
             revision=1,
             created_at=now,
             updated_at=now,

@@ -15,6 +15,7 @@ class TestPlanRoutes:
     ) -> AsyncIterator[AsyncClient]:
         """HTTP client on the full app, persisting to a temporary database file."""
         monkeypatch.setenv("FLOORPLAN_DB_PATH", str(tmp_path / "test.db"))
+        monkeypatch.setenv("FLOORPLAN_DATA_DIR", str(tmp_path / "data"))
         app = create_app()
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -33,13 +34,15 @@ class TestPlanRoutes:
         """Create, list, fetch and autosave a plan; the revision bumps and the document sticks."""
         created = await self._create_plan(client, "Basement")
         assert created["name"] == "Basement"
+        assert not created["description"]
         assert created["revision"] == 1
-        assert created["document"]["schema_version"] == 6
+        assert created["document"]["schema_version"] == 7
         assert created["document"]["underlay"] is None
         assert created["document"]["walls"] == []
         assert created["document"]["devices"] == []
         assert created["document"]["catalog_defaults"] == {}
         assert created["document"]["thickness_presets_in"] == [12.0, 4.5, 3.5]
+        assert created["document"]["display_precision_in"] is None
         assert created["document"]["circuits"] == []
         assert created["document"]["wires"] == []
         assert created["document"]["control_links"] == []
@@ -48,6 +51,7 @@ class TestPlanRoutes:
         listed = (await client.get("/api/plans")).json()
         assert [summary["id"] for summary in listed] == [created["id"]]
         assert listed[0]["name"] == "Basement"
+        assert not listed[0]["description"]
 
         fetched = (await client.get(f"/api/plans/{created['id']}")).json()
         assert fetched == created
@@ -68,10 +72,10 @@ class TestPlanRoutes:
     async def test_update_plan_document__when_document_has_structure_elements__roundtrips(
         self, client: AsyncClient
     ) -> None:
-        """A full v6 document with an underlay and one of each structure element survives a PUT/GET roundtrip byte for byte."""
+        """A full v7 document with an underlay and one of each structure element survives a PUT/GET roundtrip byte for byte."""
         created = await self._create_plan(client, "Basement")
         document = {
-            "schema_version": 6,
+            "schema_version": 7,
             "viewport": {"center": {"x": 120.0, "y": 90.0}, "zoom": 1.5},
             "underlay": {
                 "image_ref": "abc123",
@@ -163,6 +167,7 @@ class TestPlanRoutes:
             "devices": [],
             "catalog_defaults": {},
             "thickness_presets_in": [12.0, 4.5, 3.5, 5.5],
+            "display_precision_in": 0.125,
             "circuits": [],
             "wires": [],
             "control_links": [],
@@ -179,7 +184,7 @@ class TestPlanRoutes:
         assert refetched["revision"] == 2
         assert refetched["document"] == document
 
-    async def test_update_plan_document__when_body_is_v2_shaped__stores_it_normalized_to_v6(
+    async def test_update_plan_document__when_body_is_v2_shaped__stores_it_normalized_to_v7(
         self, client: AsyncClient
     ) -> None:
         """A PUT from an older client (schema_version 2, no underlay key) still validates; the stored document claims the current schema version with an empty underlay, so no read-time migration is needed."""
@@ -203,19 +208,20 @@ class TestPlanRoutes:
 
         refetched = (await client.get(f"/api/plans/{created['id']}")).json()
         assert refetched["revision"] == 2
-        assert refetched["document"]["schema_version"] == 6
+        assert refetched["document"]["schema_version"] == 7
         assert refetched["document"]["underlay"] is None
         assert refetched["document"]["devices"] == []
         assert refetched["document"]["circuits"] == []
         assert refetched["document"]["wires"] == []
         assert refetched["document"]["control_links"] == []
         assert refetched["document"]["active_tool"] is None
+        assert refetched["document"]["display_precision_in"] is None
         assert refetched["document"]["viewport"] == v2_document["viewport"]
 
     async def test_update_plan_document__when_document_has_devices__roundtrips_them(
         self, client: AsyncClient
     ) -> None:
-        """A wall-attached outlet, a positioned ceiling light and a baseboard with a length and load override survive a PUT/GET roundtrip intact at schema version 4."""
+        """A wall-attached outlet, a positioned ceiling light and a baseboard with a length and load override survive a PUT/GET roundtrip intact at the current schema version."""
         created = await self._create_plan(client, "Basement")
         document = dict(created["document"])
         document["walls"] = [
@@ -280,7 +286,7 @@ class TestPlanRoutes:
         refetched = (await client.get(f"/api/plans/{created['id']}")).json()
         assert refetched["revision"] == 2
         assert refetched["document"] == document
-        assert refetched["document"]["schema_version"] == 6
+        assert refetched["document"]["schema_version"] == 7
 
     async def test_update_plan_document__when_device_placement_is_invalid__returns_422(
         self, client: AsyncClient
@@ -419,15 +425,84 @@ class TestPlanRoutes:
 
         assert response.status_code == 404
 
-    async def test_rename_plan__when_plan_exists__returns_renamed_plan(
+    async def test_create_plan__when_seeded_with_options__returns_plan_ready_for_calibration(
+        self, client: AsyncClient
+    ) -> None:
+        """Creating with a description, an uploaded underlay photo and tier-2 defaults returns a plan whose document opens straight into calibration, and the description shows up in the listing."""
+        uploaded = await client.post(
+            "/api/assets",
+            files={"file": ("plan.jpg", b"\xff\xd8\xff\xe0fake-jpeg", "image/jpeg")},
+        )
+        assert uploaded.status_code == 201
+        asset_id = uploaded.json()["id"]
+
+        response = await client.post(
+            "/api/plans",
+            json={
+                "name": "Basement",
+                "description": "Traced from the hand-drawn plan",
+                "underlay_asset_id": asset_id,
+                "thickness_presets_in": [10.0, 4.5],
+                "display_precision_in": 0.25,
+            },
+        )
+
+        assert response.status_code == 201
+        created = response.json()
+        assert created["description"] == "Traced from the hand-drawn plan"
+        assert created["document"]["underlay"] == {
+            "image_ref": asset_id,
+            "transform": {"origin": {"x": 0.0, "y": 0.0}, "rotation_deg": 0.0, "scale": 1.0},
+            "opacity": 0.4,
+            "locked": False,
+            "visible": True,
+        }
+        assert created["document"]["thickness_presets_in"] == [10.0, 4.5]
+        assert created["document"]["display_precision_in"] == 0.25
+
+        listed = (await client.get("/api/plans")).json()
+        assert listed[0]["description"] == "Traced from the hand-drawn plan"
+
+    async def test_create_plan__when_underlay_asset_is_unknown__returns_404_without_creating(
+        self, client: AsyncClient
+    ) -> None:
+        """A creation referencing a non-existent asset id fails cleanly and stores nothing."""
+        response = await client.post(
+            "/api/plans",
+            json={"name": "Basement", "underlay_asset_id": "no-such-asset"},
+        )
+
+        assert response.status_code == 404
+        assert "no-such-asset" in response.json()["detail"]
+        assert (await client.get("/api/plans")).json() == []
+
+    async def test_update_plan_metadata__when_only_name_is_sent__renames_and_keeps_description(
+        self, client: AsyncClient
+    ) -> None:
+        """The pre-description rename payload still works and does not clear the description."""
+        response = await client.post(
+            "/api/plans", json={"name": "Basement", "description": "the family basement"}
+        )
+        created = response.json()
+
+        renamed = await client.patch(f"/api/plans/{created['id']}", json={"name": "Garage"})
+
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Garage"
+        assert renamed.json()["description"] == "the family basement"
+
+    async def test_update_plan_metadata__when_only_description_is_sent__keeps_name(
         self, client: AsyncClient
     ) -> None:
         created = await self._create_plan(client, "Basement")
 
-        response = await client.patch(f"/api/plans/{created['id']}", json={"name": "Garage"})
+        response = await client.patch(
+            f"/api/plans/{created['id']}", json={"description": "now with a description"}
+        )
 
         assert response.status_code == 200
-        assert response.json()["name"] == "Garage"
+        assert response.json()["name"] == "Basement"
+        assert response.json()["description"] == "now with a description"
 
     async def test_duplicate_plan__when_plan_exists__creates_copy(
         self, client: AsyncClient

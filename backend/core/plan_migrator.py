@@ -37,6 +37,7 @@ class PlanMigrator:
             3: self._migrate_v3_to_v4,
             4: self._migrate_v4_to_v5,
             5: self._migrate_v5_to_v6,
+            6: self._migrate_v6_to_v7,
         }
 
     def migrate(self, raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -146,4 +147,19 @@ class PlanMigrator:
         """
         document.setdefault("active_tool", None)
         document["schema_version"] = 6
+        return document
+
+    @staticmethod
+    def _migrate_v6_to_v7(document: dict[str, Any]) -> dict[str, Any]:
+        """Add the v7 per-plan display precision override (spec section 5.9 tier 2).
+
+        Args:
+            document: A schema v6 document dict.
+
+        Returns:
+            The same dict brought to schema version 7, with no precision
+            override set — display falls back to the app preference.
+        """
+        document.setdefault("display_precision_in", None)
+        document["schema_version"] = 7
         return document

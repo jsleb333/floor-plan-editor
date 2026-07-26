@@ -49,16 +49,19 @@ class PlanRepository(ABC):
         """
 
     @abstractmethod
-    async def rename(self, plan_id: str, name: str, updated_at: datetime) -> bool:
-        """Change a plan's name.
+    async def update_metadata(
+        self, plan_id: str, name: str | None, description: str | None, updated_at: datetime
+    ) -> bool:
+        """Change a plan's listing metadata; None fields keep their stored value.
 
         Args:
-            plan_id: Identifier of the plan to rename.
-            name: New plan name.
+            plan_id: Identifier of the plan to update.
+            name: New plan name, or None to leave the name unchanged.
+            description: New plan description, or None to leave it unchanged.
             updated_at: Timestamp to record as the last modification time.
 
         Returns:
-            True when a plan was renamed, False when the id is unknown.
+            True when a plan was updated, False when the id is unknown.
         """
 
     @abstractmethod

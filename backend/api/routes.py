@@ -6,7 +6,7 @@ from fastapi import APIRouter, status
 from backend.api.schemas import (
     PlanCreateRequest,
     PlanDocumentUpdateRequest,
-    PlanRenameRequest,
+    PlanMetadataUpdateRequest,
     RevisionResponse,
 )
 from backend.core.services.circuit_validation_service import CircuitValidationService
@@ -27,8 +27,14 @@ async def list_plans(service: FromDishka[PlanService]) -> list[PlanSummary]:
 
 @router.post("/plans", status_code=status.HTTP_201_CREATED)
 async def create_plan(body: PlanCreateRequest, service: FromDishka[PlanService]) -> Plan:
-    """Create a new empty plan."""
-    return await service.create_plan(body.name)
+    """Create a new plan, optionally seeded with a description, an underlay and settings."""
+    return await service.create_plan(
+        body.name,
+        description=body.description,
+        underlay_asset_id=body.underlay_asset_id,
+        thickness_presets_in=body.thickness_presets_in,
+        display_precision_in=body.display_precision_in,
+    )
 
 
 @router.get("/plans/{plan_id}")
@@ -58,11 +64,11 @@ async def get_plan_validation(
 
 
 @router.patch("/plans/{plan_id}")
-async def rename_plan(
-    plan_id: str, body: PlanRenameRequest, service: FromDishka[PlanService]
+async def update_plan_metadata(
+    plan_id: str, body: PlanMetadataUpdateRequest, service: FromDishka[PlanService]
 ) -> Plan:
-    """Rename a plan."""
-    return await service.rename_plan(plan_id, body.name)
+    """Update a plan's metadata (name and/or description); omitted fields are kept."""
+    return await service.update_metadata(plan_id, name=body.name, description=body.description)
 
 
 @router.post("/plans/{plan_id}/duplicate", status_code=status.HTTP_201_CREATED)
