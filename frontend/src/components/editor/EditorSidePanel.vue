@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import CircuitsPanel from '@/components/editor/CircuitsPanel.vue'
 import DeviceInspector from '@/components/editor/DeviceInspector.vue'
 import DevicePicker from '@/components/editor/DevicePicker.vue'
+import DeviceToolOptions from '@/components/editor/DeviceToolOptions.vue'
 import DimensionInspector from '@/components/editor/DimensionInspector.vue'
 import LabelInspector from '@/components/editor/LabelInspector.vue'
 import LayersPanel from '@/components/editor/LayersPanel.vue'
@@ -20,6 +21,7 @@ import WireInspector from '@/components/editor/WireInspector.vue'
 import WallToolOptions from '@/components/editor/WallToolOptions.vue'
 import type { ToolId } from '@/components/editor/tools'
 import { useCircuitValidation } from '@/composables/useCircuitValidation'
+import type { DeviceDraft } from '@/composables/useDeviceTool'
 import { DEVICE_CATALOG } from '@/devices/catalog'
 import type { ElementKind } from '@/stores/editor'
 import type {
@@ -175,6 +177,8 @@ const props = defineProps<{
   underlayImageSize: ImageSize | null
   /** The armed device type while the Device tool is active, else null (spec §6.1). */
   deviceArmedType: DeviceType | null
+  /** The armed type's draft applied to the next placed device (spec E8/§6.1). */
+  deviceDraft: DeviceDraft
   /** Plan-level per-type default loads (spec §5.9 tier 2). */
   catalogDefaults: Record<string, number>
 }>()
@@ -206,6 +210,10 @@ const emit = defineEmits<{
   'arm-control-link': [switchId: string]
   'remove-control-link': [linkId: string]
   'arm-device': [type: DeviceType]
+  /** A field of the armed type's draft changed (spec E8/§6.1). */
+  'update-device-draft': [patch: Partial<DeviceDraft>]
+  /** Returns to the device picker — the same effect as Esc (spec §6.1). */
+  'change-device': []
   'update-underlay': [underlay: Underlay]
   recalibrate: []
   'remove-underlay': []
@@ -258,6 +266,11 @@ const showDevicePicker = computed(
   () => props.activeTool === 'device' && props.deviceArmedType === null,
 )
 
+/** The armed type while the Device tool holds one, else null (spec E8/§6.1). */
+const armedDeviceType = computed<DeviceType | null>(() =>
+  props.activeTool === 'device' ? props.deviceArmedType : null,
+)
+
 const armedDeviceHint = computed(() => {
   if (props.activeTool !== 'device' || props.deviceArmedType === null) return null
   const entry = DEVICE_CATALOG[props.deviceArmedType]
@@ -284,7 +297,7 @@ const hasToolSection = computed(
     showOpeningOptions.value ||
     showStairsOptions.value ||
     showDevicePicker.value ||
-    armedDeviceHint.value !== null ||
+    armedDeviceType.value !== null ||
     activeHint.value !== null,
 )
 
@@ -471,11 +484,21 @@ const activePlaceholder = computed(
           :armed-type="deviceArmedType"
           @pick="emit('arm-device', $event)"
         />
-        <ToolPlacementHint
-          v-else-if="armedDeviceHint"
-          :title="armedDeviceHint.title"
-          :lines="armedDeviceHint.lines"
-        />
+        <template v-else-if="armedDeviceType">
+          <DeviceToolOptions
+            :type="armedDeviceType"
+            :draft="deviceDraft"
+            :catalog-defaults="catalogDefaults"
+            @update-draft="emit('update-device-draft', $event)"
+            @change-device="emit('change-device')"
+          />
+          <ToolPlacementHint
+            v-if="armedDeviceHint"
+            class="mt-4"
+            :title="armedDeviceHint.title"
+            :lines="armedDeviceHint.lines"
+          />
+        </template>
         <ToolPlacementHint
           v-else-if="activeHint"
           :title="activeHint.title"

@@ -3,6 +3,10 @@ import type { Device, DeviceType } from '@/types/plan'
 /** How a device attaches to the plan (spec §5.4). */
 export type DeviceMount = 'wall' | 'ceiling' | 'free'
 
+/** The picker's sectioning groups for the "All" grid (spec §6.1). */
+export type DeviceGroup =
+  'sources' | 'power' | 'lighting' | 'controls' | 'heating' | 'equipment' | 'data'
+
 /** One row of the device catalog (spec §5.4, D5), mirroring the backend registry. */
 export interface DeviceCatalogEntry {
   /** English UI label shown in the picker and Inspector. */
@@ -17,7 +21,26 @@ export interface DeviceCatalogEntry {
   default_load_w: number
   /** Extra terms the picker search matches beyond the label (spec §6.1). */
   searchTerms: readonly string[]
+  /** The picker section this type is sectioned under (UI-only, spec §6.1). */
+  group: DeviceGroup
 }
+
+/** One entry of the ordered, human-labelled group list driving the picker's sections. */
+export interface DeviceGroupDefinition {
+  id: DeviceGroup
+  label: string
+}
+
+/** The picker's "All" grid sections, in display order — sources first (spec §6.1). */
+export const DEVICE_GROUPS: readonly DeviceGroupDefinition[] = [
+  { id: 'sources', label: 'Sources' },
+  { id: 'power', label: 'Power' },
+  { id: 'lighting', label: 'Lighting' },
+  { id: 'controls', label: 'Controls' },
+  { id: 'heating', label: 'Heating' },
+  { id: 'equipment', label: 'Equipment' },
+  { id: 'data', label: 'Data' },
+]
 
 /** The ordered list of every device type — drives the picker layout (spec D5). */
 export const DEVICE_TYPES: readonly DeviceType[] = [
@@ -51,6 +74,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 120,
     default_load_w: 180,
     searchTerms: ['receptacle', 'duplex', 'plug', 'prise'],
+    group: 'power',
   },
   outlet_gfci: {
     label: 'GFCI outlet',
@@ -59,6 +83,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 120,
     default_load_w: 180,
     searchTerms: ['gfci', 'ground fault', 'ddft', 'prise', 'receptacle'],
+    group: 'power',
   },
   switch: {
     label: 'Switch',
@@ -67,6 +92,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: null,
     default_load_w: 0,
     searchTerms: ['single pole', 'interrupteur'],
+    group: 'controls',
   },
   switch_3way: {
     label: '3-way switch',
@@ -75,6 +101,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: null,
     default_load_w: 0,
     searchTerms: ['three way', '3 way', 'interrupteur'],
+    group: 'controls',
   },
   ceiling_light: {
     label: 'Ceiling light',
@@ -83,6 +110,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 120,
     default_load_w: 15,
     searchTerms: ['luminaire', 'fixture', 'lamp'],
+    group: 'lighting',
   },
   wall_light: {
     label: 'Wall light',
@@ -91,6 +119,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 120,
     default_load_w: 15,
     searchTerms: ['sconce', 'luminaire', 'fixture', 'lamp'],
+    group: 'lighting',
   },
   baseboard_heater: {
     label: 'Baseboard heater',
@@ -99,6 +128,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 240,
     default_load_w: 1000,
     searchTerms: ['plinthe', 'heat', 'heating', 'convector'],
+    group: 'heating',
   },
   thermostat: {
     label: 'Thermostat',
@@ -107,6 +137,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 240,
     default_load_w: 0,
     searchTerms: ['stat', 'temperature'],
+    group: 'controls',
   },
   water_heater: {
     label: 'Water heater',
@@ -115,6 +146,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 240,
     default_load_w: 3800,
     searchTerms: ['wh', 'chauffe-eau', 'tank', 'boiler'],
+    group: 'equipment',
   },
   air_exchanger: {
     label: 'Air exchanger',
@@ -123,6 +155,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 120,
     default_load_w: 150,
     searchTerms: ['ea', 'hrv', 'echangeur', 'ventilation'],
+    group: 'equipment',
   },
   central_vacuum: {
     label: 'Central vacuum',
@@ -131,6 +164,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 120,
     default_load_w: 1400,
     searchTerms: ['vac', 'aspirateur', 'vacuum unit'],
+    group: 'equipment',
   },
   vacuum_inlet: {
     label: 'Vacuum inlet',
@@ -139,6 +173,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: null,
     default_load_w: 0,
     searchTerms: ['vac', 'aspirateur', 'inlet', 'hose'],
+    group: 'data',
   },
   smoke_detector: {
     label: 'Smoke detector',
@@ -147,6 +182,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: 120,
     default_load_w: 5,
     searchTerms: ['sd', 'alarm', 'detecteur', 'fumee', 'fire'],
+    group: 'equipment',
   },
   network_jack: {
     label: 'Network jack',
@@ -155,6 +191,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: null,
     default_load_w: 0,
     searchTerms: ['ethernet', 'rj45', 'data', 'reseau', 'lan'],
+    group: 'data',
   },
   panel: {
     label: 'Electrical panel',
@@ -163,6 +200,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     voltage_v: null,
     default_load_w: 0,
     searchTerms: ['breaker', 'panneau', 'load center', 'distribution'],
+    group: 'sources',
   },
 }
 

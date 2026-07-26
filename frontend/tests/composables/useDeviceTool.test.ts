@@ -3,8 +3,9 @@ import { computed, ref } from 'vue'
 import type { Ref } from 'vue'
 
 import { useDeviceTool } from '@/composables/useDeviceTool'
-import type { UseDeviceToolReturn } from '@/composables/useDeviceTool'
+import type { DeviceDraft, UseDeviceToolReturn } from '@/composables/useDeviceTool'
 import type { SnapSettings } from '@/composables/useSnapping'
+import { DEFAULT_BASEBOARD_LENGTH_IN } from '@/devices/catalog'
 import type { Device, DeviceType, Wall } from '@/types/plan'
 import { makeWall } from '../helpers/planFactory'
 
@@ -13,7 +14,11 @@ describe('useDeviceTool', () => {
   let armedType: Ref<DeviceType | null>
   let committed: Device[]
 
-  function setup(walls: Wall[], type: DeviceType | null = 'outlet'): UseDeviceToolReturn {
+  function setup(
+    walls: Wall[],
+    type: DeviceType | null = 'outlet',
+    drafts: Partial<Record<DeviceType, DeviceDraft>> = {},
+  ): UseDeviceToolReturn {
     committed = []
     armedType = ref<DeviceType | null>(type)
     return useDeviceTool({
@@ -22,6 +27,7 @@ describe('useDeviceTool', () => {
       pixelsPerInch: ref(2),
       snapSettings,
       commit: (device) => committed.push(device),
+      drafts: ref(drafts),
     })
   }
 
@@ -95,5 +101,43 @@ describe('useDeviceTool', () => {
     expect(tool.handleKey('Escape')).toBe(true)
     expect(armedType.value).toBeNull()
     expect(tool.handleKey('Escape')).toBe(false)
+  })
+
+  it('applies the armed type draft label and load override to the preview', () => {
+    const tool = setup([makeWall({ id: 'w' })], 'outlet', {
+      outlet: { label: 'Kitchen counter', load_w: 200, length_in: null },
+    })
+    tool.setCursor({ x: 60, y: 3 })
+
+    expect(tool.preview.value?.label).toBe('Kitchen counter')
+    expect(tool.preview.value?.load_w).toBe(200)
+  })
+
+  it('keeps drafts isolated per device type — another type draft never leaks onto the armed one', () => {
+    const tool = setup([makeWall({ id: 'w' })], 'outlet', {
+      water_heater: { label: null, load_w: 4200, length_in: null },
+    })
+    tool.setCursor({ x: 60, y: 3 })
+
+    expect(tool.preview.value?.label).toBeNull()
+    expect(tool.preview.value?.load_w).toBeNull()
+  })
+
+  it('falls back to the default baseboard length when the draft has no length override', () => {
+    const tool = setup([makeWall({ id: 'w' })], 'baseboard_heater', {
+      baseboard_heater: { label: null, load_w: null, length_in: null },
+    })
+    tool.setCursor({ x: 60, y: 3 })
+
+    expect(tool.preview.value?.length_in).toBe(DEFAULT_BASEBOARD_LENGTH_IN)
+  })
+
+  it('uses the draft baseboard length override when set', () => {
+    const tool = setup([makeWall({ id: 'w' })], 'baseboard_heater', {
+      baseboard_heater: { label: null, load_w: null, length_in: 48 },
+    })
+    tool.setCursor({ x: 60, y: 3 })
+
+    expect(tool.preview.value?.length_in).toBe(48)
   })
 })

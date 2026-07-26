@@ -43,11 +43,13 @@ const emit = defineEmits<{
 const precisionIn = useDisplayPrecision()
 
 const labelDraft = ref('')
-const loadDraft = ref('')
 const lengthDraft = ref('')
 const rotationDraft = ref('')
 const notesDraft = ref('')
-const bulkLoadDraft = ref('')
+// Vue casts a `v-model` bound to `type="number"` to a number as soon as the
+// text parses, so these two hold either; the type keeps callers honest.
+const loadDraft = ref<string | number>('')
+const bulkLoadDraft = ref<string | number>('')
 
 const single = computed<Device | null>(() => (props.devices.length === 1 ? props.devices[0] : null))
 const entry = computed(() => (single.value ? catalogEntry(single.value.type) : null))
@@ -123,7 +125,7 @@ function applyLabel(): void {
 }
 
 function applyLoad(): void {
-  const text = loadDraft.value.trim()
+  const text = String(loadDraft.value).trim()
   if (text === '') {
     update({ load_w: null })
     return
@@ -158,7 +160,7 @@ function setWattage(watts: number): void {
 }
 
 function applyBulkLoad(): void {
-  const text = bulkLoadDraft.value.trim()
+  const text = String(bulkLoadDraft.value).trim()
   const parsed = text === '' ? null : Number.parseFloat(text)
   if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0)) return
   emit(

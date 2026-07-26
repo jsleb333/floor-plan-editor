@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import DeviceToolOptions from '@/components/editor/DeviceToolOptions.vue'
 import EditorSidePanel from '@/components/editor/EditorSidePanel.vue'
 import OpeningInspector from '@/components/editor/OpeningInspector.vue'
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
@@ -11,7 +12,10 @@ import StairsToolOptions from '@/components/editor/StairsToolOptions.vue'
 import ToolPlacementHint from '@/components/editor/ToolPlacementHint.vue'
 import WallInspector from '@/components/editor/WallInspector.vue'
 import WallToolOptions from '@/components/editor/WallToolOptions.vue'
-import { makeOpening, makeStairs, makeWall } from '../helpers/planFactory'
+import type { DeviceDraft } from '@/composables/useDeviceTool'
+import { makeDevice, makeOpening, makeStairs, makeWall } from '../helpers/planFactory'
+
+const EMPTY_DEVICE_DRAFT: DeviceDraft = { label: null, load_w: null, length_in: null }
 
 /** Complete prop set for an idle panel (select tool, empty selection). */
 function baseProps() {
@@ -46,6 +50,7 @@ function baseProps() {
     selectedUnderlay: null,
     underlayImageSize: null,
     deviceArmedType: null,
+    deviceDraft: EMPTY_DEVICE_DRAFT,
     catalogDefaults: {},
   }
 }
@@ -202,5 +207,56 @@ describe('EditorSidePanel', () => {
 
     expect(wrapper.findComponent(WallToolOptions).exists()).toBe(true)
     expect(wrapper.findComponent(WallInspector).exists()).toBe(false)
+  })
+
+  it('shows the device picker while the device tool is armed with no type picked', () => {
+    const wrapper = mount(EditorSidePanel, {
+      props: { ...baseProps(), activeTool: 'device' as const },
+    })
+
+    expect(wrapper.find('[aria-label="Device picker"]').exists()).toBe(true)
+    expect(wrapper.findComponent(DeviceToolOptions).exists()).toBe(false)
+  })
+
+  it('shows the device tool options and hint above the device inspector once a type is armed', () => {
+    const device = makeDevice({ type: 'outlet' })
+    const draft: DeviceDraft = { label: null, load_w: 200, length_in: null }
+    const wrapper = mount(EditorSidePanel, {
+      props: {
+        ...baseProps(),
+        activeTool: 'device' as const,
+        deviceArmedType: 'outlet' as const,
+        deviceDraft: draft,
+        catalogDefaults: { outlet: 240 },
+        selectedDevices: [device],
+      },
+    })
+
+    expect(wrapper.find('[aria-label="Device picker"]').exists()).toBe(false)
+    const options = wrapper.findComponent(DeviceToolOptions)
+    expect(options.props('type')).toBe('outlet')
+    expect(options.props('draft')).toEqual(draft)
+    expect(options.props('catalogDefaults')).toEqual({ outlet: 240 })
+    expect(wrapper.findComponent(ToolPlacementHint).exists()).toBe(true)
+  })
+
+  it('relays update-draft from the device tool options as update-device-draft', () => {
+    const wrapper = mount(EditorSidePanel, {
+      props: { ...baseProps(), activeTool: 'device' as const, deviceArmedType: 'outlet' as const },
+    })
+
+    wrapper.findComponent(DeviceToolOptions).vm.$emit('update-draft', { load_w: 300 })
+
+    expect(wrapper.emitted('update-device-draft')).toEqual([[{ load_w: 300 }]])
+  })
+
+  it('relays change-device from the device tool options', () => {
+    const wrapper = mount(EditorSidePanel, {
+      props: { ...baseProps(), activeTool: 'device' as const, deviceArmedType: 'outlet' as const },
+    })
+
+    wrapper.findComponent(DeviceToolOptions).vm.$emit('change-device')
+
+    expect(wrapper.emitted('change-device')).toHaveLength(1)
   })
 })

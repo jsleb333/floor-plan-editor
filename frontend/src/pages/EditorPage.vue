@@ -26,11 +26,12 @@ import ViewportCanvas from '@/components/editor/ViewportCanvas.vue'
 import WallToolOverlay from '@/components/editor/WallToolOverlay.vue'
 import WallsLayer from '@/components/editor/WallsLayer.vue'
 import WiresLayer from '@/components/editor/WiresLayer.vue'
-import { TOOLS, startupToolFor } from '@/components/editor/tools'
+import { TOOLS, armedDeviceTypeFor, startupToolFor } from '@/components/editor/tools'
 import type { ToolId } from '@/components/editor/tools'
 import { useCalibrateTool } from '@/composables/useCalibrateTool'
 import { useCircuitValidation } from '@/composables/useCircuitValidation'
 import { useDeviceTool } from '@/composables/useDeviceTool'
+import type { DeviceDraft } from '@/composables/useDeviceTool'
 import { useDimensionTool } from '@/composables/useDimensionTool'
 import { useOpeningTool } from '@/composables/useOpeningTool'
 import { useSelectTool } from '@/composables/useSelectTool'
@@ -46,6 +47,7 @@ import { useWireTool } from '@/composables/useWireTool'
 import { isBufferKey, useWallTool } from '@/composables/useWallTool'
 import { planContentBounds } from '@/export/svgExport'
 import { planIdFromRoute } from '@/router'
+import { useDeviceMruStore } from '@/stores/deviceMru'
 import { useEditorStore } from '@/stores/editor'
 import { useLayersStore } from '@/stores/layers'
 import type {
@@ -82,6 +84,9 @@ type LoadState = { status: 'loading' } | { status: 'error'; message: string } | 
 const DEFAULT_LABEL_TEXT = 'Room'
 const DEFAULT_LABEL_SIZE_IN = 8
 
+/** Fallback draft for an armed type with no last-used overrides yet (spec E8/§6.1). */
+const EMPTY_DEVICE_DRAFT: DeviceDraft = { label: null, load_w: null, length_in: null }
+
 const ARROW_NUDGES: Record<string, { dx: number; dy: number }> = {
   ArrowLeft: { dx: -1, dy: 0 },
   ArrowRight: { dx: 1, dy: 0 },
@@ -95,6 +100,7 @@ const STATUS_NOTICE_MS = 4000
 const route = useRoute()
 const editorStore = useEditorStore()
 const layersStore = useLayersStore()
+const deviceMruStore = useDeviceMruStore()
 const { plan, document: planDocument, saveState, saveError } = storeToRefs(editorStore)
 const { validation } = useCircuitValidation()
 
@@ -144,6 +150,13 @@ const selectedDimensions = computed(() => editorStore.selectedDimensions)
 const selectedDevices = computed(() => editorStore.selectedDevices)
 const selectedWires = computed(() => editorStore.selectedWires)
 const deviceArmedType = ref<DeviceType | null>(null)
+/** Per-type last-used device draft, edited via `DeviceToolOptions` (spec E8/§6.1). */
+const deviceDraftsByType = ref<Partial<Record<DeviceType, DeviceDraft>>>({})
+/** The armed type's draft, or the empty draft while nothing is armed. */
+const armedDeviceDraft = computed<DeviceDraft>(() => {
+  const type = deviceArmedType.value
+  return type ? (deviceDraftsByType.value[type] ?? EMPTY_DEVICE_DRAFT) : EMPTY_DEVICE_DRAFT
+})
 /** The switch a control link is being armed from (pick-target mode, spec D6), else null. */
 const armedControlLinkSwitchId = ref<string | null>(null)
 /** When set, asks the side panel to switch tabs (e.g. wire tool opens Circuits, §6.1). */
@@ -291,6 +304,7 @@ const deviceTool = useDeviceTool({
   commit: toolSelection.placeThenTweak('device', (device) =>
     editorStore.mutate({ type: 'addDevice', device }),
   ),
+  drafts: deviceDraftsByType,
   displayPrecisionIn,
 })
 
@@ -667,6 +681,19 @@ function handleArmDevice(type: DeviceType): void {
   deviceArmedType.value = type
 }
 
+/** Merges a draft patch into the armed type's entry (spec E8/§6.1); a no-op with nothing armed. */
+function handleUpdateDeviceDraft(patch: Partial<DeviceDraft>): void {
+  const type = deviceArmedType.value
+  if (!type) return
+  const current = deviceDraftsByType.value[type] ?? EMPTY_DEVICE_DRAFT
+  deviceDraftsByType.value[type] = { ...current, ...patch }
+}
+
+/** Returns to the device picker from the tool options — same effect as Esc. */
+function handleChangeDevice(): void {
+  deviceTool.handleKey('Escape')
+}
+
 function handleUpdateUnderlay(underlay: Underlay): void {
   editorStore.mutate({ type: 'setUnderlay', underlay })
 }
@@ -929,7 +956,9 @@ watch(activeTool, (tool, previous) => {
     deviceTool.deactivate()
     deviceArmedType.value = null
   }
-  if (tool === 'device' && previous !== 'device') deviceArmedType.value = null
+  if (tool === 'device' && previous !== 'device') {
+    deviceArmedType.value = armedDeviceTypeFor(documentDevices.value, deviceMruStore.recent)
+  }
   if (previous === 'wire' && tool !== 'wire') wireTool.deactivate()
   if (tool === 'wire' && previous !== 'wire' && editorStore.activeCircuitId === null) {
     requestedTab.value = null
@@ -1112,6 +1141,7 @@ onBeforeUnmount(() => {
         :selected-underlay="editorStore.selectedUnderlay"
         :underlay-image-size="underlayImageSize"
         :device-armed-type="deviceArmedType"
+        :device-draft="armedDeviceDraft"
         :catalog-defaults="catalogDefaults"
         @rename="handleRename"
         @update-description="handleUpdateDescription"
@@ -1138,6 +1168,8 @@ onBeforeUnmount(() => {
         @arm-control-link="handleArmControlLink"
         @remove-control-link="handleRemoveControlLink"
         @arm-device="handleArmDevice"
+        @update-device-draft="handleUpdateDeviceDraft"
+        @change-device="handleChangeDevice"
         @update-underlay="handleUpdateUnderlay"
         @recalibrate="handleRecalibrate"
         @remove-underlay="handleRemoveUnderlay"

@@ -13,7 +13,7 @@ import {
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 
-import type { PlanDocument } from '@/types/plan'
+import type { Device, DeviceType, PlanDocument } from '@/types/plan'
 
 export type ToolId =
   | 'select'
@@ -78,4 +78,22 @@ export function isRestorableToolId(value: string | null): value is ToolId {
 export function startupToolFor(document: PlanDocument): ToolId {
   if (document.walls.length === 0) return document.underlay ? 'calibrate' : 'wall'
   return isRestorableToolId(document.active_tool) ? document.active_tool : 'select'
+}
+
+/**
+ * The device type to arm when the Device tool is entered (spec E8/§6.1,
+ * content-aware default): a plan with no devices yet arms the **panel** —
+ * an electrical layout has to start from its source before anything else
+ * makes sense to place. Once the plan has devices, the most-recently-used
+ * type from the MRU store floats up so repeat placement never requires
+ * reopening the picker; with devices but no MRU history yet (e.g. a plan
+ * imported from JSON on a fresh browser), the picker is offered instead
+ * (`null`).
+ */
+export function armedDeviceTypeFor(
+  devices: readonly Device[],
+  mruTypes: readonly DeviceType[],
+): DeviceType | null {
+  if (devices.length === 0) return 'panel'
+  return mruTypes[0] ?? null
 }
