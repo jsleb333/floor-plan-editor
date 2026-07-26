@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import WallReferenceControl from '@/components/editor/WallReferenceControl.vue'
 import type { WallReference } from '@/utils/geometry'
 import { formatInches, parseFeetInches } from '@/utils/units'
 
@@ -16,12 +17,6 @@ const emit = defineEmits<{
   'set-thickness': [thicknessIn: number]
   'set-reference': [reference: WallReference]
 }>()
-
-const REFERENCE_OPTIONS: readonly { id: WallReference; label: string }[] = [
-  { id: 'center', label: 'Center' },
-  { id: 'left', label: 'Left face' },
-  { id: 'right', label: 'Right face' },
-]
 
 const customText = ref('')
 const customError = ref(false)
@@ -95,25 +90,7 @@ function applyCustom(): void {
 
     <div>
       <h3 class="text-ink mb-2 text-xs font-semibold">Reference side</h3>
-      <div
-        class="border-line inline-flex overflow-hidden rounded-md border"
-        role="group"
-        aria-label="Reference side"
-      >
-        <button
-          v-for="option in REFERENCE_OPTIONS"
-          :key="option.id"
-          type="button"
-          :aria-pressed="option.id === reference"
-          class="border-line px-2 py-1 text-xs transition-colors not-first:border-l"
-          :class="
-            option.id === reference ? 'bg-accent-soft text-accent' : 'text-ink-muted hover:text-ink'
-          "
-          @click="emit('set-reference', option.id)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
+      <WallReferenceControl :reference="reference" @set-reference="emit('set-reference', $event)" />
       <p class="text-ink-faint mt-1.5 text-xs">Tab cycles the side while drawing.</p>
     </div>
   </section>

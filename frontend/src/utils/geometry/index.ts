@@ -55,7 +55,9 @@ export {
 export {
   offsetPolyline,
   wallFaceOffsets,
+  wallFacePolylines,
   wallOutline,
+  type WallFacePolylines,
   type WallGeometryInput,
   type WallReference,
 } from './wallOutline'

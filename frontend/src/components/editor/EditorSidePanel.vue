@@ -188,6 +188,8 @@ const emit = defineEmits<{
   'set-stairs-width': [widthIn: number]
   'set-stairs-direction': [direction: 'up' | 'down']
   'update-wall': [wall: Wall]
+  /** Transient reference-side hover preview from the wall inspector (spec S1a). */
+  'preview-wall': [wall: Wall | null]
   'update-opening': [opening: Opening]
   'update-stairs': [stairs: Stairs]
   'update-label': [label: Label]
@@ -481,6 +483,7 @@ const activePlaceholder = computed(
             :wall="inspectedWall"
             :thickness-presets-in="wallThicknessPresetsIn"
             @update-wall="emit('update-wall', $event)"
+            @preview-wall="emit('preview-wall', $event)"
             @delete-wall="emit('delete-selection')"
             @flash-segments="emit('flash-segments', inspectedWall.id, $event)"
           />

@@ -392,6 +392,40 @@ describe('useWallTool preview', () => {
     expect(Math.max(...ys)).toBeCloseTo(3.5)
   })
 
+  it('keeps the left face tint on the walker-left side for every reference mode (spec S1a)', () => {
+    for (const reference of ['center', 'left', 'right'] as const) {
+      const { tool } = makeTool()
+      tool.setReference(reference)
+      tool.onClick({ x: 0, y: 0 })
+      tool.setCursor({ x: 120, y: 0 })
+
+      const faces = tool.preview.value?.faces
+      expect(faces).not.toBeNull()
+      // Drawing east in y-down space: the walker's left face is above (smaller
+      // or equal y), the right face below — whatever side the body grows on.
+      const leftYs = faces?.left.map((p) => p.y) ?? []
+      const rightYs = faces?.right.map((p) => p.y) ?? []
+      expect(Math.max(...leftYs)).toBeLessThan(Math.min(...rightYs))
+    }
+  })
+
+  it('exposes the effective chain, including the auto-squared closing corner', () => {
+    const { tool } = makeTool()
+    tool.onClick({ x: 0, y: 0 })
+    tool.onClick({ x: 240, y: 0 })
+    tool.onClick({ x: 240, y: 120 })
+    tool.setCursor({ x: 2, y: 2 })
+
+    const preview = tool.preview.value
+    expect(preview?.closePoint).toEqual({ x: 0, y: 0 })
+    // Chain = 3 placed vertices + the solved corner + back to the start vertex.
+    const chain = preview?.chain ?? []
+    expect(chain).toHaveLength(5)
+    expect(chain[3].x).toBeCloseTo(120)
+    expect(chain[3].y).toBeCloseTo(0)
+    expect(chain[4]).toEqual({ x: 0, y: 0 })
+  })
+
   it('shows the endpoint marker before any vertex is placed', () => {
     const host = makeWall({
       vertices: [

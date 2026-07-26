@@ -18,3 +18,14 @@ export function ringsToPath(rings: readonly (readonly Point[])[]): string {
     .map((ring) => `M ${ring.map((p) => `${coord(p.x)} ${coord(p.y)}`).join(' L ')} Z`)
     .join(' ')
 }
+
+/**
+ * Serializes one polyline into an SVG path string: `M … L …`, with a trailing
+ * `Z` when `closed` (the last point is NOT repeated). Returns '' for fewer
+ * than 2 points (3 when closed).
+ */
+export function polylineToPath(points: readonly Point[], closed = false): string {
+  if (points.length < (closed ? 3 : 2)) return ''
+  const d = `M ${points.map((p) => `${coord(p.x)} ${coord(p.y)}`).join(' L ')}`
+  return closed ? `${d} Z` : d
+}

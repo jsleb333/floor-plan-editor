@@ -140,6 +140,12 @@ const deviceArmedType = ref<DeviceType | null>(null)
 const armedControlLinkSwitchId = ref<string | null>(null)
 /** When set, asks the side panel to switch tabs (e.g. wire tool opens Circuits, §6.1). */
 const requestedTab = ref<'inspector' | 'circuits' | 'layers' | null>(null)
+/**
+ * Transient would-be wall while the inspector's reference-side options or
+ * swap button are hovered (spec S1a) — previewed on the canvas, never stored
+ * in the document and never entering the undo history.
+ */
+const wallReferencePreview = ref<Wall | null>(null)
 /** Whether the export options modal is open (spec X4). */
 const showExportDialog = ref(false)
 /** Whether the keyboard-shortcut reference overlay is open (spec §6, '?'). */
@@ -570,7 +576,12 @@ function handleCanvasDoubleClick(): void {
 }
 
 function handleUpdateWall(wall: Wall): void {
+  wallReferencePreview.value = null
   editorStore.mutate({ type: 'updateWall', wallId: wall.id, wall })
+}
+
+function handlePreviewWall(wall: Wall | null): void {
+  wallReferencePreview.value = wall
 }
 
 function handleUpdateOpening(opening: Opening): void {
@@ -916,7 +927,7 @@ onBeforeUnmount(() => {
           </template>
           <template #default="{ hairline }">
             <StairsLayer :hairline="hairline" :preview="stairsPreview" />
-            <WallsLayer :hairline="hairline" />
+            <WallsLayer :hairline="hairline" :preview-wall="wallReferencePreview" />
             <OpeningsLayer :hairline="hairline" :preview="openingPreview" />
             <ControlLinksLayer
               :hairline="hairline"
@@ -1042,6 +1053,7 @@ onBeforeUnmount(() => {
         @set-stairs-width="stairsTool.setWidth($event)"
         @set-stairs-direction="stairsTool.setDirection($event)"
         @update-wall="handleUpdateWall"
+        @preview-wall="handlePreviewWall"
         @update-opening="handleUpdateOpening"
         @update-stairs="handleUpdateStairs"
         @update-label="handleUpdateLabel"

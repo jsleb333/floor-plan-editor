@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Point } from '@/types/plan'
-import { offsetPolyline, wallOutline } from '@/utils/geometry'
+import { offsetPolyline, wallFacePolylines, wallOutline } from '@/utils/geometry'
+import type { WallReference } from '@/utils/geometry'
 
 import { expectPointsClose } from './helpers'
 
@@ -257,5 +258,77 @@ describe('wallOutline', () => {
         reference: 'center',
       }),
     ).toEqual([])
+  })
+})
+
+describe('wallFacePolylines', () => {
+  const eastward: Point[] = [
+    { x: 0, y: 0 },
+    { x: 120, y: 0 },
+  ]
+
+  it.each<[WallReference, number, number]>([
+    ['center', -3, 3],
+    ['left', 0, 6],
+    ['right', -6, 0],
+  ])(
+    'keeps left the walker-left face (up-screen when drawing east) for reference %s',
+    (reference, leftY, rightY) => {
+      const faces = wallFacePolylines({ vertices: eastward, thicknessIn: 6, reference })
+      expect(faces.closed).toBe(false)
+      expectPointsClose(faces.left, [
+        { x: 0, y: leftY },
+        { x: 120, y: leftY },
+      ])
+      expectPointsClose(faces.right, [
+        { x: 0, y: rightY },
+        { x: 120, y: rightY },
+      ])
+    },
+  )
+
+  it('flips the tinted sides in world space when the drawing direction reverses', () => {
+    const westward = [...eastward].reverse()
+    const faces = wallFacePolylines({ vertices: westward, thicknessIn: 6, reference: 'center' })
+    // Walking west, the walker's left is DOWN-screen (+y).
+    expectPointsClose(faces.left, [
+      { x: 120, y: 3 },
+      { x: 0, y: 3 },
+    ])
+    expectPointsClose(faces.right, [
+      { x: 120, y: -3 },
+      { x: 0, y: -3 },
+    ])
+  })
+
+  it('returns both faces as rings for a closed loop, matching the outline rings', () => {
+    const square: Point[] = [
+      { x: 0, y: 0 },
+      { x: 120, y: 0 },
+      { x: 120, y: 120 },
+      { x: 0, y: 120 },
+    ]
+    const input = { vertices: square, thicknessIn: 6, reference: 'center' as const, closed: true }
+    const faces = wallFacePolylines(input)
+    expect(faces.closed).toBe(true)
+    const [leftRing, rightRing] = wallOutline(input)
+    expectPointsClose(faces.left, leftRing)
+    expectPointsClose(faces.right, rightRing)
+  })
+
+  it('returns empty faces for fewer than two distinct vertices', () => {
+    const faces = wallFacePolylines({
+      vertices: [{ x: 5, y: 5 }],
+      thicknessIn: 6,
+      reference: 'center',
+    })
+    expect(faces.left).toEqual([])
+    expect(faces.right).toEqual([])
+  })
+
+  it('throws for a non-positive thickness', () => {
+    expect(() =>
+      wallFacePolylines({ vertices: eastward, thicknessIn: -1, reference: 'center' }),
+    ).toThrow(RangeError)
   })
 })
