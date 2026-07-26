@@ -1,5 +1,5 @@
 import { request } from '@/api/client'
-import type { Plan, PlanDocument, PlanSummary, PlanValidation } from '@/types/plan'
+import type { Plan, PlanDocument, PlanSummary } from '@/types/plan'
 
 export async function listPlans(): Promise<PlanSummary[]> {
   return request<PlanSummary[]>('/plans')
@@ -41,15 +41,6 @@ export async function savePlanDocument(
   payload: { revision: number; document: PlanDocument },
 ): Promise<{ revision: number }> {
   return request<{ revision: number }>(`/plans/${id}`, { method: 'PUT', body: payload })
-}
-
-/**
- * Fetches the server-computed circuit validation (spec C4/C5/W4). The backend
- * is the single source of truth; the frontend mirrors this live during editing
- * via `utils/circuits.ts` for instant feedback (spec §8).
- */
-export async function getPlanValidation(id: string): Promise<PlanValidation> {
-  return request<PlanValidation>(`/plans/${id}/validation`)
 }
 
 export async function duplicatePlan(id: string): Promise<Plan> {

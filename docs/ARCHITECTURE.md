@@ -343,7 +343,13 @@ threshold — and `useCircuitValidation` recomputes it per `documentVersion`
 tick. It feeds the Circuits panel rows, the warning badge count, and circuit
 isolation highlighting. If you change validation logic, change **both**
 implementations (and their tests: `tests/core/services/` and
-`frontend/tests/utils/circuits.test.ts`).
+`frontend/tests/utils/circuits.test.ts`). `tests/fixtures/circuit_validation/`
+is the cross-language contract: each JSON fixture holds a document and its
+expected `PlanValidation`, and both
+`test_circuit_validation_service.py::test_validate__against_shared_corpus__matches_expected_result`
+and `frontend/tests/utils/circuitsCorpus.test.ts` parametrize over every file
+in that directory, so a rule added to only one implementation fails the other
+suite. Add a new fixture whenever you add a rule to either side.
 
 ### Stores overview
 

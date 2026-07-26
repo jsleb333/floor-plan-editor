@@ -1,5 +1,9 @@
 """Tests for CircuitValidationService connectivity, load and finding computation."""
 
+import json
+from pathlib import Path
+from typing import Any
+
 import pytest
 from backend.core.device_load_resolver import DeviceLoadResolver
 from backend.core.services.circuit_validation_service import CircuitValidationService
@@ -10,6 +14,28 @@ from backend.models.device_type import DeviceType
 from backend.models.plan_document import PlanDocument
 from backend.models.point import Point
 from backend.models.wire import Wire
+
+
+CIRCUIT_VALIDATION_FIXTURES_DIR = (
+    Path(__file__).resolve().parent.parent.parent / "fixtures" / "circuit_validation"
+)
+
+
+def _load_corpus_fixtures() -> list[dict[str, Any]]:
+    """Load every scenario in the fixture corpus shared with the frontend mirror.
+
+    Each JSON file under ``tests/fixtures/circuit_validation/`` holds a
+    ``{name, description, document, expected}`` scenario asserted identically
+    by this suite and by ``frontend/tests/utils/circuitsCorpus.test.ts``, so a
+    rule added to only one implementation fails one of the two suites.
+    """
+    return [
+        json.loads(path.read_text())
+        for path in sorted(CIRCUIT_VALIDATION_FIXTURES_DIR.glob("*.json"))
+    ]
+
+
+CIRCUIT_VALIDATION_CORPUS = _load_corpus_fixtures()
 
 
 def _panel(device_id: str = "panel") -> Device:
@@ -262,3 +288,22 @@ class TestCircuitValidationService:
         result = service.validate(document)
 
         assert result.unassigned_device_ids == ["out-lonely"]
+
+    def test_corpus_fixtures__when_discovered_via_glob__is_non_empty(self) -> None:
+        """Guards against a bad glob path silently turning the corpus-driven test below into a no-op."""
+        assert len(CIRCUIT_VALIDATION_CORPUS) > 0
+
+    @pytest.mark.parametrize(
+        "fixture",
+        CIRCUIT_VALIDATION_CORPUS,
+        ids=[fixture["name"] for fixture in CIRCUIT_VALIDATION_CORPUS],
+    )
+    def test_validate__against_shared_corpus__matches_expected_result(
+        self, service: CircuitValidationService, fixture: dict[str, Any]
+    ) -> None:
+        """Cross-language contract: every scenario in tests/fixtures/circuit_validation/ must validate identically here and in the frontend `circuitsCorpus.test.ts` mirror."""
+        document = PlanDocument.model_validate(fixture["document"])
+
+        result = service.validate(document)
+
+        assert result.model_dump(mode="json") == fixture["expected"]

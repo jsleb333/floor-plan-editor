@@ -1,0 +1,64 @@
+{
+  "name": "no-panel-device-present",
+  "description": "A document with wires but no panel device reports has_panel false; nothing reaches a panel so no device connects.",
+  "document": {
+    "devices": [
+      {
+        "id": "out-1",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 12.0
+        }
+      },
+      {
+        "id": "out-2",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 24.0
+        }
+      }
+    ],
+    "circuits": [
+      {
+        "id": "circ-1",
+        "name": "Circuit 1",
+        "color": "#dc2626",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
+      }
+    ],
+    "wires": [
+      {
+        "id": "w-1",
+        "circuit_id": "circ-1",
+        "from_device_id": "out-1",
+        "to_device_id": "out-2"
+      }
+    ]
+  },
+  "expected": {
+    "circuits": [
+      {
+        "circuit_id": "circ-1",
+        "load_w": 0.0,
+        "amps": 0.0,
+        "breaker_a": 15,
+        "status": "ok",
+        "connected_device_ids": [],
+        "floating_device_ids": [
+          "out-1",
+          "out-2"
+        ]
+      }
+    ],
+    "unassigned_device_ids": [],
+    "multi_circuit_device_ids": {},
+    "dangling_wire_ids": [],
+    "has_panel": false
+  }
+}
