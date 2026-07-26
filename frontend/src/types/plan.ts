@@ -36,8 +36,15 @@ export interface Wall {
 }
 
 /**
+ * The leaf configuration of a door (spec S4). Mirrors the backend `Opening.style`
+ * union; it decides which of `hinge`/`swing` the drawn symbol reads.
+ */
+export type DoorStyle = 'swing' | 'double' | 'sliding' | 'bifold' | 'pocket'
+
+/**
  * A door or window hosted on a wall segment. `t` is the opening centre in inches
- * along the segment's reference line. `hinge` and `swing` are meaningful for doors only.
+ * along the segment's reference line. `style`, `hinge` and `swing` are meaningful
+ * for doors only.
  */
 export interface Opening {
   id: string
@@ -46,6 +53,7 @@ export interface Opening {
   segment_index: number
   t: number
   width_in: number
+  style: DoorStyle
   hinge: 'left' | 'right'
   swing: 'in' | 'out'
 }

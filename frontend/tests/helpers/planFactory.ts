@@ -39,6 +39,7 @@ export function makeOpening(overrides: Partial<Opening> = {}): Opening {
     segment_index: 0,
     t: 60,
     width_in: 32,
+    style: 'swing',
     hinge: 'left',
     swing: 'in',
     ...overrides,

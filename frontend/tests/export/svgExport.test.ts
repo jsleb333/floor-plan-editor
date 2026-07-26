@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { DEVICE_STROKE_IN, EXPORT_INK } from '@/export/exportTheme'
+import { DEVICE_STROKE_IN, EXPORT_INK, EXPORT_WALL_EDGE } from '@/export/exportTheme'
 import {
   buildPlanSvg,
   embedUnderlay,
@@ -8,9 +8,9 @@ import {
   slugify,
   type UnderlayEmbed,
 } from '@/export/svgExport'
-import type { PlanDocument, Point } from '@/types/plan'
-import { deviceWorldPlacement, wallOutline } from '@/utils/geometry'
-import { ringsToPath } from '@/utils/svgPath'
+import type { DoorStyle, PlanDocument, Point } from '@/types/plan'
+import { DOOR_DASH_IN, deviceWorldPlacement, doorFigure, wallOutline } from '@/utils/geometry'
+import { doorStrokeToPath, ringsToPath } from '@/utils/svgPath'
 
 import {
   makeCircuit,
@@ -233,6 +233,48 @@ describe('buildPlanSvg', () => {
     })
     const svg = buildPlanSvg(document, { circuitIds: ['circuit-2'] })
     expect(svg).not.toContain('data-circuit="Circuit 1"')
+  })
+
+  it.each(['swing', 'double', 'sliding', 'bifold', 'pocket'] as const)(
+    'serialises a %s door from the shared doorFigure strokes',
+    (style) => {
+      const wall = makeWall()
+      const opening = makeOpening({ style })
+      const svg = buildPlanSvg(makeDocument({ walls: [wall], openings: [opening] }))
+      const strokes = doorFigure(wall, opening)?.strokes ?? []
+
+      expect(strokes.length).toBeGreaterThan(0)
+      for (const stroke of strokes) {
+        expect(svg).toContain(`<path d="${doorStrokeToPath(stroke)}"`)
+      }
+    },
+  )
+
+  it('dashes the pocket cavity, and only it, with the shared world-inch pattern', () => {
+    const document = makeDocument({
+      walls: [makeWall()],
+      openings: [makeOpening({ style: 'pocket' })],
+    })
+    const svg = buildPlanSvg(document)
+
+    expect(svg).toContain(`<path d="M 44 0 L 12 0" fill="none" stroke="${EXPORT_WALL_EDGE}"`)
+    expect(svg).toContain(`stroke-dasharray="${DOOR_DASH_IN.join(' ')}"`)
+    expect(svg.match(/stroke-dasharray/g)).toHaveLength(1)
+  })
+
+  it('keeps the wall interruption and jambs identical whatever the door style', () => {
+    const wall = makeWall()
+    /** The interruption polygon and the two jamb lines — every non-path shape drawn. */
+    const interruptionOf = (style: DoorStyle): string[] => {
+      const svg = buildPlanSvg(makeDocument({ walls: [wall], openings: [makeOpening({ style })] }))
+      return [...svg.matchAll(/<(?:polygon|line)[^>]*>/g)].map((match) => match[0])
+    }
+
+    const swing = interruptionOf('swing')
+    expect(swing).toHaveLength(3)
+    for (const style of ['double', 'sliding', 'bifold', 'pocket'] as const) {
+      expect(interruptionOf(style)).toEqual(swing)
+    }
   })
 
   it('excludes the annotations group when includeAnnotations is false', () => {

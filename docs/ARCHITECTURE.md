@@ -47,7 +47,7 @@ pure functions in `frontend/src/utils/geometry/`.
 | Stored (persisted in the document) | Derived (recomputed, never persisted) |
 |---|---|
 | Wall reference polyline + `thickness_in` + `reference` side + `closed` + `locked_segments` + `junctions` | Wall outline rings, mitred corners, butt caps, T-junction trims |
-| Opening `{wall_id, segment_index, t, width_in, …}` | Jambs, opening rect, door swing arc, window glazing lines |
+| Opening `{wall_id, segment_index, t, width_in, style, …}` | Jambs, opening rect, the door symbol of any style (leaves, swing arcs, sliding/pocket panels, pocket cavity), window glazing lines |
 | Attached device `{wall_id, segment_index, t, side}` (+ optional `length_in`/`depth_in`) | World anchor, pictogram rotation, hit bounds, footprint rect |
 | Free device `position` + `rotation_deg` (+ optional `length_in`/`depth_in`) | Hit bounds, footprint rect |
 | Wire `{from_device_id, to_device_id, control_points}` | Endpoint world positions, Bézier path |
@@ -195,7 +195,7 @@ inches, y grows down (SVG space), angles in radians. Module map:
 | `closeLoop.ts` | `autoSquareClose` — solves the final corner of a loop as the intersection of two allowed directions (S1c) |
 | `chainEdit.ts` | `setSegmentLength` — exact-dimension edits that propagate through free segments and are blocked by locks, reporting `ok`/`blocked`/`misclosure` (S3b/S3c) |
 | `vertexDrag.ts` | Angle-preserving vertex drag candidates (S3) |
-| `openings.ts` | Parametric address → jambs, opening rect, door/window symbols; `projectOntoWalls` for placement |
+| `openings.ts` | Parametric address → jambs, opening rect, window glazing; `doorFigure` dispatches the five door styles (S4) to strokes — polylines plus optional quarter arcs, one dashed for the pocket cavity — with `doorSymbol` still the swing leaf/arc primitive; `projectOntoWalls` for placement |
 | `devices.ts` | `deviceWorldPlacement` — attachment → world anchor/angle/bounds (+ true-size footprint rect and inscribed-glyph anchor); `deviceGlyphBox`; `deviceScreenScale` (min 14 px legibility clamp); wall-gap measurement for temp dimensions |
 | `stairs.ts`, `annotations.ts`, `tempDimensions.ts` | Stairs frame/treads/arrow; dimension-line layout; live face-to-face gap chips (S2a) |
 | `wires.ts` | `wireEndpoint` (device id → live world centre), `autoCurveControlPoints`, `wirePathData` (cubic Bézier, Catmull-Rom fallback), sampled hit-testing |
@@ -214,7 +214,11 @@ The wall render pipeline, in order (identical in canvas and export):
    `M…Z` subpath each, drawn with `fill-rule="evenodd"`.
 4. Openings do **not** cut the wall path: `OpeningsLayer.vue` paints a
    background-filled `openingWorldRect` over the wall band, then draws jambs
-   and the door/window symbol on top.
+   and the door/window symbol on top. The interruption and jambs are
+   style-independent; only the symbol changes with `Opening.style`, and both
+   the canvas and the export serialize its strokes through the one
+   `doorStrokeToPath` (`utils/svgPath.ts`), so all five styles print exactly
+   as they draw.
 
 ### Canvas rendering
 

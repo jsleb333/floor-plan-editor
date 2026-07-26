@@ -30,6 +30,7 @@ import type {
   Device,
   DeviceType,
   Dimension,
+  DoorStyle,
   Label,
   Opening,
   Stairs,
@@ -144,6 +145,8 @@ const props = defineProps<{
   openingWidthIn: number
   /** Width presets for the current door/window kind, resolved from the document (spec §5.9 tier 2). */
   openingWidthPresetsIn: readonly number[]
+  /** Leaf style the door tool places with (spec S4). */
+  openingStyle: DoorStyle
   openingHinge: 'left' | 'right'
   openingSwing: 'in' | 'out'
   /** Live stairs tool options while the stairs tool is armed (specs S6/E8). */
@@ -191,6 +194,7 @@ const emit = defineEmits<{
   'set-wall-thickness': [thicknessIn: number]
   'set-wall-reference': [reference: WallReference]
   'set-opening-width': [widthIn: number]
+  'set-opening-style': [style: DoorStyle]
   'set-opening-hinge': [hinge: 'left' | 'right']
   'set-opening-swing': [swing: 'in' | 'out']
   'add-opening-width-preset': [widthIn: number]
@@ -449,9 +453,11 @@ const activePlaceholder = computed(
             :kind="openingKind"
             :width-in="openingWidthIn"
             :presets-in="openingWidthPresetsIn"
+            :door-style="openingStyle"
             :hinge="openingHinge"
             :swing="openingSwing"
             @set-width="emit('set-opening-width', $event)"
+            @set-style="emit('set-opening-style', $event)"
             @set-hinge="emit('set-opening-hinge', $event)"
             @set-swing="emit('set-opening-swing', $event)"
             @add-width-preset="emit('add-opening-width-preset', $event)"

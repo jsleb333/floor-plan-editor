@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import type { DoorStyle } from '@/types/plan'
+import { DOOR_STYLE_OPTIONS, doorStyleControls } from '@/utils/doorStyles'
 import { formatInches, parseFeetInches } from '@/utils/units'
 
 const WIDTH_TOLERANCE_IN = 1e-9
@@ -10,12 +12,18 @@ const props = defineProps<{
   widthIn: number
   /** Width presets for the current kind, resolved from the plan document (spec §5.9 tier 2). */
   presetsIn: readonly number[]
+  /**
+   * Leaf style of the next door (spec S4); ignored for windows. Named
+   * `doorStyle` because `style` is a reserved attribute on a component.
+   */
+  doorStyle: DoorStyle
   hinge: 'left' | 'right'
   swing: 'in' | 'out'
 }>()
 
 const emit = defineEmits<{
   'set-width': [widthIn: number]
+  'set-style': [style: DoorStyle]
   'set-hinge': [hinge: 'left' | 'right']
   'set-swing': [swing: 'in' | 'out']
   /** A committed custom width that isn't already a preset; the caller grows the plan's list. */
@@ -37,11 +45,20 @@ const customError = ref(false)
 
 const title = computed(() => (props.kind === 'door' ? 'Door' : 'Window'))
 
-const keyboardHint = computed(() =>
-  props.kind === 'door'
-    ? 'While hovering: the swing follows the cursor across the wall, Tab cycles the hinge, and typed digits set the width exactly.'
-    : 'Typed digits set the width exactly while hovering.',
-)
+/** The side fields the armed style reads, with their per-style labels (spec S4). */
+const controls = computed(() => doorStyleControls(props.doorStyle))
+
+const keyboardHint = computed(() => {
+  if (props.kind !== 'door') return 'Typed digits set the width exactly while hovering.'
+  const gestures: string[] = []
+  if (controls.value.swing) {
+    gestures.push(`the ${controls.value.swing.toLowerCase()} follows the cursor across the wall`)
+  }
+  if (controls.value.hinge) {
+    gestures.push(`Tab cycles the ${controls.value.hinge.toLowerCase()}`)
+  }
+  return `While hovering: ${[...gestures, 'and typed digits set the width exactly'].join(', ')}.`
+})
 
 function isSelected(presetIn: number, widthIn: number = props.widthIn): boolean {
   return Math.abs(presetIn - widthIn) < WIDTH_TOLERANCE_IN
@@ -108,9 +125,30 @@ function applyCustom(): void {
       </label>
     </div>
 
-    <div v-if="kind === 'door'" class="flex gap-4">
-      <div>
-        <h3 class="text-ink mb-2 text-xs font-semibold">Hinge</h3>
+    <div v-if="kind === 'door'">
+      <h3 class="text-ink mb-2 text-xs font-semibold">Style</h3>
+      <div class="flex flex-wrap gap-1.5" role="group" aria-label="Door style">
+        <button
+          v-for="option in DOOR_STYLE_OPTIONS"
+          :key="option.id"
+          type="button"
+          :aria-pressed="option.id === doorStyle"
+          class="rounded-md border px-2 py-1 text-xs transition-colors"
+          :class="
+            option.id === doorStyle
+              ? 'border-accent bg-accent-soft text-accent'
+              : 'border-line text-ink-muted hover:text-ink'
+          "
+          @click="emit('set-style', option.id)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </div>
+
+    <div v-if="kind === 'door' && (controls.hinge || controls.swing)" class="flex gap-4">
+      <div v-if="controls.hinge">
+        <h3 class="text-ink mb-2 text-xs font-semibold">{{ controls.hinge }}</h3>
         <div
           class="border-line inline-flex overflow-hidden rounded-md border"
           role="group"
@@ -131,8 +169,8 @@ function applyCustom(): void {
           </button>
         </div>
       </div>
-      <div>
-        <h3 class="text-ink mb-2 text-xs font-semibold">Swing</h3>
+      <div v-if="controls.swing">
+        <h3 class="text-ink mb-2 text-xs font-semibold">{{ controls.swing }}</h3>
         <div
           class="border-line inline-flex overflow-hidden rounded-md border"
           role="group"

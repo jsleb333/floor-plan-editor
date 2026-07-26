@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 
 import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { Opening, Wall } from '@/types/plan'
+import { DOOR_STYLE_OPTIONS, doorStyleControls } from '@/utils/doorStyles'
 import { clampOpeningT, wallSegmentSpan } from '@/utils/geometry'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
@@ -30,6 +31,9 @@ const SWING_OPTIONS: readonly { id: 'in' | 'out'; label: string }[] = [
   { id: 'in', label: 'In' },
   { id: 'out', label: 'Out' },
 ]
+
+/** The side fields the opening's style reads, with their per-style labels (spec S4). */
+const controls = computed(() => doorStyleControls(props.opening.style))
 
 const widthDraft = ref('')
 const widthError = ref(false)
@@ -139,9 +143,30 @@ watch(
       />
     </label>
 
-    <div v-if="opening.kind === 'door'" class="flex gap-4">
-      <div>
-        <h4 class="text-ink mb-1 font-semibold">Hinge</h4>
+    <div v-if="opening.kind === 'door'">
+      <h4 class="text-ink mb-1 font-semibold">Style</h4>
+      <div class="flex flex-wrap gap-1.5" role="group" aria-label="Door style">
+        <button
+          v-for="option in DOOR_STYLE_OPTIONS"
+          :key="option.id"
+          type="button"
+          :aria-pressed="option.id === opening.style"
+          class="rounded-md border px-2 py-1 transition-colors"
+          :class="
+            option.id === opening.style
+              ? 'border-accent bg-accent-soft text-accent'
+              : 'border-line text-ink-muted hover:text-ink'
+          "
+          @click="update({ style: option.id })"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </div>
+
+    <div v-if="opening.kind === 'door' && (controls.hinge || controls.swing)" class="flex gap-4">
+      <div v-if="controls.hinge">
+        <h4 class="text-ink mb-1 font-semibold">{{ controls.hinge }}</h4>
         <div
           class="border-line inline-flex overflow-hidden rounded-md border"
           role="group"
@@ -164,8 +189,8 @@ watch(
           </button>
         </div>
       </div>
-      <div>
-        <h4 class="text-ink mb-1 font-semibold">Swing</h4>
+      <div v-if="controls.swing">
+        <h4 class="text-ink mb-1 font-semibold">{{ controls.swing }}</h4>
         <div
           class="border-line inline-flex overflow-hidden rounded-md border"
           role="group"

@@ -34,6 +34,7 @@ function baseProps() {
     wallReference: 'center' as const,
     openingWidthIn: 32,
     openingWidthPresetsIn: [24, 28, 30, 32, 36],
+    openingStyle: 'swing' as const,
     openingHinge: 'left' as const,
     openingSwing: 'in' as const,
     stairsWidthIn: 36,

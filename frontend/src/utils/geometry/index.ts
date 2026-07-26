@@ -78,7 +78,9 @@ export {
 } from './chainEdit'
 export { constrainedVertexPosition } from './vertexDrag'
 export {
+  DOOR_DASH_IN,
   clampOpeningT,
+  doorFigure,
   doorSymbol,
   openingJambs,
   openingWorldRect,
@@ -86,7 +88,11 @@ export {
   wallSegmentCount,
   wallSegmentSpan,
   windowSymbol,
+  type DoorArc,
+  type DoorFigure,
+  type DoorStroke,
   type DoorSymbol,
+  type OpeningJambs,
   type WallPlacement,
   type WallSegmentSpan,
 } from './openings'

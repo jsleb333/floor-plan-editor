@@ -2,6 +2,7 @@ import { mount, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
+import type { DoorStyle } from '@/types/plan'
 
 const DOOR_WIDTH_PRESETS_IN: readonly number[] = [24, 28, 30, 32, 36]
 const WINDOW_WIDTH_PRESETS_IN: readonly number[] = [24, 36, 48, 60, 72]
@@ -10,6 +11,7 @@ interface OptionsProps {
   kind: 'door' | 'window'
   widthIn: number
   presetsIn: readonly number[]
+  doorStyle: DoorStyle
   hinge: 'left' | 'right'
   swing: 'in' | 'out'
 }
@@ -19,6 +21,7 @@ function mountOptions(overrides: Partial<OptionsProps> = {}) {
     kind: 'door',
     widthIn: 32,
     presetsIn: DOOR_WIDTH_PRESETS_IN,
+    doorStyle: 'swing',
     hinge: 'left',
     swing: 'in',
   }
@@ -118,7 +121,7 @@ describe('OpeningToolOptions', () => {
     expect(buttonByText(wrapper, 'In').attributes('aria-pressed')).toBe('false')
   })
 
-  it('shows window presets without hinge or swing controls for the window kind', () => {
+  it('shows window presets without style, hinge or swing controls for the window kind', () => {
     const wrapper = mountOptions({
       kind: 'window',
       widthIn: 36,
@@ -126,7 +129,65 @@ describe('OpeningToolOptions', () => {
     })
 
     expect(buttonByText(wrapper, '72"').attributes('aria-pressed')).toBe('false')
+    expect(wrapper.find('[aria-label="Door style"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Hinge side"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Swing direction"]').exists()).toBe(false)
+  })
+
+  it('emits set-style from the style buttons and marks the armed one', async () => {
+    const wrapper = mountOptions()
+
+    await buttonByText(wrapper, 'Sliding').trigger('click')
+
+    expect(wrapper.emitted('set-style')).toEqual([['sliding']])
+    expect(buttonByText(wrapper, 'Swing').attributes('aria-pressed')).toBe('true')
+    expect(buttonByText(wrapper, 'Sliding').attributes('aria-pressed')).toBe('false')
+  })
+
+  it('shows only the swing toggle for a double door', () => {
+    const wrapper = mountOptions({ doorStyle: 'double' })
+
+    expect(wrapper.find('[aria-label="Hinge side"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Swing direction"]').exists()).toBe(true)
+  })
+
+  it.each([
+    ['sliding', 'Slide side'],
+    ['pocket', 'Pocket side'],
+  ] as const)('relabels the hinge field and drops the swing toggle for %s', (style, label) => {
+    const wrapper = mountOptions({ doorStyle: style })
+
+    expect(wrapper.find('[aria-label="Swing direction"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Hinge side"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain(label)
+  })
+
+  it('labels a bifold door with its stack and fold sides', () => {
+    const wrapper = mountOptions({ doorStyle: 'bifold' })
+
+    expect(wrapper.text()).toContain('Stack side')
+    expect(wrapper.text()).toContain('Fold side')
+  })
+
+  it('describes only the cursor gestures the armed style reads', () => {
+    expect(mountOptions().text()).toContain(
+      'While hovering: the swing follows the cursor across the wall, Tab cycles the hinge, and typed digits set the width exactly.',
+    )
+    expect(mountOptions({ doorStyle: 'pocket' }).text()).toContain(
+      'While hovering: Tab cycles the pocket side, and typed digits set the width exactly.',
+    )
+  })
+
+  it('keeps the width presets and custom entry working for a closet-wide slider', async () => {
+    const wrapper = mountOptions({ doorStyle: 'sliding', widthIn: 60 })
+    const input = wrapper.get<HTMLInputElement>(
+      'input[aria-label="Custom width in feet and inches"]',
+    )
+
+    await input.setValue(`4'`)
+    await input.trigger('keydown.enter')
+
+    expect(wrapper.emitted('set-width')).toEqual([[48]])
+    expect(wrapper.emitted('add-width-preset')).toEqual([[48]])
   })
 })
