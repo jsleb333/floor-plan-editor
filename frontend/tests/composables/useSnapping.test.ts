@@ -134,6 +134,53 @@ describe('useSnapping resolve', () => {
     expect(result.guide?.dir).toEqual({ x: 1, y: 0 })
   })
 
+  it('projection snap lands where the constrained ray crosses the wall while drawing', () => {
+    const host = makeWall({
+      id: 'host',
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 0, y: 240 },
+      ],
+    })
+    const snapping = makeSnapping([host])
+    // Drawing west from (100,100): the cursor sits 2" below the ray, but the
+    // landing point must stay on it — not follow the cursor along the wall.
+    const result = snapping.resolve({ x: 3, y: 98 }, chain([300, 300], [100, 100], 2), false)
+    expect(result.marker).toBe('projection')
+    expect(result.point.x).toBeCloseTo(0)
+    expect(result.point.y).toBeCloseTo(100)
+    expect(result.attachment?.tIn).toBeCloseTo(100)
+    expect(result.guide?.dir).toEqual({ x: -1, y: 0 })
+  })
+
+  it('projection snap is skipped when the constrained ray runs parallel to the wall', () => {
+    const host = makeWall({
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 240, y: 0 },
+      ],
+    })
+    const snapping = makeSnapping([host], { grid: false })
+    // Cursor within 2" of the host, but the ray can never land on it: the
+    // point stays on the ray instead of dropping onto the wall.
+    const result = snapping.resolve({ x: 60, y: 2 }, chain([200, 2], [100, 2], 2), false)
+    expect(result.marker).toBeNull()
+    expect(result.point).toEqual({ x: 60, y: 2 })
+  })
+
+  it('endpoint snap still wins over the constrained projection', () => {
+    const host = makeWall({
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 0, y: 240 },
+      ],
+    })
+    const snapping = makeSnapping([host])
+    const result = snapping.resolve({ x: 2, y: 3 }, chain([300, 300], [100, 100], 2), false)
+    expect(result.marker).toBe('endpoint')
+    expect(result.point).toEqual({ x: 0, y: 0 })
+  })
+
   it('aligns the angle-snapped point with the chain start and returns the alignment guide', () => {
     const snapping = makeSnapping()
     // Drawing west along y=80 toward a chain started at the origin: the

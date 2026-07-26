@@ -280,6 +280,28 @@ describe('useWallTool drawing', () => {
     ])
   })
 
+  it('ending on a wall keeps the snapped angle, landing the junction on the ray crossing', () => {
+    const host = makeWall({
+      id: 'host',
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 0, y: 240 },
+      ],
+    })
+    const { tool, committed } = makeTool({ walls: [host] })
+    tool.onClick({ x: 60, y: 60 })
+    // Cursor drifts 3" off the horizontal while reaching for the host wall:
+    // the segment must stay horizontal instead of following the cursor.
+    tool.onClick({ x: 2, y: 63 })
+    tool.handleKey('Enter')
+
+    expect(committed[0].vertices[1].x).toBeCloseTo(0)
+    expect(committed[0].vertices[1].y).toBeCloseTo(60)
+    expect(committed[0].junctions).toEqual([
+      { end: 'end', host_wall_id: 'host', segment_index: 0, t: 60 },
+    ])
+  })
+
   it('setThickness rejects non-positive values', () => {
     const { tool } = makeTool()
     tool.setThickness(-2)
