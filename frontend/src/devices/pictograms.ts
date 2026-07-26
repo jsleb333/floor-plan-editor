@@ -4,8 +4,20 @@ import type { DeviceType } from '@/types/plan'
  * Vector primitives for the device pictograms (spec §5.4, §10.1). Each type is
  * described as a small list of stroke-based shapes drawn on a nominal 12×12 box
  * with the origin at (6, 6); the wall runs along the local x axis and the
- * "room" side of the symbol points toward local −y. Rendered once as SVG
- * `<symbol>`s (`DevicePictogram.vue`) and instanced via `<use>` on the canvas.
+ * "room" side of the symbol points toward local −y, so local y > 6 points
+ * INTO the wall body. Rendered once as SVG `<symbol>`s (`DevicePictogram.vue`)
+ * and instanced via `<use>` on the canvas.
+ *
+ * Because the box is centred on the wall face by default, a symbol whose ink
+ * extends well past y = 6 (e.g. a switch's stem) would otherwise poke through
+ * the far side of a thin partition. Each wall-mounted type may therefore
+ * declare a BASELINE — the local y that should land exactly on the wall face,
+ * read via `pictogramBaselineY` — and `deviceWorldPlacement` shifts the whole
+ * symbol outward, into the room, by `baselineY - PICTOGRAM_CENTER` inches so
+ * that y lands on the face instead of the box centre. A baseline of
+ * `PICTOGRAM_CENTER` (the default for any type with no entry below) means
+ * "unchanged, centred on the face" — the correct behaviour for ceiling/free
+ * pictograms and any wall symbol already centred on its ink.
  */
 
 /** One drawable shape of a pictogram, in the 12×12 symbol coordinate box. */
@@ -25,31 +37,32 @@ export function pictogramSymbolId(type: DeviceType): string {
   return `pict-${type}`
 }
 
-const CENTER = 6
+/** Centre of the 12×12 symbol box, on both axes — also the default baseline. */
+export const PICTOGRAM_CENTER = 6
 
 /** Vector primitives per device type — the data-driven pictogram registry (spec D5). */
 export const DEVICE_PICTOGRAMS: Record<DeviceType, readonly PictogramShape[]> = {
   outlet: [
-    { kind: 'circle', cx: CENTER, cy: CENTER, r: 3.6 },
+    { kind: 'circle', cx: PICTOGRAM_CENTER, cy: PICTOGRAM_CENTER, r: 3.6 },
     { kind: 'line', x1: 4.8, y1: 4, x2: 4.8, y2: 8 },
     { kind: 'line', x1: 7.2, y1: 4, x2: 7.2, y2: 8 },
   ],
   outlet_gfci: [
-    { kind: 'circle', cx: CENTER, cy: CENTER, r: 3.6 },
+    { kind: 'circle', cx: PICTOGRAM_CENTER, cy: PICTOGRAM_CENTER, r: 3.6 },
     { kind: 'line', x1: 5, y1: 7.2, x2: 5, y2: 9 },
     { kind: 'line', x1: 7, y1: 7.2, x2: 7, y2: 9 },
-    { kind: 'text', x: CENTER, y: 4.9, text: 'G', size: 4 },
+    { kind: 'text', x: PICTOGRAM_CENTER, y: 4.9, text: 'G', size: 4 },
   ],
   switch: [
-    { kind: 'text', x: CENTER, y: 5, text: 'S', size: 6 },
-    { kind: 'line', x1: CENTER, y1: 8.4, x2: CENTER, y2: 11.5 },
+    { kind: 'text', x: PICTOGRAM_CENTER, y: 5, text: 'S', size: 6 },
+    { kind: 'line', x1: PICTOGRAM_CENTER, y1: 8.4, x2: PICTOGRAM_CENTER, y2: 11.5 },
   ],
   switch_3way: [
-    { kind: 'text', x: CENTER, y: 5, text: 'S₃', size: 5 },
-    { kind: 'line', x1: CENTER, y1: 8.4, x2: CENTER, y2: 11.5 },
+    { kind: 'text', x: PICTOGRAM_CENTER, y: 5, text: 'S₃', size: 5 },
+    { kind: 'line', x1: PICTOGRAM_CENTER, y1: 8.4, x2: PICTOGRAM_CENTER, y2: 11.5 },
   ],
   ceiling_light: [
-    { kind: 'circle', cx: CENTER, cy: CENTER, r: 4 },
+    { kind: 'circle', cx: PICTOGRAM_CENTER, cy: PICTOGRAM_CENTER, r: 4 },
     { kind: 'line', x1: 3.17, y1: 3.17, x2: 8.83, y2: 8.83 },
     { kind: 'line', x1: 3.17, y1: 8.83, x2: 8.83, y2: 3.17 },
   ],
@@ -64,38 +77,38 @@ export const DEVICE_PICTOGRAMS: Record<DeviceType, readonly PictogramShape[]> = 
     { kind: 'line', x1: 1, y1: 6, x2: 11, y2: 6 },
   ],
   thermostat: [
-    { kind: 'circle', cx: CENTER, cy: CENTER, r: 3.6 },
-    { kind: 'text', x: CENTER, y: CENTER, text: 'T', size: 4.4 },
+    { kind: 'circle', cx: PICTOGRAM_CENTER, cy: PICTOGRAM_CENTER, r: 3.6 },
+    { kind: 'text', x: PICTOGRAM_CENTER, y: PICTOGRAM_CENTER, text: 'T', size: 4.4 },
   ],
   water_heater: [
-    { kind: 'circle', cx: CENTER, cy: CENTER, r: 4.4 },
-    { kind: 'text', x: CENTER, y: CENTER, text: 'WH', size: 3.6 },
+    { kind: 'circle', cx: PICTOGRAM_CENTER, cy: PICTOGRAM_CENTER, r: 4.4 },
+    { kind: 'text', x: PICTOGRAM_CENTER, y: PICTOGRAM_CENTER, text: 'WH', size: 3.6 },
   ],
   air_exchanger: [
     { kind: 'rect', x: 1.6, y: 1.6, w: 8.8, h: 8.8 },
-    { kind: 'text', x: CENTER, y: CENTER, text: 'EA', size: 3.6 },
+    { kind: 'text', x: PICTOGRAM_CENTER, y: PICTOGRAM_CENTER, text: 'EA', size: 3.6 },
   ],
   central_vacuum: [
-    { kind: 'circle', cx: CENTER, cy: CENTER, r: 4.6 },
-    { kind: 'text', x: CENTER, y: CENTER, text: 'VAC', size: 3 },
+    { kind: 'circle', cx: PICTOGRAM_CENTER, cy: PICTOGRAM_CENTER, r: 4.6 },
+    { kind: 'text', x: PICTOGRAM_CENTER, y: PICTOGRAM_CENTER, text: 'VAC', size: 3 },
   ],
   vacuum_inlet: [
-    { kind: 'circle', cx: CENTER, cy: 4.8, r: 2.6 },
-    { kind: 'circle', cx: CENTER, cy: 4.8, r: 0.8, fill: true },
-    { kind: 'line', x1: CENTER, y1: 7.4, x2: CENTER, y2: 11.5 },
+    { kind: 'circle', cx: PICTOGRAM_CENTER, cy: 4.8, r: 2.6 },
+    { kind: 'circle', cx: PICTOGRAM_CENTER, cy: 4.8, r: 0.8, fill: true },
+    { kind: 'line', x1: PICTOGRAM_CENTER, y1: 7.4, x2: PICTOGRAM_CENTER, y2: 11.5 },
   ],
   smoke_detector: [
     {
       kind: 'polyline',
       points: [
-        [CENTER, 1.4],
-        [10.6, CENTER],
-        [CENTER, 10.6],
-        [1.4, CENTER],
+        [PICTOGRAM_CENTER, 1.4],
+        [10.6, PICTOGRAM_CENTER],
+        [PICTOGRAM_CENTER, 10.6],
+        [1.4, PICTOGRAM_CENTER],
       ],
       closed: true,
     },
-    { kind: 'text', x: CENTER, y: CENTER, text: 'SD', size: 3.2 },
+    { kind: 'text', x: PICTOGRAM_CENTER, y: PICTOGRAM_CENTER, text: 'SD', size: 3.2 },
   ],
   network_jack: [
     { kind: 'rect', x: 2.4, y: 2.4, w: 7.2, h: 7.2 },
@@ -108,4 +121,33 @@ export const DEVICE_PICTOGRAMS: Record<DeviceType, readonly PictogramShape[]> = 
     { kind: 'line', x1: 8.4, y1: 9, x2: 11.4, y2: 3 },
     { kind: 'line', x1: 0.6, y1: 6, x2: 3, y2: 3 },
   ],
+}
+
+/**
+ * Local y that lands on the wall face, per type — only listed for wall-mounted
+ * pictograms whose ink is not already centred on the face (see the module
+ * docstring). Absent entries fall back to `PICTOGRAM_CENTER` via
+ * `pictogramBaselineY`, which also correctly leaves ceiling/free pictograms
+ * (never wall-anchored) and `baseboard_heater` (drawn as its own oriented
+ * rectangle, not this box) unshifted.
+ */
+const PICTOGRAM_BASELINE_Y: Partial<Record<DeviceType, number>> = {
+  outlet_gfci: 9,
+  switch: 11.5,
+  switch_3way: 11.5,
+  wall_light: 9,
+  thermostat: 9.6,
+  vacuum_inlet: 11.5,
+  network_jack: 9.6,
+  panel: 9,
+}
+
+/**
+ * The local y (in the 12×12 symbol box) that should sit exactly on the wall
+ * face for a wall-mounted device of `type`. `PICTOGRAM_CENTER` when `type` has
+ * no baseline recorded above, meaning the pictogram is already centred on the
+ * face and needs no outward shift.
+ */
+export function pictogramBaselineY(type: DeviceType): number {
+  return PICTOGRAM_BASELINE_Y[type] ?? PICTOGRAM_CENTER
 }

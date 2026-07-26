@@ -1,3 +1,4 @@
+import { PICTOGRAM_CENTER, pictogramBaselineY } from '@/devices/pictograms'
 import type { Device, Point, Wall } from '@/types/plan'
 
 import { lineIntersection } from './lines'
@@ -83,10 +84,15 @@ function boxCorners(centre: Point, half: number, ex: Point, ey: Point): Point[] 
  * Attached devices sit ON the chosen face of the host wall at `t`: the anchor
  * is the reference point offset to that face, and the pictogram is rotated so
  * the wall runs along its local x while its "room" side points away from the
- * wall body (a `right`-side device is flipped 180°). Baseboards additionally
- * get an oriented rectangle spanning `length_in` centred at `t` and protruding
- * into the room. Positioned (ceiling/free) devices anchor at `position` and use
- * `rotation_deg`. Returns `null` when the host wall or segment is missing.
+ * wall body (a `right`-side device is flipped 180°). The anchor is then
+ * nudged outward, along the face normal, by the device type's pictogram
+ * baseline (`pictogramBaselineY`, spec-drawn per symbol) so the symbol's own
+ * baseline ink — not the box centre — touches the face; a type with no
+ * baseline recorded is unaffected. Baseboards are the one exception: they
+ * keep the unshifted face anchor and additionally get an oriented rectangle
+ * spanning `length_in` centred at `t` and protruding into the room. Positioned
+ * (ceiling/free) devices anchor at `position` and use `rotation_deg`. Returns
+ * `null` when the host wall or segment is missing.
  *
  * @param device The device to place.
  * @param walls The document walls, to resolve an attachment's host.
@@ -129,11 +135,13 @@ export function deviceWorldPlacement(
 
     const ex = u
     const ey = scale(outward, -1)
+    const faceOffsetIn = pictogramBaselineY(device.type) - PICTOGRAM_CENTER
+    const symbolPosition = add(position, scale(outward, faceOffsetIn))
     return {
-      position,
+      position: symbolPosition,
       angleDeg,
       side,
-      bounds: boxCorners(position, DEVICE_NOMINAL_IN / 2, ex, ey),
+      bounds: boxCorners(symbolPosition, DEVICE_NOMINAL_IN / 2, ex, ey),
       baseboardRect: null,
     }
   }
