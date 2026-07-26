@@ -1,0 +1,63 @@
+{
+  "name": "warning-at-eighty-percent",
+  "description": "A 2900 W baseboard heater at 240 V is 12.08 A, at or above the 12.0 A (80% of a 15 A breaker) continuous-load threshold -> status warning.",
+  "document": {
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        }
+      },
+      {
+        "id": "bb-1",
+        "type": "baseboard_heater",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 24.0
+        },
+        "load_w": 2900.0
+      }
+    ],
+    "circuits": [
+      {
+        "id": "circ-1",
+        "name": "Circuit 1",
+        "color": "#dc2626",
+        "breaker_a": 15,
+        "voltage_v": 240,
+        "kind": "power"
+      }
+    ],
+    "wires": [
+      {
+        "id": "w-1",
+        "circuit_id": "circ-1",
+        "from_device_id": "panel",
+        "to_device_id": "bb-1"
+      }
+    ]
+  },
+  "expected": {
+    "circuits": [
+      {
+        "circuit_id": "circ-1",
+        "load_w": 2900.0,
+        "amps": 12.083333333333334,
+        "breaker_a": 15,
+        "status": "warning",
+        "connected_device_ids": [
+          "bb-1"
+        ],
+        "floating_device_ids": []
+      }
+    ],
+    "unassigned_device_ids": [],
+    "multi_circuit_device_ids": {},
+    "dangling_wire_ids": [],
+    "has_panel": true
+  }
+}

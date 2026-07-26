@@ -1,0 +1,120 @@
+{
+  "name": "combined-findings-multi-circuit-dangling-unassigned",
+  "description": "An integration scenario combining findings in one document: an outlet wired into two circuits (multi-circuit), a wire referencing a missing device (dangling), and an unwired outlet (unassigned), all alongside a present panel.",
+  "document": {
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        }
+      },
+      {
+        "id": "o1",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 12.0
+        }
+      },
+      {
+        "id": "lonely",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 24.0
+        }
+      },
+      {
+        "id": "sw",
+        "type": "switch",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 3.0
+        }
+      }
+    ],
+    "circuits": [
+      {
+        "id": "c",
+        "name": "Circuit 1",
+        "color": "#dc2626",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
+      },
+      {
+        "id": "c2",
+        "name": "Circuit 2",
+        "color": "#2563eb",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "circuit_id": "c",
+        "from_device_id": "panel",
+        "to_device_id": "o1"
+      },
+      {
+        "id": "w2",
+        "circuit_id": "c2",
+        "from_device_id": "panel",
+        "to_device_id": "o1"
+      },
+      {
+        "id": "bad",
+        "circuit_id": "c",
+        "from_device_id": "panel",
+        "to_device_id": "ghost"
+      }
+    ]
+  },
+  "expected": {
+    "circuits": [
+      {
+        "circuit_id": "c",
+        "load_w": 180.0,
+        "amps": 1.5,
+        "breaker_a": 15,
+        "status": "ok",
+        "connected_device_ids": [
+          "o1"
+        ],
+        "floating_device_ids": []
+      },
+      {
+        "circuit_id": "c2",
+        "load_w": 180.0,
+        "amps": 1.5,
+        "breaker_a": 15,
+        "status": "ok",
+        "connected_device_ids": [
+          "o1"
+        ],
+        "floating_device_ids": []
+      }
+    ],
+    "unassigned_device_ids": [
+      "lonely"
+    ],
+    "multi_circuit_device_ids": {
+      "o1": [
+        "c",
+        "c2"
+      ]
+    },
+    "dangling_wire_ids": [
+      "bad"
+    ],
+    "has_panel": true
+  }
+}

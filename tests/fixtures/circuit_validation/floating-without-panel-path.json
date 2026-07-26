@@ -1,0 +1,89 @@
+{
+  "name": "floating-without-panel-path",
+  "description": "An outlet cluster wired together but not to the panel is floating and excluded from the load sum, alongside a properly connected outlet.",
+  "document": {
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        }
+      },
+      {
+        "id": "out-1",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 12.0
+        }
+      },
+      {
+        "id": "out-2",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 24.0
+        }
+      },
+      {
+        "id": "out-3",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 36.0
+        }
+      }
+    ],
+    "circuits": [
+      {
+        "id": "circ-1",
+        "name": "Circuit 1",
+        "color": "#dc2626",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
+      }
+    ],
+    "wires": [
+      {
+        "id": "w-1",
+        "circuit_id": "circ-1",
+        "from_device_id": "panel",
+        "to_device_id": "out-1"
+      },
+      {
+        "id": "w-2",
+        "circuit_id": "circ-1",
+        "from_device_id": "out-2",
+        "to_device_id": "out-3"
+      }
+    ]
+  },
+  "expected": {
+    "circuits": [
+      {
+        "circuit_id": "circ-1",
+        "load_w": 180.0,
+        "amps": 1.5,
+        "breaker_a": 15,
+        "status": "ok",
+        "connected_device_ids": [
+          "out-1"
+        ],
+        "floating_device_ids": [
+          "out-2",
+          "out-3"
+        ]
+      }
+    ],
+    "unassigned_device_ids": [],
+    "multi_circuit_device_ids": {},
+    "dangling_wire_ids": [],
+    "has_panel": true
+  }
+}

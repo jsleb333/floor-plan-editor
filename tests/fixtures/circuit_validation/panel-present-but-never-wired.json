@@ -1,0 +1,72 @@
+{
+  "name": "panel-present-but-never-wired",
+  "description": "The panel device exists but no wire touches it at all; a pair of outlets wired only to each other never reaches it, so both float and the circuit carries zero load.",
+  "document": {
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        }
+      },
+      {
+        "id": "o1",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 12.0
+        }
+      },
+      {
+        "id": "o2",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 24.0
+        }
+      }
+    ],
+    "circuits": [
+      {
+        "id": "circ-1",
+        "name": "Circuit 1",
+        "color": "#dc2626",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
+      }
+    ],
+    "wires": [
+      {
+        "id": "w-1",
+        "circuit_id": "circ-1",
+        "from_device_id": "o1",
+        "to_device_id": "o2"
+      }
+    ]
+  },
+  "expected": {
+    "circuits": [
+      {
+        "circuit_id": "circ-1",
+        "load_w": 0.0,
+        "amps": 0.0,
+        "breaker_a": 15,
+        "status": "ok",
+        "connected_device_ids": [],
+        "floating_device_ids": [
+          "o1",
+          "o2"
+        ]
+      }
+    ],
+    "unassigned_device_ids": [],
+    "multi_circuit_device_ids": {},
+    "dangling_wire_ids": [],
+    "has_panel": true
+  }
+}

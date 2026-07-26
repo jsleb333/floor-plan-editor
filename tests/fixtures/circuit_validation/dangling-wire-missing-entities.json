@@ -1,0 +1,77 @@
+{
+  "name": "dangling-wire-missing-entities",
+  "description": "Wires pointing at a missing device or a missing circuit are reported as dangling and excluded from connectivity.",
+  "document": {
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        }
+      },
+      {
+        "id": "out-1",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 12.0
+        }
+      }
+    ],
+    "circuits": [
+      {
+        "id": "circ-1",
+        "name": "Circuit 1",
+        "color": "#dc2626",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
+      }
+    ],
+    "wires": [
+      {
+        "id": "w-1",
+        "circuit_id": "circ-1",
+        "from_device_id": "panel",
+        "to_device_id": "out-1"
+      },
+      {
+        "id": "w-missing-device",
+        "circuit_id": "circ-1",
+        "from_device_id": "panel",
+        "to_device_id": "ghost"
+      },
+      {
+        "id": "w-missing-circuit",
+        "circuit_id": "circ-ghost",
+        "from_device_id": "panel",
+        "to_device_id": "out-1"
+      }
+    ]
+  },
+  "expected": {
+    "circuits": [
+      {
+        "circuit_id": "circ-1",
+        "load_w": 180.0,
+        "amps": 1.5,
+        "breaker_a": 15,
+        "status": "ok",
+        "connected_device_ids": [
+          "out-1"
+        ],
+        "floating_device_ids": []
+      }
+    ],
+    "unassigned_device_ids": [],
+    "multi_circuit_device_ids": {},
+    "dangling_wire_ids": [
+      "w-missing-circuit",
+      "w-missing-device"
+    ],
+    "has_panel": true
+  }
+}

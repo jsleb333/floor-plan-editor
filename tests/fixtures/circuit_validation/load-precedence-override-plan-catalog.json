@@ -1,0 +1,98 @@
+{
+  "name": "load-precedence-override-plan-catalog",
+  "description": "The load sum honours the resolution precedence: an override device (2000 W), a plan-default device (750 W) and a catalog-default outlet (180 W) total 2930 W.",
+  "document": {
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        }
+      },
+      {
+        "id": "bb-override",
+        "type": "baseboard_heater",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 12.0
+        },
+        "load_w": 2000.0
+      },
+      {
+        "id": "bb-plan-default",
+        "type": "baseboard_heater",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 24.0
+        }
+      },
+      {
+        "id": "out-catalog",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 36.0
+        }
+      }
+    ],
+    "circuits": [
+      {
+        "id": "circ-1",
+        "name": "Circuit 1",
+        "color": "#dc2626",
+        "breaker_a": 30,
+        "voltage_v": 240,
+        "kind": "power"
+      }
+    ],
+    "catalog_defaults": {
+      "baseboard_heater": 750.0
+    },
+    "wires": [
+      {
+        "id": "w-1",
+        "circuit_id": "circ-1",
+        "from_device_id": "panel",
+        "to_device_id": "bb-override"
+      },
+      {
+        "id": "w-2",
+        "circuit_id": "circ-1",
+        "from_device_id": "bb-override",
+        "to_device_id": "bb-plan-default"
+      },
+      {
+        "id": "w-3",
+        "circuit_id": "circ-1",
+        "from_device_id": "bb-plan-default",
+        "to_device_id": "out-catalog"
+      }
+    ]
+  },
+  "expected": {
+    "circuits": [
+      {
+        "circuit_id": "circ-1",
+        "load_w": 2930.0,
+        "amps": 12.208333333333334,
+        "breaker_a": 30,
+        "status": "ok",
+        "connected_device_ids": [
+          "bb-override",
+          "bb-plan-default",
+          "out-catalog"
+        ],
+        "floating_device_ids": []
+      }
+    ],
+    "unassigned_device_ids": [],
+    "multi_circuit_device_ids": {},
+    "dangling_wire_ids": [],
+    "has_panel": true
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "name": "data-circuit-no-load",
+  "description": "A data circuit connects its jacks but reports zero watts, no amps and an ok status (amps is null for data/low-voltage circuits).",
+  "document": {
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        }
+      },
+      {
+        "id": "nj-1",
+        "type": "network_jack",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 6.0
+        }
+      }
+    ],
+    "circuits": [
+      {
+        "id": "data-1",
+        "name": "Data",
+        "color": "#00ff00",
+        "breaker_a": 15,
+        "kind": "data"
+      }
+    ],
+    "wires": [
+      {
+        "id": "w-1",
+        "circuit_id": "data-1",
+        "from_device_id": "panel",
+        "to_device_id": "nj-1"
+      }
+    ]
+  },
+  "expected": {
+    "circuits": [
+      {
+        "circuit_id": "data-1",
+        "load_w": 0.0,
+        "amps": null,
+        "breaker_a": 15,
+        "status": "ok",
+        "connected_device_ids": [
+          "nj-1"
+        ],
+        "floating_device_ids": []
+      }
+    ],
+    "unassigned_device_ids": [],
+    "multi_circuit_device_ids": {},
+    "dangling_wire_ids": [],
+    "has_panel": true
+  }
+}

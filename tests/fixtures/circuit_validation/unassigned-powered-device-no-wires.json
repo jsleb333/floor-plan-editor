@@ -1,0 +1,82 @@
+{
+  "name": "unassigned-powered-device-no-wires",
+  "description": "A powered outlet with no wires is listed unassigned (spec C5), while a switch (no load, no voltage) and the panel are not.",
+  "document": {
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        }
+      },
+      {
+        "id": "out-wired",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 12.0
+        }
+      },
+      {
+        "id": "out-lonely",
+        "type": "outlet",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 24.0
+        }
+      },
+      {
+        "id": "sw-1",
+        "type": "switch",
+        "attachment": {
+          "wall_id": "wall-1",
+          "segment_index": 0,
+          "t": 3.0
+        }
+      }
+    ],
+    "circuits": [
+      {
+        "id": "circ-1",
+        "name": "Circuit 1",
+        "color": "#dc2626",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
+      }
+    ],
+    "wires": [
+      {
+        "id": "w-1",
+        "circuit_id": "circ-1",
+        "from_device_id": "panel",
+        "to_device_id": "out-wired"
+      }
+    ]
+  },
+  "expected": {
+    "circuits": [
+      {
+        "circuit_id": "circ-1",
+        "load_w": 180.0,
+        "amps": 1.5,
+        "breaker_a": 15,
+        "status": "ok",
+        "connected_device_ids": [
+          "out-wired"
+        ],
+        "floating_device_ids": []
+      }
+    ],
+    "unassigned_device_ids": [
+      "out-lonely"
+    ],
+    "multi_circuit_device_ids": {},
+    "dangling_wire_ids": [],
+    "has_panel": true
+  }
+}
