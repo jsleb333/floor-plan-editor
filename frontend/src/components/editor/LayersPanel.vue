@@ -241,6 +241,8 @@ function removeUnderlay(): void {
       </button>
     </section>
 
-    <p class="text-ink-muted leading-relaxed">Per-circuit layer rows arrive with circuits in M5.</p>
+    <p class="text-ink-muted leading-relaxed">
+      Per-circuit wire and device visibility lives in the Circuits tab, on each circuit's row.
+    </p>
   </section>
 </template>

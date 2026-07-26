@@ -14,6 +14,8 @@ import type {
   Wall,
   Wire,
 } from '@/types/plan'
+import { circuitsByDevice, deviceCircuitColor } from '@/utils/circuitMembership'
+import { validatePlan } from '@/utils/circuits'
 import {
   boundsOfPoints,
   deviceGlyphBox,
@@ -61,11 +63,13 @@ import {
  * `openingWorldRect`, `doorSymbol`/`windowSymbol`, the `stairs*` family,
  * `deviceWorldPlacement`, the pictogram registry, `wirePathData`,
  * `dimensionLayout`, `labelBounds`) so the file matches the canvas 1:1 and
- * there is one geometry path to test. Coordinates are real inches; layers are
- * named `<g>` groups. The underlay is embedded as a data URI ONLY when a
- * caller resolves it first via `embedUnderlay` and passes it in — the pure
- * builder never touches the network, so a default export can never leak
- * `/api/assets` (spec U4).
+ * there is one geometry path to test. Device colours run through the same
+ * `deviceCircuitColor` rule `DevicesLayer` uses, so a printed device reads on
+ * the paper plan as the circuit colour it shows on screen (spec C2).
+ * Coordinates are real inches; layers are named `<g>` groups. The underlay is
+ * embedded as a data URI ONLY when a caller resolves it first via
+ * `embedUnderlay` and passes it in — the pure builder never touches the
+ * network, so a default export can never leak `/api/assets` (spec U4).
  */
 
 /** A resolved underlay ready to inline: its bytes as a data URI plus pixel size. */
@@ -211,11 +215,11 @@ function renderStairs(stairs: Stairs): string[] {
 }
 
 /** Renders one pictogram shape, in the symbol's 12x12 coordinate box. */
-function renderPictogramShape(shape: PictogramShape): string {
-  const stroke = `stroke="${EXPORT_INK}" stroke-width="${DEVICE_STROKE_IN}" stroke-linecap="round" stroke-linejoin="round"`
+function renderPictogramShape(shape: PictogramShape, color: string): string {
+  const stroke = `stroke="${color}" stroke-width="${DEVICE_STROKE_IN}" stroke-linecap="round" stroke-linejoin="round"`
   switch (shape.kind) {
     case 'circle':
-      return `<circle cx="${shape.cx}" cy="${shape.cy}" r="${shape.r}" fill="${shape.fill ? EXPORT_INK : 'none'}" ${stroke} />`
+      return `<circle cx="${shape.cx}" cy="${shape.cy}" r="${shape.r}" fill="${shape.fill ? color : 'none'}" ${stroke} />`
     case 'line':
       return `<line x1="${shape.x1}" y1="${shape.y1}" x2="${shape.x2}" y2="${shape.y2}" ${stroke} />`
     case 'polyline': {
@@ -225,13 +229,18 @@ function renderPictogramShape(shape: PictogramShape): string {
     case 'path':
       return `<path d="${shape.d}" fill="none" ${stroke} />`
     case 'rect':
-      return `<rect x="${shape.x}" y="${shape.y}" width="${shape.w}" height="${shape.h}" fill="${shape.fill ? EXPORT_INK : 'none'}" ${stroke} />`
+      return `<rect x="${shape.x}" y="${shape.y}" width="${shape.w}" height="${shape.h}" fill="${shape.fill ? color : 'none'}" ${stroke} />`
     case 'text':
-      return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.size}" fill="${EXPORT_INK}" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${escapeXml(shape.text)}</text>`
+      return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.size}" fill="${color}" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${escapeXml(shape.text)}</text>`
   }
 }
 
-function renderDevice(device: Device, walls: readonly Wall[]): string[] {
+/**
+ * Renders a device in `color` — both its true-size footprint rectangle and the
+ * glyph inscribed in it, so the two never disagree. The colour is the canvas
+ * rule resolved by the caller (`deviceCircuitColor`, spec C2).
+ */
+function renderDevice(device: Device, walls: readonly Wall[], color: string): string[] {
   const placement = deviceWorldPlacement(device, walls)
   if (!placement) return []
   const out: string[] = []
@@ -239,13 +248,15 @@ function renderDevice(device: Device, walls: readonly Wall[]): string[] {
   // same pictogram every other device gets, inscribed at the rectangle's centre.
   if (placement.footprintRect) {
     out.push(
-      `<polygon points="${pointsAttr(placement.footprintRect)}" fill="none" stroke="${EXPORT_INK}" stroke-width="${1.2 * DEVICE_STROKE_IN}" />`,
+      `<polygon points="${pointsAttr(placement.footprintRect)}" fill="none" stroke="${color}" stroke-width="${1.2 * DEVICE_STROKE_IN}" />`,
     )
   }
   const { glyphPosition, angleDeg } = placement
   // The pictogram box is authored on [0,12]^2 with the anchor at (6,6); shift it
   // so (6,6) lands on the world glyph position, then rotate about that anchor.
-  const shapes = DEVICE_PICTOGRAMS[device.type].map(renderPictogramShape).join('')
+  const shapes = DEVICE_PICTOGRAMS[device.type]
+    .map((shape) => renderPictogramShape(shape, color))
+    .join('')
   out.push(
     `<g transform="translate(${num(glyphPosition.x)} ${num(glyphPosition.y)}) rotate(${num(angleDeg)}) translate(-6 -6)">${shapes}</g>`,
   )
@@ -493,7 +504,13 @@ export function buildPlanSvg(document: PlanDocument, options: SvgExportOptions =
     if (group !== '') groups.push(group)
   }
 
-  const devices = document.devices.flatMap((device) => renderDevice(device, document.walls))
+  // Devices carry their circuit's colour exactly as on the canvas (spec C2/C6),
+  // resolved from the same membership primitive; ink is the fallback for a
+  // device on no circuit and for the sources, which belong to every circuit.
+  const membership = circuitsByDevice(validatePlan(document), document.circuits)
+  const devices = document.devices.flatMap((device) =>
+    renderDevice(device, document.walls, deviceCircuitColor(device, membership) ?? EXPORT_INK),
+  )
   groups.push(`<g id="devices">${devices.join('')}</g>`)
 
   if (includeAnnotations) {

@@ -390,11 +390,21 @@ floor to the storey below. They carry no load on this plan — their load overri
   A warning state appears above 80 % of the breaker rating (continuous-load
   rule of thumb) and an error state above 100 %. Warnings are informative,
   never blocking.
-- **C5** — Selecting a circuit in the panel highlights all its wires and
-  devices on the canvas and dims the rest; devices not on any circuit can be
-  listed ("unassigned") for review.
-- **C6** — Per-circuit wire visibility toggles (show/hide each colour) to
-  reduce clutter, matching how one reads the paper plan one colour at a time.
+- **C5** — Devices are colour-coded by circuit: a device wired into a circuit
+  draws in that circuit's colour (C2), both its pictogram and its true-size
+  footprint outline, on the canvas and in the export alike. A device on several
+  circuits (C3) takes the first one in document order; the sources stay ink,
+  since they belong to every circuit. Selecting a circuit in the panel
+  highlights all its wires and devices on the canvas and dims the rest — a
+  dimmed device keeps its circuit colour, just fainter — and the selection
+  colour always wins over the circuit colour so a selected device stays
+  legible. Devices not on any circuit can be listed ("unassigned") for review.
+- **C6** — Per-circuit visibility toggles, on two independent axes: a circuit's
+  **wires** and its **devices** can be hidden separately (shift-click either
+  toggle to flip both). This reduces clutter, matching how one reads the paper
+  plan one colour at a time. A device only disappears once every circuit it
+  belongs to has its devices hidden; devices on no circuit, and the sources,
+  always stay visible. Circuits default to fully visible.
 
 ### 5.6 Wires
 
@@ -569,9 +579,11 @@ Fixed, predictable homes for everything; no floating windows.
   - **Circuits** — the circuit list with colour swatch, name,
     `load / breaker` bar and warning badges; the tab itself carries a ⚠ badge
     when any circuit is over 80 %. Selecting a circuit highlights it on
-    canvas (C5); this is also where circuits are created and wires toggled.
-  - **Layers** — visibility/lock rows: underlay, structure, devices,
-    annotations, one row per circuit.
+    canvas (C5); this is also where circuits are created and each circuit's
+    wires and devices are toggled (C6).
+  - **Layers** — visibility/lock rows for the whole-plan layers: underlay,
+    structure, devices, annotations. Per-circuit rows live in the Circuits tab,
+    on the row that already carries the circuit's colour.
 - **Bottom status bar**: live snap toggles, wall reference side (during wall
   drawing), the typed-input echo (what you type — `12'5` — appears here before
   Enter commits it), cursor coordinates in feet/inches.

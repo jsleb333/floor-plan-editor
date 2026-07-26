@@ -50,7 +50,7 @@ const wireViews = computed<WireView[]>(() => {
   const views: WireView[] = []
   for (const wire of document.wires) {
     const circuit = circuitsById.get(wire.circuit_id)
-    if (circuit && !layersStore.isCircuitWiresVisible(circuit.id)) continue
+    if (circuit && !layersStore.isCircuitAxisVisible(circuit.id, 'wires')) continue
     const from = wireEndpoint(devicesById.get(wire.from_device_id), document.walls)
     const to = wireEndpoint(devicesById.get(wire.to_device_id), document.walls)
     const selected = editorStore.isSelected({ kind: 'wire', id: wire.id })

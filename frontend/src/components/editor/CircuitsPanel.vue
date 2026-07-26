@@ -1,17 +1,35 @@
 <script setup lang="ts">
-import { Eye, EyeOff, Plus, Trash2, TriangleAlert } from 'lucide-vue-next'
+import { Lightbulb, LightbulbOff, Plus, Trash2, TriangleAlert, Zap, ZapOff } from 'lucide-vue-next'
 import { computed } from 'vue'
+import type { Component } from 'vue'
 
 import { useCircuitValidation } from '@/composables/useCircuitValidation'
 import { catalogEntry } from '@/devices/catalog'
 import { useEditorStore } from '@/stores/editor'
 import { useLayersStore } from '@/stores/layers'
+import type { CircuitAxis } from '@/stores/layers'
 import type { Circuit, CircuitLoad } from '@/types/plan'
 
 /** Breaker ratings offered when creating or editing a circuit (spec C1). */
 const BREAKER_RATINGS: readonly number[] = [15, 20, 30, 40]
 const NEW_CIRCUIT_BREAKER_A = 15
 const NEW_CIRCUIT_VOLTAGE_V = 120
+
+/**
+ * The two independent visibility toggles every circuit row carries (spec C6) —
+ * two explicit buttons rather than one cycling tri-state. Each carries the noun
+ * that names it in its aria-label plus an icon pair that says both WHICH axis it
+ * is and whether that axis is currently shown.
+ */
+const VISIBILITY_AXES: readonly {
+  id: CircuitAxis
+  noun: string
+  shownIcon: Component
+  hiddenIcon: Component
+}[] = [
+  { id: 'wires', noun: 'wires', shownIcon: Zap, hiddenIcon: ZapOff },
+  { id: 'devices', noun: 'devices', shownIcon: Lightbulb, hiddenIcon: LightbulbOff },
+]
 
 const editorStore = useEditorStore()
 const layersStore = useLayersStore()
@@ -104,6 +122,28 @@ function selectRow(circuit: Circuit): void {
   editorStore.toggleIsolatedCircuit(circuit.id)
 }
 
+/**
+ * Flips one visibility axis of a circuit (spec C6). Shift-click flips BOTH axes
+ * to the clicked one's new state — the power-user shortcut for muting or
+ * restoring a whole circuit at once, spelled out in the panel's help text.
+ */
+function toggleVisibility(circuit: Circuit, axis: CircuitAxis, event: MouseEvent): void {
+  const visible = !layersStore.isCircuitAxisVisible(circuit.id, axis)
+  if (!event.shiftKey) {
+    layersStore.setCircuitAxisVisible(circuit.id, axis, visible)
+    return
+  }
+  for (const other of VISIBILITY_AXES) {
+    layersStore.setCircuitAxisVisible(circuit.id, other.id, visible)
+  }
+}
+
+/** Accessible name for a visibility toggle, e.g. "Hide Kitchen wires". */
+function visibilityLabel(circuit: Circuit, axis: (typeof VISIBILITY_AXES)[number]): string {
+  const action = layersStore.isCircuitAxisVisible(circuit.id, axis.id) ? 'Hide' : 'Show'
+  return `${action} ${circuit.name} ${axis.noun}`
+}
+
 function selectDevice(deviceId: string): void {
   editorStore.select([{ kind: 'device', id: deviceId }])
 }
@@ -177,19 +217,23 @@ function deviceLabel(type: string): string {
             Isolated
           </span>
           <button
+            v-for="axis in VISIBILITY_AXES"
+            :key="axis.id"
             type="button"
             class="hover:bg-canvas rounded p-1 transition-colors"
-            :class="layersStore.isCircuitWiresVisible(circuit.id) ? 'text-ink' : 'text-ink-faint'"
-            :aria-pressed="layersStore.isCircuitWiresVisible(circuit.id)"
-            :aria-label="
-              layersStore.isCircuitWiresVisible(circuit.id)
-                ? `Hide ${circuit.name} wires`
-                : `Show ${circuit.name} wires`
+            :class="
+              layersStore.isCircuitAxisVisible(circuit.id, axis.id) ? 'text-ink' : 'text-ink-faint'
             "
-            @click="layersStore.toggleCircuitWires(circuit.id)"
+            :aria-pressed="layersStore.isCircuitAxisVisible(circuit.id, axis.id)"
+            :aria-label="visibilityLabel(circuit, axis)"
+            @click="toggleVisibility(circuit, axis.id, $event)"
           >
             <component
-              :is="layersStore.isCircuitWiresVisible(circuit.id) ? Eye : EyeOff"
+              :is="
+                layersStore.isCircuitAxisVisible(circuit.id, axis.id)
+                  ? axis.shownIcon
+                  : axis.hiddenIcon
+              "
               :size="13"
               aria-hidden="true"
             />
@@ -265,6 +309,11 @@ function deviceLabel(type: string): string {
         </p>
       </li>
     </ul>
+
+    <p v-if="circuits.length > 0" class="text-ink-muted leading-relaxed">
+      Each circuit hides its wires and its devices independently — shift-click either toggle to hide
+      or show both at once. Sources and devices on no circuit always stay visible.
+    </p>
 
     <section
       v-if="unassignedDevices.length > 0"
