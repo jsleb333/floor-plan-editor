@@ -9,9 +9,10 @@ import {
   autoSquareClose,
   distance,
   scale,
+  wallFacePolylines,
   wallOutline,
 } from '@/utils/geometry'
-import type { AlignmentGuide, WallReference } from '@/utils/geometry'
+import type { AlignmentGuide, WallFacePolylines, WallReference } from '@/utils/geometry'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
 import type {
@@ -45,6 +46,14 @@ export interface WallToolPreview {
   segment: { a: Point; b: Point } | null
   /** Wall-body silhouette rings of the whole pending chain incl. the preview segment. */
   rings: Point[][]
+  /**
+   * Effective reference polyline of the pending chain — vertices plus the
+   * snapped cursor, or the close-adjusted loop while the close affordance is
+   * engaged (spec S1c) — so the overlay draws exactly what a commit creates.
+   */
+  chain: Point[]
+  /** Face polylines of the pending chain, for the S1a left/right face tints. */
+  faces: WallFacePolylines | null
   /** Live length of the pending segment, formatted for the on-canvas label. */
   lengthLabel: string | null
   marker: { kind: Exclude<SnapMarkerKind, 'close'>; point: Point } | null
@@ -168,20 +177,24 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     if (snap?.marker === 'close') {
       previewChain = [...closingChain(chain), chain[0]]
     }
-    const rings =
+    const geometry =
       previewChain.length >= 2
-        ? wallOutline({
+        ? {
             vertices: previewChain,
             thicknessIn: thicknessIn.value,
             reference: reference.value,
-          })
-        : []
+          }
+        : null
+    const rings = geometry ? wallOutline(geometry) : []
+    const faces = geometry ? wallFacePolylines(geometry) : null
 
     return {
       vertices: chain,
       point,
       segment,
       rings,
+      chain: previewChain,
+      faces,
       lengthLabel: segment
         ? formatFeetInches(distance(segment.a, segment.b), options.displayPrecisionIn?.value)
         : null,

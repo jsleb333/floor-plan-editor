@@ -2,14 +2,18 @@
 import { computed } from 'vue'
 
 import type { WallToolPreview } from '@/composables/useWallTool'
-import { add, lerp, normalize, perpendicular, scale, sub } from '@/utils/geometry'
-import { ringsToPath } from '@/utils/svgPath'
+import { add, angleOf, lerp, normalize, perpendicular, scale, sub } from '@/utils/geometry'
+import { polylineToPath, ringsToPath } from '@/utils/svgPath'
 
 const GUIDE_LENGTH_IN = 10000
 const LABEL_OFFSET_PX = 12
 const LABEL_FONT_PX = 11
 const MARKER_HALF_PX = 4.5
 const CLOSE_RADIUS_PX = 8
+/** Direction-arrow glyph pointing +x, tip at the origin; scaled by the hairline. */
+const ARROW_PATH = 'M 0 0 L -8 3.5 L -8 -3.5 Z'
+const START_MARKER_RADIUS_PX = 3
+const FACE_STROKE_PX = 2.5
 
 const props = defineProps<{
   preview: WallToolPreview
@@ -19,12 +23,29 @@ const props = defineProps<{
 
 const silhouettePath = computed(() => ringsToPath(props.preview.rings))
 
-const chainPath = computed(() => {
-  const points = props.preview.point
-    ? [...props.preview.vertices, props.preview.point]
-    : props.preview.vertices
-  if (points.length < 2) return ''
-  return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+const chainPath = computed(() => polylineToPath(props.preview.chain))
+
+const leftFacePath = computed(() => {
+  const faces = props.preview.faces
+  return faces ? polylineToPath(faces.left, faces.closed) : ''
+})
+
+const rightFacePath = computed(() => {
+  const faces = props.preview.faces
+  return faces ? polylineToPath(faces.right, faces.closed) : ''
+})
+
+/** Drawing-direction markers (spec S1a): chain start plus an end arrowhead. */
+const directionMarkers = computed(() => {
+  const chain = props.preview.chain
+  if (props.preview.vertices.length === 0 || chain.length < 2) return null
+  const end = chain[chain.length - 1]
+  const direction = normalize(sub(end, chain[chain.length - 2]))
+  const arrow =
+    direction.x === 0 && direction.y === 0
+      ? null
+      : { point: end, angleDeg: (angleOf(direction) * 180) / Math.PI }
+  return { start: chain[0], arrow }
 })
 
 const guideEnd = computed(() => {
@@ -54,6 +75,21 @@ const labelPosition = computed(() => {
       fill-rule="evenodd"
       class="fill-accent/25 stroke-accent"
       :stroke-width="hairline"
+    />
+
+    <path
+      v-if="leftFacePath"
+      :d="leftFacePath"
+      fill="none"
+      class="stroke-face-left/70"
+      :stroke-width="FACE_STROKE_PX * hairline"
+    />
+    <path
+      v-if="rightFacePath"
+      :d="rightFacePath"
+      fill="none"
+      class="stroke-face-right/70"
+      :stroke-width="FACE_STROKE_PX * hairline"
     />
 
     <line
@@ -105,6 +141,22 @@ const labelPosition = computed(() => {
       :r="2.5 * hairline"
       class="fill-accent-strong"
     />
+
+    <g v-if="directionMarkers" aria-label="Drawing direction">
+      <circle
+        :cx="directionMarkers.start.x"
+        :cy="directionMarkers.start.y"
+        :r="START_MARKER_RADIUS_PX * hairline"
+        class="fill-surface stroke-accent-strong"
+        :stroke-width="1.5 * hairline"
+      />
+      <path
+        v-if="directionMarkers.arrow"
+        :d="ARROW_PATH"
+        :transform="`translate(${directionMarkers.arrow.point.x} ${directionMarkers.arrow.point.y}) rotate(${directionMarkers.arrow.angleDeg}) scale(${hairline})`"
+        class="fill-accent-strong"
+      />
+    </g>
 
     <g v-if="preview.marker">
       <rect

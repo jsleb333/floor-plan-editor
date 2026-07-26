@@ -46,6 +46,32 @@ const flashLines = computed<FlashLine[]>(() => {
   return lines
 })
 
+/**
+ * Chip colouring (specs S1a/S2a): face-anchored chips reuse the wall face
+ * tints so "which face am I measuring to" reads at a glance; along-wall chips
+ * (no face identity) keep the accent.
+ */
+const CHIP_CLASSES: Record<
+  'left' | 'right' | 'none',
+  { activeStroke: string; idleStroke: string; activeText: string }
+> = {
+  left: {
+    activeStroke: 'stroke-face-left',
+    idleStroke: 'stroke-face-left/60',
+    activeText: 'fill-face-left font-semibold',
+  },
+  right: {
+    activeStroke: 'stroke-face-right',
+    idleStroke: 'stroke-face-right/60',
+    activeText: 'fill-face-right font-semibold',
+  },
+  none: {
+    activeStroke: 'stroke-accent-strong',
+    idleStroke: 'stroke-accent/60',
+    activeText: 'fill-accent-strong font-semibold',
+  },
+}
+
 interface ChipView {
   side: 'left' | 'right'
   active: boolean
@@ -53,12 +79,15 @@ interface ChipView {
   from: { x: number; y: number }
   to: { x: number; y: number }
   labelAt: { x: number; y: number }
+  strokeClass: string
+  textClass: string
 }
 
 const chipViews = computed<ChipView[]>(() =>
   props.preview.chips.map((chip) => {
     const mid = lerp(chip.from, chip.to, 0.5)
     const away = perpendicular(normalize(sub(chip.to, chip.from)))
+    const classes = CHIP_CLASSES[chip.faceSide ?? 'none']
     return {
       side: chip.side,
       active: chip.active,
@@ -66,6 +95,8 @@ const chipViews = computed<ChipView[]>(() =>
       from: chip.from,
       to: chip.to,
       labelAt: add(mid, scale(away, CHIP_OFFSET_PX * props.hairline)),
+      strokeClass: chip.active ? classes.activeStroke : classes.idleStroke,
+      textClass: chip.active ? classes.activeText : 'fill-ink-muted',
     }
   }),
 )
@@ -110,19 +141,19 @@ function tickPoints(chip: ChipView, end: 'from' | 'to'): string {
         :y1="chip.from.y"
         :x2="chip.to.x"
         :y2="chip.to.y"
-        :class="chip.active ? 'stroke-accent-strong' : 'stroke-accent/60'"
+        :class="chip.strokeClass"
         :stroke-width="(chip.active ? 1.5 : 1) * hairline"
       />
       <polyline
         :points="tickPoints(chip, 'from')"
         fill="none"
-        :class="chip.active ? 'stroke-accent-strong' : 'stroke-accent/60'"
+        :class="chip.strokeClass"
         :stroke-width="hairline"
       />
       <polyline
         :points="tickPoints(chip, 'to')"
         fill="none"
-        :class="chip.active ? 'stroke-accent-strong' : 'stroke-accent/60'"
+        :class="chip.strokeClass"
         :stroke-width="hairline"
       />
       <text
@@ -133,7 +164,7 @@ function tickPoints(chip: ChipView, end: 'from' | 'to'): string {
         paint-order="stroke"
         :stroke-width="3 * hairline"
         class="stroke-surface select-none"
-        :class="chip.active ? 'fill-accent-strong font-semibold' : 'fill-ink-muted'"
+        :class="chip.textClass"
       >
         {{ chip.label }}
       </text>

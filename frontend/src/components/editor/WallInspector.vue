@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Lock, LockOpen, Trash2 } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { ArrowLeftRight, Lock, LockOpen, Trash2 } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
+import WallReferenceControl from '@/components/editor/WallReferenceControl.vue'
 import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { Wall } from '@/types/plan'
 import { distance, segmentCountOf, setSegmentLength } from '@/utils/geometry'
@@ -23,15 +24,15 @@ const emit = defineEmits<{
   'delete-wall': []
   /** Blocking locked segments to flash on the canvas (spec S3b). */
   'flash-segments': [segments: number[]]
+  /**
+   * Transient would-be wall for the live canvas preview while hovering the
+   * reference-side options or swap button; null releases it (spec S1a). Never
+   * enters the document or the undo history.
+   */
+  'preview-wall': [wall: Wall | null]
 }>()
 
 const precisionIn = useDisplayPrecision()
-
-const REFERENCE_OPTIONS: readonly { id: WallReference; label: string }[] = [
-  { id: 'center', label: 'Center' },
-  { id: 'left', label: 'Left face' },
-  { id: 'right', label: 'Right face' },
-]
 
 type Notice = { kind: 'error' | 'info'; text: string } | null
 
@@ -126,9 +127,48 @@ function applyCustomThickness(): void {
   setThickness(parsed)
 }
 
+/** Whether a hover preview is currently shown on the canvas (spec S1a). */
+let previewShown = false
+
+function emitPreview(wall: Wall | null): void {
+  if (wall === null && !previewShown) return
+  previewShown = wall !== null
+  emit('preview-wall', wall)
+}
+
 function setReference(reference: WallReference): void {
+  emitPreview(null)
   if (reference === props.wall.reference) return
   emit('update-wall', { ...props.wall, reference })
+}
+
+function previewReference(reference: WallReference | null): void {
+  if (reference === null || reference === props.wall.reference) {
+    emitPreview(null)
+    return
+  }
+  emitPreview({ ...props.wall, reference })
+}
+
+/** The mirrored reference side, or null when centred (nothing to swap, spec S1a). */
+const swappedReference = computed<WallReference | null>(() => {
+  if (props.wall.reference === 'left') return 'right'
+  if (props.wall.reference === 'right') return 'left'
+  return null
+})
+
+function previewSwap(hovering: boolean): void {
+  if (!hovering || swappedReference.value === null) {
+    emitPreview(null)
+    return
+  }
+  emitPreview({ ...props.wall, reference: swappedReference.value })
+}
+
+function swapSides(): void {
+  if (swappedReference.value === null) return
+  emitPreview(null)
+  emit('update-wall', { ...props.wall, reference: swappedReference.value })
 }
 
 function toggleLock(index: number): void {
@@ -199,6 +239,15 @@ watch(
     customThicknessError.value = false
   },
 )
+
+// Any wall replacement (edit, undo, redo) invalidates a hover preview built
+// from the previous wall object.
+watch(
+  () => props.wall,
+  () => emitPreview(null),
+)
+
+onBeforeUnmount(() => emitPreview(null))
 </script>
 
 <template>
@@ -256,27 +305,27 @@ watch(
 
     <div>
       <h4 class="text-ink mb-2 font-semibold">Reference side</h4>
-      <div
-        class="border-line inline-flex overflow-hidden rounded-md border"
-        role="group"
-        aria-label="Reference side"
+      <WallReferenceControl
+        :reference="wall.reference"
+        @set-reference="setReference"
+        @preview-reference="previewReference"
+      />
+      <button
+        type="button"
+        class="border-line text-ink-muted hover:text-ink mt-2 flex items-center gap-1.5 rounded-md border px-2 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+        :disabled="swappedReference === null"
+        :title="
+          swappedReference === null
+            ? 'A centred reference has nothing to swap'
+            : 'Mirror the thickness to the other side of the reference line'
+        "
+        @mouseenter="previewSwap(true)"
+        @mouseleave="previewSwap(false)"
+        @click="swapSides"
       >
-        <button
-          v-for="option in REFERENCE_OPTIONS"
-          :key="option.id"
-          type="button"
-          :aria-pressed="option.id === wall.reference"
-          class="border-line px-2 py-1 transition-colors not-first:border-l"
-          :class="
-            option.id === wall.reference
-              ? 'bg-accent-soft text-accent'
-              : 'text-ink-muted hover:text-ink'
-          "
-          @click="setReference(option.id)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
+        <ArrowLeftRight :size="13" aria-hidden="true" />
+        Swap sides
+      </button>
     </div>
 
     <div>

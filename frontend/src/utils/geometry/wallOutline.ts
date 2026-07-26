@@ -70,6 +70,18 @@ export function offsetPolyline(vertices: Point[], signedDistance: number, closed
 }
 
 /**
+ * A wall's two derived face polylines, each walked in the drawing direction
+ * (spec S1a). `left` is the walker's-left face in y-down space, `right` the
+ * walker's-right face, for every reference mode. With `closed` both are rings
+ * without a repeated last point.
+ */
+export interface WallFacePolylines {
+  left: Point[]
+  right: Point[]
+  closed: boolean
+}
+
+/**
  * Derives a wall's outline polygon(s) from its reference line (specs S1a/S1b).
  *
  * Returns closed rings without a repeated last point:
@@ -82,6 +94,22 @@ export function offsetPolyline(vertices: Point[], signedDistance: number, closed
  * loop). Throws `RangeError` for a non-positive thickness.
  */
 export function wallOutline(input: WallGeometryInput): Point[][] {
+  const faces = wallFacePolylines(input)
+  if (faces.left.length === 0) return []
+  if (faces.closed) return [faces.left, faces.right]
+  return [[...faces.left, ...faces.right.reverse()]]
+}
+
+/**
+ * Derives a wall's two face polylines from its reference line (spec S1a),
+ * each walked in the drawing direction so `left`/`right` stay the walker's
+ * left and right whatever the reference mode. The face-identity overlays
+ * stroke these to tint each side consistently.
+ *
+ * Returns empty faces when there are fewer than 2 distinct vertices (3 for a
+ * closed loop). Throws `RangeError` for a non-positive thickness.
+ */
+export function wallFacePolylines(input: WallGeometryInput): WallFacePolylines {
   if (!(input.thicknessIn > 0)) {
     throw new RangeError(`Wall thickness must be positive, got ${input.thicknessIn}`)
   }
@@ -91,15 +119,14 @@ export function wallOutline(input: WallGeometryInput): Point[][] {
     points = points.slice(0, -1)
     closed = true
   }
-  if (points.length < (closed ? 3 : 2)) return []
+  if (points.length < (closed ? 3 : 2)) return { left: [], right: [], closed }
 
   const [leftDistance, rightDistance] = wallFaceOffsets(input.reference, input.thicknessIn)
-  if (closed) {
-    return [offsetPolyline(points, leftDistance, true), offsetPolyline(points, rightDistance, true)]
+  return {
+    left: offsetPolyline(points, leftDistance, closed),
+    right: offsetPolyline(points, rightDistance, closed),
+    closed,
   }
-  const leftFace = offsetPolyline(points, leftDistance)
-  const rightFace = offsetPolyline(points, rightDistance)
-  return [[...leftFace, ...rightFace.reverse()]]
 }
 
 /** Signed offsets `[leftFace, rightFace]` from the reference line (positive = left of travel). */

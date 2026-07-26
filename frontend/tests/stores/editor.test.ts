@@ -277,6 +277,41 @@ describe('useEditorStore undo/redo', () => {
     expect(store.document?.walls).toEqual([updated])
   })
 
+  it('reference change and swap round-trip through undo/redo without touching attachments (spec S1a)', async () => {
+    const store = await loadedStore()
+    const wall = makeWall({ id: 'wall-1', reference: 'left' })
+    const opening = makeOpening()
+    const device = makeDevice()
+    store.mutate({ type: 'addWall', wall })
+    store.mutate({ type: 'addOpening', opening })
+    store.mutate({ type: 'addDevice', device })
+
+    // Swap sides: left -> right, geometry re-offsets, reference line stays put.
+    store.mutate({ type: 'updateWall', wallId: 'wall-1', wall: { ...wall, reference: 'right' } })
+    expect(store.document?.walls[0].reference).toBe('right')
+    expect(store.document?.walls[0].vertices).toEqual(wall.vertices)
+    // Attachments are parametric on the reference line — stored data untouched.
+    expect(store.document?.openings[0]).toBe(opening)
+    expect(store.document?.devices[0]).toBe(device)
+    expect(store.document?.devices[0].attachment).toEqual({
+      wall_id: 'wall-1',
+      segment_index: 0,
+      t: 60,
+      side: 'left',
+    })
+
+    store.undo()
+    expect(store.document?.walls[0].reference).toBe('left')
+    expect(store.document?.openings[0]).toBe(opening)
+    expect(store.document?.devices[0]).toBe(device)
+
+    store.redo()
+    expect(store.document?.walls[0].reference).toBe('right')
+    expect(store.document?.walls[0].vertices).toEqual(wall.vertices)
+    expect(store.document?.openings[0]).toBe(opening)
+    expect(store.document?.devices[0]).toBe(device)
+  })
+
   it('undoing removeWall restores the wall at its original index', async () => {
     const store = await loadedStore()
     const walls = [makeWall({ id: 'a' }), makeWall({ id: 'b' }), makeWall({ id: 'c' })]

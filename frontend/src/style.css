@@ -18,6 +18,10 @@
   --color-grid-axis: #b6c0cc;
   --color-wall: #334155;
   --color-wall-edge: #1e293b;
+  /* Wall face identity (spec S1a): one hue per face, relative to drawing
+     direction — kept subtle on canvas so they never fight circuit colours. */
+  --color-face-left: #0891b2;
+  --color-face-right: #d97706;
 
   --radius-card: 0.625rem;
 

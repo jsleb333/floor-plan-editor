@@ -136,6 +136,12 @@ export interface DimensionChip {
   to: Point
   /** The chip a typed value applies to (Tab switches, spec S2a). */
   active: boolean
+  /**
+   * Wall face the measurement anchors on, when `side` is a face side
+   * (walker's left/right of the dragged segment) — drives the S1a face tint.
+   * Null for along-wall chips (device slides), which have no face identity.
+   */
+  faceSide: 'left' | 'right' | null
 }
 
 /** Transient refusal highlight for locked segments (spec S3b). */
@@ -1457,6 +1463,7 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
           from: gap.from,
           to: gap.to,
           active: gap.side === active,
+          faceSide: gap.side,
         })
       }
     } else if (current.mode === 'deviceSlide') {
@@ -1471,6 +1478,7 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
           from: gap.from,
           to: gap.to,
           active: gap.side === active,
+          faceSide: null,
         })
       }
     }
