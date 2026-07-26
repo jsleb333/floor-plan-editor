@@ -21,6 +21,7 @@ import type {
 } from '@/types/plan'
 import { pickNextCircuitColor } from '@/utils/circuits'
 import { wallSegmentSpan } from '@/utils/geometry'
+import type { PresetListName } from '@/utils/presetLists'
 import { DEFAULT_DISPLAY_PRECISION_IN } from '@/utils/units'
 
 const AUTOSAVE_DEBOUNCE_MS = 2000
@@ -36,6 +37,7 @@ export type EditorCommand =
   | { type: 'setActiveTool'; toolId: string }
   | { type: 'setThicknessPresets'; presetsIn: number[] }
   | { type: 'setDisplayPrecision'; precisionIn: number | null }
+  | { type: 'setPresetList'; name: PresetListName; valuesIn: number[] }
   | { type: 'addWall'; wall: Wall; index?: number }
   | { type: 'updateWall'; wallId: string; wall: Wall }
   | { type: 'removeWall'; wallId: string }
@@ -124,6 +126,11 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
       return { ...document, thickness_presets_in: [...command.presetsIn] }
     case 'setDisplayPrecision':
       return { ...document, display_precision_in: command.precisionIn }
+    case 'setPresetList':
+      return {
+        ...document,
+        preset_lists: { ...document.preset_lists, [command.name]: [...command.valuesIn] },
+      }
     case 'addWall':
       return { ...document, walls: insertAt(document.walls, command.wall, command.index) }
     case 'updateWall':
@@ -221,6 +228,8 @@ function invertCommand(
     case 'setThicknessPresets':
       return null
     case 'setDisplayPrecision':
+      return null
+    case 'setPresetList':
       return null
     case 'addWall':
       return { type: 'removeWall', wallId: command.wall.id }

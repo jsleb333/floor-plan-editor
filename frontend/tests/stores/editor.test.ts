@@ -197,6 +197,23 @@ describe('useEditorStore autosave', () => {
     })
   })
 
+  it('setPresetList replaces the named preset list and autosaves, without entering the history', async () => {
+    vi.mocked(getPlan).mockResolvedValue(makePlan())
+    vi.mocked(savePlanDocument).mockResolvedValue({ revision: 4 })
+    const store = useEditorStore()
+    await store.loadPlan('plan-1')
+
+    store.mutate({ type: 'setPresetList', name: 'door_width', valuesIn: [24, 28, 30, 32, 36, 54] })
+
+    expect(store.document?.preset_lists.door_width).toEqual([24, 28, 30, 32, 36, 54])
+    expect(store.canUndo).toBe(false)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(savePlanDocument).toHaveBeenCalledWith('plan-1', {
+      revision: 3,
+      document: makeDocument({ preset_lists: { door_width: [24, 28, 30, 32, 36, 54] } }),
+    })
+  })
+
   it('updateCurrentPlanMetadata patches the plan and adopts the returned metadata and revision', async () => {
     vi.mocked(getPlan).mockResolvedValue(makePlan())
     vi.mocked(updatePlanMetadata).mockResolvedValue(

@@ -140,10 +140,14 @@ const props = defineProps<{
   wallReference: WallReference
   /** Live door/window tool options while those tools are armed (specs S4/S5/E8). */
   openingWidthIn: number
+  /** Width presets for the current door/window kind, resolved from the document (spec §5.9 tier 2). */
+  openingWidthPresetsIn: readonly number[]
   openingHinge: 'left' | 'right'
   openingSwing: 'in' | 'out'
   /** Live stairs tool options while the stairs tool is armed (specs S6/E8). */
   stairsWidthIn: number
+  /** Stair-width presets, resolved from the document (spec §5.9 tier 2). */
+  stairsWidthPresetsIn: readonly number[]
   stairsDirection: 'up' | 'down'
   /** All walls of the document (host lookup for opening inspection). */
   walls: readonly Wall[]
@@ -185,8 +189,10 @@ const emit = defineEmits<{
   'set-opening-width': [widthIn: number]
   'set-opening-hinge': [hinge: 'left' | 'right']
   'set-opening-swing': [swing: 'in' | 'out']
+  'add-opening-width-preset': [widthIn: number]
   'set-stairs-width': [widthIn: number]
   'set-stairs-direction': [direction: 'up' | 'down']
+  'add-stairs-width-preset': [widthIn: number]
   'update-wall': [wall: Wall]
   /** Transient reference-side hover preview from the wall inspector (spec S1a). */
   'preview-wall': [wall: Wall | null]
@@ -429,11 +435,13 @@ const activePlaceholder = computed(
           <OpeningToolOptions
             :kind="openingKind"
             :width-in="openingWidthIn"
+            :presets-in="openingWidthPresetsIn"
             :hinge="openingHinge"
             :swing="openingSwing"
             @set-width="emit('set-opening-width', $event)"
             @set-hinge="emit('set-opening-hinge', $event)"
             @set-swing="emit('set-opening-swing', $event)"
+            @add-width-preset="emit('add-opening-width-preset', $event)"
           />
           <ToolPlacementHint
             v-if="activeHint"
@@ -445,9 +453,11 @@ const activePlaceholder = computed(
         <template v-else-if="showStairsOptions">
           <StairsToolOptions
             :width-in="stairsWidthIn"
+            :presets-in="stairsWidthPresetsIn"
             :direction="stairsDirection"
             @set-width="emit('set-stairs-width', $event)"
             @set-direction="emit('set-stairs-direction', $event)"
+            @add-width-preset="emit('add-stairs-width-preset', $event)"
           />
           <ToolPlacementHint
             v-if="activeHint"

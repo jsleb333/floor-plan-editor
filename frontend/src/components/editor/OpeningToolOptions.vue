@@ -5,14 +5,11 @@ import { formatInches, parseFeetInches } from '@/utils/units'
 
 const WIDTH_TOLERANCE_IN = 1e-9
 
-/** Common door leaf widths (spec S4). */
-const DOOR_WIDTH_PRESETS_IN: readonly number[] = [24, 28, 30, 32, 36]
-/** Common window widths (spec S5). */
-const WINDOW_WIDTH_PRESETS_IN: readonly number[] = [24, 36, 48, 60, 72]
-
 const props = defineProps<{
   kind: 'door' | 'window'
   widthIn: number
+  /** Width presets for the current kind, resolved from the plan document (spec §5.9 tier 2). */
+  presetsIn: readonly number[]
   hinge: 'left' | 'right'
   swing: 'in' | 'out'
 }>()
@@ -21,6 +18,8 @@ const emit = defineEmits<{
   'set-width': [widthIn: number]
   'set-hinge': [hinge: 'left' | 'right']
   'set-swing': [swing: 'in' | 'out']
+  /** A committed custom width that isn't already a preset; the caller grows the plan's list. */
+  'add-width-preset': [widthIn: number]
 }>()
 
 const HINGE_OPTIONS: readonly { id: 'left' | 'right'; label: string }[] = [
@@ -38,21 +37,17 @@ const customError = ref(false)
 
 const title = computed(() => (props.kind === 'door' ? 'Door' : 'Window'))
 
-const presetsIn = computed(() =>
-  props.kind === 'door' ? DOOR_WIDTH_PRESETS_IN : WINDOW_WIDTH_PRESETS_IN,
-)
-
 const keyboardHint = computed(() =>
   props.kind === 'door'
     ? 'While hovering: the swing follows the cursor across the wall, Tab cycles the hinge, and typed digits set the width exactly.'
     : 'Typed digits set the width exactly while hovering.',
 )
 
-function isSelected(presetIn: number): boolean {
-  return Math.abs(presetIn - props.widthIn) < WIDTH_TOLERANCE_IN
+function isSelected(presetIn: number, widthIn: number = props.widthIn): boolean {
+  return Math.abs(presetIn - widthIn) < WIDTH_TOLERANCE_IN
 }
 
-const isCustomWidth = computed(() => !presetsIn.value.some((preset) => isSelected(preset)))
+const isCustomWidth = computed(() => !props.presetsIn.some((preset) => isSelected(preset)))
 
 function applyCustom(): void {
   if (customText.value.trim() === '') {
@@ -67,6 +62,9 @@ function applyCustom(): void {
   customError.value = false
   customText.value = ''
   emit('set-width', parsed)
+  if (!props.presetsIn.some((preset) => isSelected(preset, parsed))) {
+    emit('add-width-preset', parsed)
+  }
 }
 </script>
 

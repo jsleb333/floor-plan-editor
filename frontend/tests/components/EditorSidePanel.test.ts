@@ -24,9 +24,11 @@ function baseProps() {
     wallThicknessIn: 3.5,
     wallReference: 'center' as const,
     openingWidthIn: 32,
+    openingWidthPresetsIn: [24, 28, 30, 32, 36],
     openingHinge: 'left' as const,
     openingSwing: 'in' as const,
     stairsWidthIn: 36,
+    stairsWidthPresetsIn: [30, 36, 42, 48],
     stairsDirection: 'up' as const,
     walls: [makeWall()],
     selectedWalls: [],
@@ -61,8 +63,19 @@ describe('EditorSidePanel', () => {
     const options = wrapper.findComponent(OpeningToolOptions)
     expect(options.props('kind')).toBe('door')
     expect(options.props('widthIn')).toBe(32)
+    expect(options.props('presetsIn')).toEqual([24, 28, 30, 32, 36])
     expect(wrapper.findComponent(ToolPlacementHint).props('title')).toBe('Door')
     expect(wrapper.findComponent(OpeningInspector).exists()).toBe(false)
+  })
+
+  it('relays add-width-preset from the opening tool options as add-opening-width-preset', () => {
+    const wrapper = mount(EditorSidePanel, {
+      props: { ...baseProps(), activeTool: 'door' },
+    })
+
+    wrapper.findComponent(OpeningToolOptions).vm.$emit('add-width-preset', 54)
+
+    expect(wrapper.emitted('add-opening-width-preset')).toEqual([[54]])
   })
 
   it('shows the window tool options while the window tool is armed', () => {
@@ -88,9 +101,20 @@ describe('EditorSidePanel', () => {
 
     const options = wrapper.findComponent(StairsToolOptions)
     expect(options.props('widthIn')).toBe(42)
+    expect(options.props('presetsIn')).toEqual([30, 36, 42, 48])
     expect(options.props('direction')).toBe('down')
     expect(wrapper.findComponent(ToolPlacementHint).props('title')).toBe('Stairs')
     expect(wrapper.findComponent(StairsInspector).props('stairs')).toEqual(stairs)
+  })
+
+  it('relays add-width-preset from the stairs tool options as add-stairs-width-preset', () => {
+    const wrapper = mount(EditorSidePanel, {
+      props: { ...baseProps(), activeTool: 'stairs' as const },
+    })
+
+    wrapper.findComponent(StairsToolOptions).vm.$emit('add-width-preset', 60)
+
+    expect(wrapper.emitted('add-stairs-width-preset')).toEqual([[60]])
   })
 
   it('stacks the door hint above the opening inspector when a door is selected in-tool', () => {

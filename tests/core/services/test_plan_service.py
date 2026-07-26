@@ -85,6 +85,7 @@ class TestPlanService:
         assert plan.document.walls == []
         assert plan.document.thickness_presets_in == [12.0, 4.5, 3.5]
         assert plan.document.display_precision_in is None
+        assert plan.document.preset_lists == {}
         assert plan.created_at == plan.updated_at
         repo.create.assert_awaited_once_with(plan)
         asset_repo.get_meta.assert_not_awaited()
@@ -314,6 +315,7 @@ class TestPlanServiceMigration:
         assert plan.document.control_links == []
         assert plan.document.active_tool is None
         assert plan.document.display_precision_in is None
+        assert plan.document.preset_lists == {}
         assert plan.revision == 4
 
         stored = await repository.get_raw("v1-plan")

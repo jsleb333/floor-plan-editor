@@ -5,17 +5,18 @@ import { formatInches, parseFeetInches } from '@/utils/units'
 
 const WIDTH_TOLERANCE_IN = 1e-9
 
-/** Common stair run widths (spec S6). */
-const WIDTH_PRESETS_IN: readonly number[] = [30, 36, 42, 48]
-
 const props = defineProps<{
   widthIn: number
+  /** Stair-width presets, resolved from the plan document (spec §5.9 tier 2). */
+  presetsIn: readonly number[]
   direction: 'up' | 'down'
 }>()
 
 const emit = defineEmits<{
   'set-width': [widthIn: number]
   'set-direction': [direction: 'up' | 'down']
+  /** A committed custom width that isn't already a preset; the caller grows the plan's list. */
+  'add-width-preset': [widthIn: number]
 }>()
 
 const DIRECTION_OPTIONS: readonly { id: 'up' | 'down'; label: string }[] = [
@@ -26,11 +27,11 @@ const DIRECTION_OPTIONS: readonly { id: 'up' | 'down'; label: string }[] = [
 const customText = ref('')
 const customError = ref(false)
 
-function isSelected(presetIn: number): boolean {
-  return Math.abs(presetIn - props.widthIn) < WIDTH_TOLERANCE_IN
+function isSelected(presetIn: number, widthIn: number = props.widthIn): boolean {
+  return Math.abs(presetIn - widthIn) < WIDTH_TOLERANCE_IN
 }
 
-const isCustomWidth = computed(() => !WIDTH_PRESETS_IN.some((preset) => isSelected(preset)))
+const isCustomWidth = computed(() => !props.presetsIn.some((preset) => isSelected(preset)))
 
 function applyCustom(): void {
   if (customText.value.trim() === '') {
@@ -45,6 +46,9 @@ function applyCustom(): void {
   customError.value = false
   customText.value = ''
   emit('set-width', parsed)
+  if (!props.presetsIn.some((preset) => isSelected(preset, parsed))) {
+    emit('add-width-preset', parsed)
+  }
 }
 </script>
 
@@ -54,7 +58,7 @@ function applyCustom(): void {
       <h3 class="text-ink mb-2 text-xs font-semibold">Width</h3>
       <div class="flex flex-wrap gap-1.5" role="group" aria-label="Width presets">
         <button
-          v-for="preset in WIDTH_PRESETS_IN"
+          v-for="preset in presetsIn"
           :key="preset"
           type="button"
           :aria-pressed="isSelected(preset)"

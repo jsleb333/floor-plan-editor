@@ -490,7 +490,10 @@ device catalog defaults (per-type default load — e.g. change "baseboard
 default" from 1000 W to 750 W; affects future placements, with an explicit
 "apply to existing" action, never a silent retroactive change). All of
 these are seeded by the creation card (P5) and editable afterwards in the
-Inspector's plan-settings view.
+Inspector's plan-settings view. Door/window/stairs width option buttons are
+also per-plan presets, but grown rather than seeded: each tool starts from a
+built-in default list, and a custom value typed and committed in that
+tool's options is added as a one-click preset for the rest of the plan.
 
 **Tier 3 — Per-element properties** (the Inspector panel):
 
