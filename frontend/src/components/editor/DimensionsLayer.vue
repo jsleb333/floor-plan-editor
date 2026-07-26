@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { DimensionToolPreview } from '@/composables/useDimensionTool'
 import { useEditorStore } from '@/stores/editor'
 import { useLayersStore } from '@/stores/layers'
@@ -20,6 +21,7 @@ const props = defineProps<{
 
 const editorStore = useEditorStore()
 const layersStore = useLayersStore()
+const precisionIn = useDisplayPrecision()
 
 interface DimensionView {
   id: string
@@ -47,7 +49,7 @@ function buildView(
     ticks: layout.ticks,
     textAnchor: layout.textAnchor,
     textAngleDeg: layout.textAngleDeg,
-    label: formatFeetInches(layout.distanceIn),
+    label: formatFeetInches(layout.distanceIn, precisionIn.value),
     selected,
     preview: isPreview,
   }

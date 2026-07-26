@@ -2,6 +2,7 @@
 import { Trash2 } from 'lucide-vue-next'
 import { ref, watch } from 'vue'
 
+import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { Stairs } from '@/types/plan'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
@@ -14,6 +15,8 @@ const emit = defineEmits<{
   'update-stairs': [stairs: Stairs]
   'delete-stairs': []
 }>()
+
+const precisionIn = useDisplayPrecision()
 
 const DIRECTION_OPTIONS: readonly { id: 'up' | 'down'; label: string }[] = [
   { id: 'up', label: 'Up' },
@@ -83,8 +86,8 @@ watch(
     <header>
       <h3 class="text-ink text-sm font-semibold">Stairs</h3>
       <p class="text-ink-muted tabular-nums">
-        {{ formatFeetInches(stairs.width_in) }} × {{ formatFeetInches(stairs.length_in) }} ·
-        {{ stairs.direction }}
+        {{ formatFeetInches(stairs.width_in, precisionIn) }} ×
+        {{ formatFeetInches(stairs.length_in, precisionIn) }} · {{ stairs.direction }}
       </p>
     </header>
 
@@ -101,7 +104,7 @@ watch(
       <input
         v-model="widthDraft"
         type="text"
-        :placeholder="formatFeetInches(stairs.width_in)"
+        :placeholder="formatFeetInches(stairs.width_in, precisionIn)"
         class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 outline-none"
         aria-label="Stairs width in feet and inches"
         @keydown.enter.prevent="applyWidth"
@@ -114,7 +117,7 @@ watch(
       <input
         v-model="lengthDraft"
         type="text"
-        :placeholder="formatFeetInches(stairs.length_in)"
+        :placeholder="formatFeetInches(stairs.length_in, precisionIn)"
         class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 outline-none"
         aria-label="Stairs length in feet and inches"
         @keydown.enter.prevent="applyLength"

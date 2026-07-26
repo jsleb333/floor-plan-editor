@@ -1,12 +1,28 @@
 import { describe, expect, it } from 'vitest'
 
 import { isRestorableToolId, startupToolFor } from '@/components/editor/tools'
-import { makeDocument, makeWall } from '../helpers/planFactory'
+import { makeDocument, makeUnderlay, makeWall } from '../helpers/planFactory'
 
 describe('startupToolFor', () => {
   it('arms the wall tool on a plan with no walls, whatever tool was saved', () => {
     expect(startupToolFor(makeDocument())).toBe('wall')
     expect(startupToolFor(makeDocument({ active_tool: 'device' }))).toBe('wall')
+  })
+
+  it('arms the calibrate tool when an underlay exists but no walls do (photo-first plan)', () => {
+    // Nothing marks an underlay as calibrated, so "underlay AND no walls" is
+    // the uncalibrated heuristic (spec P5/U2) — whatever tool was saved.
+    const document = makeDocument({ underlay: makeUnderlay(), active_tool: 'select' })
+    expect(startupToolFor(document)).toBe('calibrate')
+  })
+
+  it('restores the saved tool over an underlay once tracing has started', () => {
+    const document = makeDocument({
+      underlay: makeUnderlay(),
+      walls: [makeWall()],
+      active_tool: 'device',
+    })
+    expect(startupToolFor(document)).toBe('device')
   })
 
   it('restores the saved tool once the plan has walls', () => {

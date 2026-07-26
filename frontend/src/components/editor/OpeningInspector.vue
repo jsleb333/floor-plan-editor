@@ -2,6 +2,7 @@
 import { Trash2 } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 
+import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { Opening, Wall } from '@/types/plan'
 import { clampOpeningT, wallSegmentSpan } from '@/utils/geometry'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
@@ -17,6 +18,8 @@ const emit = defineEmits<{
   'update-opening': [opening: Opening]
   'delete-opening': []
 }>()
+
+const precisionIn = useDisplayPrecision()
 
 const HINGE_OPTIONS: readonly { id: 'left' | 'right'; label: string }[] = [
   { id: 'left', label: 'Left' },
@@ -45,7 +48,7 @@ const clampedT = computed(() => {
 })
 
 const segmentLengthLabel = computed(() =>
-  hostSpan.value ? formatFeetInches(hostSpan.value.lengthIn) : '—',
+  hostSpan.value ? formatFeetInches(hostSpan.value.lengthIn, precisionIn.value) : '—',
 )
 
 /** Distance from each segment end to the opening's near edge (spec S2a spirit). */
@@ -116,9 +119,8 @@ watch(
     <header>
       <h3 class="text-ink text-sm font-semibold capitalize">{{ opening.kind }}</h3>
       <p class="text-ink-muted tabular-nums">
-        {{ formatFeetInches(opening.width_in) }} wide · segment {{ opening.segment_index + 1 }} ({{
-          segmentLengthLabel
-        }})
+        {{ formatFeetInches(opening.width_in, precisionIn) }} wide · segment
+        {{ opening.segment_index + 1 }} ({{ segmentLengthLabel }})
       </p>
     </header>
 
@@ -127,7 +129,7 @@ watch(
       <input
         v-model="widthDraft"
         type="text"
-        :placeholder="formatFeetInches(opening.width_in)"
+        :placeholder="formatFeetInches(opening.width_in, precisionIn)"
         class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 outline-none"
         :class="widthError ? 'border-danger' : ''"
         :aria-invalid="widthError"
@@ -200,11 +202,13 @@ watch(
       <div class="flex flex-col gap-1">
         <label class="border-line flex items-center gap-2 rounded-md border px-2 py-1">
           <span class="text-ink-muted w-10">Start</span>
-          <span class="text-ink w-16 tabular-nums">{{ formatFeetInches(edgeOffsets.start) }}</span>
+          <span class="text-ink w-16 tabular-nums">{{
+            formatFeetInches(edgeOffsets.start, precisionIn)
+          }}</span>
           <input
             v-model="offsetDrafts.start"
             type="text"
-            :placeholder="formatFeetInches(edgeOffsets.start)"
+            :placeholder="formatFeetInches(edgeOffsets.start, precisionIn)"
             class="border-line focus:border-accent min-w-0 flex-1 rounded border px-1.5 py-0.5 outline-none"
             aria-label="Distance from segment start to the opening edge"
             @keydown.enter.prevent="applyEdgeOffset('start')"
@@ -212,11 +216,13 @@ watch(
         </label>
         <label class="border-line flex items-center gap-2 rounded-md border px-2 py-1">
           <span class="text-ink-muted w-10">End</span>
-          <span class="text-ink w-16 tabular-nums">{{ formatFeetInches(edgeOffsets.end) }}</span>
+          <span class="text-ink w-16 tabular-nums">{{
+            formatFeetInches(edgeOffsets.end, precisionIn)
+          }}</span>
           <input
             v-model="offsetDrafts.end"
             type="text"
-            :placeholder="formatFeetInches(edgeOffsets.end)"
+            :placeholder="formatFeetInches(edgeOffsets.end, precisionIn)"
             class="border-line focus:border-accent min-w-0 flex-1 rounded border px-1.5 py-0.5 outline-none"
             aria-label="Distance from segment end to the opening edge"
             @keydown.enter.prevent="applyEdgeOffset('end')"

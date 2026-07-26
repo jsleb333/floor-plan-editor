@@ -74,6 +74,8 @@ export interface UseWallToolOptions {
   hasClosedLoop?: Ref<boolean> | ComputedRef<boolean>
   /** Notified when closing a loop auto-switches to the interior default (spec S1d). */
   onAutoPreset?: (thicknessIn: number) => void
+  /** Display precision for the live length label (spec §5.9 tier 2); 1/8" when omitted. */
+  displayPrecisionIn?: Ref<number> | ComputedRef<number>
 }
 
 export interface UseWallToolReturn {
@@ -178,7 +180,9 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
       point,
       segment,
       rings,
-      lengthLabel: segment ? formatFeetInches(distance(segment.a, segment.b)) : null,
+      lengthLabel: segment
+        ? formatFeetInches(distance(segment.a, segment.b), options.displayPrecisionIn?.value)
+        : null,
       marker:
         snap && snap.marker && snap.marker !== 'close'
           ? { kind: snap.marker, point: snap.point }

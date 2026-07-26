@@ -8,16 +8,18 @@ import {
   duplicatePlan,
   getPlan,
   listPlans,
-  renamePlan,
   restorePlan,
   savePlanDocument,
+  updatePlanMetadata,
 } from '@/api/plans'
+import type { PlanCreateOptions, PlanMetadataPatch } from '@/api/plans'
 import type { Plan, PlanDocument, PlanSummary } from '@/types/plan'
 
 function toSummary(plan: Plan): PlanSummary {
   return {
     id: plan.id,
     name: plan.name,
+    description: plan.description,
     updated_at: plan.updated_at,
     archived_at: plan.archived_at,
   }
@@ -67,16 +69,25 @@ export const usePlansStore = defineStore('plans', () => {
     return plans.value
   }
 
-  async function create(name: string): Promise<Plan> {
-    const plan = await createPlan(name)
+  /**
+   * Creates a plan, optionally seeded by the creation card (spec P5): a
+   * description, an uploaded underlay photo and the tier-2 defaults.
+   */
+  async function create(name: string, options: PlanCreateOptions = {}): Promise<Plan> {
+    const plan = await createPlan(name, options)
     plans.value = [toSummary(plan), ...plans.value]
     return plan
   }
 
-  async function rename(id: string, name: string): Promise<Plan> {
-    const plan = await renamePlan(id, name)
+  /** Patches a plan's name and/or description (spec P5); omitted fields are unchanged. */
+  async function updateMetadata(id: string, patch: PlanMetadataPatch): Promise<Plan> {
+    const plan = await updatePlanMetadata(id, patch)
     replaceSummary(plan)
     return plan
+  }
+
+  async function rename(id: string, name: string): Promise<Plan> {
+    return updateMetadata(id, { name })
   }
 
   async function duplicate(id: string): Promise<Plan> {
@@ -106,6 +117,7 @@ export const usePlansStore = defineStore('plans', () => {
     plans,
     load,
     create,
+    updateMetadata,
     rename,
     duplicate,
     archive,

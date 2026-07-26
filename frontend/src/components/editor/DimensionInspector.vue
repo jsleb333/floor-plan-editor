@@ -2,6 +2,7 @@
 import { Trash2 } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 
+import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { Dimension } from '@/types/plan'
 import { distance } from '@/utils/geometry'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
@@ -16,15 +17,17 @@ const emit = defineEmits<{
   'delete-dimension': []
 }>()
 
+const precisionIn = useDisplayPrecision()
+
 const offsetDraft = ref('')
 const offsetError = ref(false)
 
 const distanceLabel = computed(() =>
-  formatFeetInches(distance(props.dimension.p1, props.dimension.p2)),
+  formatFeetInches(distance(props.dimension.p1, props.dimension.p2), precisionIn.value),
 )
 
 function pointLabel(point: { x: number; y: number }): string {
-  return `${formatFeetInches(point.x)}, ${formatFeetInches(point.y)}`
+  return `${formatFeetInches(point.x, precisionIn.value)}, ${formatFeetInches(point.y, precisionIn.value)}`
 }
 
 function applyOffset(): void {
@@ -77,7 +80,7 @@ watch(
       <input
         v-model="offsetDraft"
         type="text"
-        :placeholder="formatFeetInches(dimension.offset_in)"
+        :placeholder="formatFeetInches(dimension.offset_in, precisionIn)"
         class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 outline-none"
         :class="offsetError ? 'border-danger' : ''"
         :aria-invalid="offsetError"

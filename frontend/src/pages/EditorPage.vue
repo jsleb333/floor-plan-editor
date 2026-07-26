@@ -118,6 +118,12 @@ const documentControlLinks = computed<readonly ControlLink[]>(
 const catalogDefaults = computed<Record<string, number>>(
   () => planDocument.value?.catalog_defaults ?? {},
 )
+/** Effective display precision, fed to every live length label (spec §5.9 tier 2). */
+const displayPrecisionIn = computed(() => editorStore.displayPrecisionIn)
+/** The document's raw precision override (null = default), for the settings select. */
+const documentDisplayPrecisionIn = computed<number | null>(
+  () => planDocument.value?.display_precision_in ?? null,
+)
 const documentUnderlay = computed<Underlay | null>(() => planDocument.value?.underlay ?? null)
 const underlayImageSize = ref<ImageSize | null>(null)
 const pixelsPerInch = computed(() => (currentViewport.value?.zoom ?? 1) * BASE_PIXELS_PER_INCH)
@@ -204,6 +210,7 @@ const wallTool = useWallTool({
   onAutoPreset: (thicknessIn) =>
     showStatusNotice(`Interior preset selected — ${formatInches(thicknessIn)}`),
   commit: (wall) => editorStore.mutate({ type: 'addWall', wall }),
+  displayPrecisionIn,
 })
 const {
   preview: wallPreview,
@@ -227,6 +234,7 @@ const selectTool = useSelectTool({
   underlayImageSize,
   pixelsPerInch,
   snapSettings,
+  displayPrecisionIn,
 })
 const { preview: selectPreview, inputBuffer: selectInputBuffer } = selectTool
 
@@ -267,6 +275,7 @@ const deviceTool = useDeviceTool({
   commit: toolSelection.placeThenTweak('device', (device) =>
     editorStore.mutate({ type: 'addDevice', device }),
   ),
+  displayPrecisionIn,
 })
 
 const calibrateTool = useCalibrateTool({
@@ -275,6 +284,7 @@ const calibrateTool = useCalibrateTool({
   onApplied: () => {
     activeTool.value = 'select'
   },
+  displayPrecisionIn,
 })
 const { preview: calibratePreview, inputBuffer: calibrateInputBuffer } = calibrateTool
 
@@ -410,10 +420,27 @@ function handleViewportChange(viewport: Viewport): void {
 async function handleRename(name: string): Promise<void> {
   pageError.value = null
   try {
-    await editorStore.renameCurrentPlan(name)
+    await editorStore.updateCurrentPlanMetadata({ name })
   } catch (error) {
     pageError.value = error instanceof Error ? error.message : 'Failed to rename the plan'
   }
+}
+
+async function handleUpdateDescription(description: string): Promise<void> {
+  pageError.value = null
+  try {
+    await editorStore.updateCurrentPlanMetadata({ description })
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : 'Failed to update the description'
+  }
+}
+
+function handleSetThicknessPresets(presetsIn: number[]): void {
+  editorStore.mutate({ type: 'setThicknessPresets', presetsIn })
+}
+
+function handleSetDisplayPrecision(precisionIn: number): void {
+  editorStore.mutate({ type: 'setDisplayPrecision', precisionIn })
 }
 
 function handleCursorMove(point: Point | null): void {
@@ -947,6 +974,9 @@ onBeforeUnmount(() => {
 
       <EditorSidePanel
         :active-tool="activeTool"
+        :plan-name="plan?.name ?? 'Untitled'"
+        :plan-description="plan?.description ?? ''"
+        :display-precision-in="documentDisplayPrecisionIn"
         :wall-thickness-presets-in="thicknessPresetsIn"
         :wall-thickness-in="wallThicknessIn"
         :wall-reference="wallReference"
@@ -972,6 +1002,10 @@ onBeforeUnmount(() => {
         :underlay-image-size="underlayImageSize"
         :device-armed-type="deviceArmedType"
         :catalog-defaults="catalogDefaults"
+        @rename="handleRename"
+        @update-description="handleUpdateDescription"
+        @set-thickness-presets="handleSetThicknessPresets"
+        @set-display-precision="handleSetDisplayPrecision"
         @set-wall-thickness="wallTool.setThickness($event)"
         @set-wall-reference="wallTool.setReference($event)"
         @set-opening-width="openingTool.setWidth($event)"

@@ -126,7 +126,10 @@ function cancelRename(): void {
               {{ plan.name }}
             </button>
           </h3>
-          <p class="text-ink-muted mt-0.5 text-xs">
+          <p v-if="plan.description" class="text-ink-muted mt-0.5 line-clamp-2 text-xs">
+            {{ plan.description }}
+          </p>
+          <p class="text-ink-faint mt-0.5 text-xs">
             Updated {{ formatRelativeTime(plan.updated_at) }}
           </p>
         </template>

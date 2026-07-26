@@ -2,6 +2,7 @@
 import { Lock, LockOpen, Trash2 } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 
+import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { Wall } from '@/types/plan'
 import { distance, segmentCountOf, setSegmentLength } from '@/utils/geometry'
 import type { WallReference } from '@/utils/geometry'
@@ -23,6 +24,8 @@ const emit = defineEmits<{
   /** Blocking locked segments to flash on the canvas (spec S3b). */
   'flash-segments': [segments: number[]]
 }>()
+
+const precisionIn = useDisplayPrecision()
 
 const REFERENCE_OPTIONS: readonly { id: WallReference; label: string }[] = [
   { id: 'center', label: 'Center' },
@@ -54,7 +57,7 @@ const segments = computed<SegmentRow[]>(() => {
     rows.push({
       index: i,
       lengthIn,
-      label: formatFeetInches(lengthIn),
+      label: formatFeetInches(lengthIn, precisionIn.value),
       locked: props.wall.locked_segments.includes(i),
     })
   }
@@ -62,7 +65,10 @@ const segments = computed<SegmentRow[]>(() => {
 })
 
 const totalLengthLabel = computed(() =>
-  formatFeetInches(segments.value.reduce((sum, row) => sum + row.lengthIn, 0)),
+  formatFeetInches(
+    segments.value.reduce((sum, row) => sum + row.lengthIn, 0),
+    precisionIn.value,
+  ),
 )
 
 const allLocked = computed(
@@ -179,7 +185,7 @@ function applySegmentLength(index: number): void {
   }
   setNotice({
     kind: 'info',
-    text: `Loop closes with ${formatFeetInches(result.misclosureIn)} left over on this wall — geometry left unchanged.`,
+    text: `Loop closes with ${formatFeetInches(result.misclosureIn, precisionIn.value)} left over on this wall — geometry left unchanged.`,
   })
   if (result.blockingSegments.length > 0) emit('flash-segments', result.blockingSegments)
 }

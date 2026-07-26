@@ -191,8 +191,9 @@ export interface Underlay {
 
 /**
  * The versioned plan document — everything the editor persists via autosave.
- * Schema version 6: adds the persisted `active_tool` (spec P4/E9) on top of
- * the v5 electrical layout — colour-coded `circuits`, the `wires` connecting
+ * Schema version 7: adds the per-plan `display_precision_in` override (spec
+ * §5.9 tier 2) on top of the v6 persisted `active_tool` (spec P4/E9), the v5
+ * electrical layout — colour-coded `circuits`, the `wires` connecting
  * devices into them (spec §5.6) and the documentary switch `control_links`
  * (spec D6) — the v4 devices and catalog defaults, structure collections,
  * wall thickness presets and tracing underlay.
@@ -210,6 +211,8 @@ export interface PlanDocument {
   thickness_presets_in: number[]
   /** Plan-level per-type default load in watts (spec §5.9 tier 2). */
   catalog_defaults: Record<string, number>
+  /** Per-plan display precision override in inches; `null` falls back to 1/8" (spec §5.9 tier 2). */
+  display_precision_in: number | null
   /** Colour-coded circuits fed from the electrical panel (spec §5.5). */
   circuits: Circuit[]
   /** Curved connections wiring devices into circuits (spec §5.6). */
@@ -249,6 +252,8 @@ export interface PlanValidation {
 export interface Plan {
   id: string
   name: string
+  /** Optional free text shown under the name on the home-page card (spec P5). */
+  description: string
   revision: number
   created_at: string
   updated_at: string
@@ -260,6 +265,8 @@ export interface Plan {
 export interface PlanSummary {
   id: string
   name: string
+  /** Optional free text shown under the name on the home-page card (spec P5). */
+  description: string
   updated_at: string
   archived_at: string | null
 }

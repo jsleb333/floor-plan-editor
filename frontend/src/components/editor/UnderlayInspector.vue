@@ -2,6 +2,7 @@
 import { Crosshair, Eye, EyeOff, Lock, LockOpen, Trash2 } from 'lucide-vue-next'
 import { computed } from 'vue'
 
+import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import { useUnderlayRotation } from '@/composables/useUnderlayRotation'
 import type { Underlay } from '@/types/plan'
 import type { ImageSize } from '@/utils/imageSize'
@@ -19,6 +20,8 @@ const emit = defineEmits<{
   recalibrate: []
   'remove-underlay': []
 }>()
+
+const precisionIn = useDisplayPrecision()
 
 const {
   draft: rotationDraft,
@@ -47,8 +50,8 @@ function applyOpacity(event: Event): void {
     <header>
       <h3 class="text-ink text-sm font-semibold">Underlay</h3>
       <p class="text-ink-muted tabular-nums">
-        origin {{ formatFeetInches(underlay.transform.origin.x) }},
-        {{ formatFeetInches(underlay.transform.origin.y) }}
+        origin {{ formatFeetInches(underlay.transform.origin.x, precisionIn) }},
+        {{ formatFeetInches(underlay.transform.origin.y, precisionIn) }}
       </p>
       <p class="text-ink-muted tabular-nums">1 px = {{ underlay.transform.scale.toFixed(3) }}"</p>
     </header>

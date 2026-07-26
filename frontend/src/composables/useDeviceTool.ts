@@ -31,6 +31,8 @@ export interface UseDeviceToolOptions {
   snapSettings: SnapSettings
   /** Receives each placed device; the caller dispatches the store command. */
   commit: (device: Device) => void
+  /** Display precision for the dimension chips (spec §5.9 tier 2); 1/8" when omitted. */
+  displayPrecisionIn?: Ref<number> | ComputedRef<number>
 }
 
 /** One temporary-dimension chip shown during placement (spec S2a). */
@@ -160,7 +162,7 @@ export function useDeviceTool(options: UseDeviceToolOptions): UseDeviceToolRetur
       result.push({
         side: gap.side,
         distanceIn: gap.distanceIn,
-        label: formatFeetInches(gap.distanceIn),
+        label: formatFeetInches(gap.distanceIn, options.displayPrecisionIn?.value),
         from: gap.from,
         to: gap.to,
         active: gap.side === active,

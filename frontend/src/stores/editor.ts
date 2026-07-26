@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
 import { ApiError } from '@/api/client'
-import { getPlan, renamePlan, savePlanDocument } from '@/api/plans'
+import { getPlan, savePlanDocument, updatePlanMetadata } from '@/api/plans'
+import type { PlanMetadataPatch } from '@/api/plans'
 import type {
   Circuit,
   ControlLink,
@@ -20,6 +21,7 @@ import type {
 } from '@/types/plan'
 import { pickNextCircuitColor } from '@/utils/circuits'
 import { wallSegmentSpan } from '@/utils/geometry'
+import { DEFAULT_DISPLAY_PRECISION_IN } from '@/utils/units'
 
 const AUTOSAVE_DEBOUNCE_MS = 2000
 const HTTP_CONFLICT = 409
@@ -32,6 +34,8 @@ export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 export type EditorCommand =
   | { type: 'setViewport'; viewport: Viewport }
   | { type: 'setActiveTool'; toolId: string }
+  | { type: 'setThicknessPresets'; presetsIn: number[] }
+  | { type: 'setDisplayPrecision'; precisionIn: number | null }
   | { type: 'addWall'; wall: Wall; index?: number }
   | { type: 'updateWall'; wallId: string; wall: Wall }
   | { type: 'removeWall'; wallId: string }
@@ -116,6 +120,10 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
       }
     case 'setActiveTool':
       return { ...document, active_tool: command.toolId }
+    case 'setThicknessPresets':
+      return { ...document, thickness_presets_in: [...command.presetsIn] }
+    case 'setDisplayPrecision':
+      return { ...document, display_precision_in: command.precisionIn }
     case 'addWall':
       return { ...document, walls: insertAt(document.walls, command.wall, command.index) }
     case 'updateWall':
@@ -196,9 +204,10 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
 
 /**
  * Inverse of `command` against the document it is ABOUT to be applied to.
- * `null` marks a valid but non-undoable command (viewport and active-tool
- * changes save but never enter the history, spec E3/P4); `undefined` marks a
- * no-op whose target is missing, which the caller must skip entirely.
+ * `null` marks a valid but non-undoable command (viewport, active-tool and
+ * plan-settings changes save but never enter the history, spec E3/P4/§5.9);
+ * `undefined` marks a no-op whose target is missing, which the caller must
+ * skip entirely.
  */
 function invertCommand(
   document: PlanDocument,
@@ -208,6 +217,10 @@ function invertCommand(
     case 'setViewport':
       return null
     case 'setActiveTool':
+      return null
+    case 'setThicknessPresets':
+      return null
+    case 'setDisplayPrecision':
       return null
     case 'addWall':
       return { type: 'removeWall', wallId: command.wall.id }
@@ -454,6 +467,15 @@ export const useEditorStore = defineStore('editor', () => {
     const key = selectionKeyOf({ kind: 'underlay', id: UNDERLAY_ELEMENT_ID })
     return selection.value.has(key) ? (document.value?.underlay ?? null) : null
   })
+
+  /**
+   * Effective display precision in inches (spec §5.9 tier 2): the plan's
+   * `display_precision_in` override when set, else the 1/8" default. The one
+   * reactive source every feet-inches label in the editor formats against.
+   */
+  const displayPrecisionIn = computed<number>(
+    () => document.value?.display_precision_in ?? DEFAULT_DISPLAY_PRECISION_IN,
+  )
 
   function adoptPlan(loaded: Plan): void {
     plan.value = loaded
@@ -885,10 +907,20 @@ export const useEditorStore = defineStore('editor', () => {
     await saveNow()
   }
 
-  async function renameCurrentPlan(name: string): Promise<void> {
+  /**
+   * Patches the open plan's metadata (name and/or description, spec P5) via
+   * the PATCH endpoint — metadata lives outside the document, so this never
+   * touches the autosave loop or the undo history.
+   */
+  async function updateCurrentPlanMetadata(patch: PlanMetadataPatch): Promise<void> {
     if (!plan.value) return
-    const updated = await renamePlan(plan.value.id, name)
-    plan.value = { ...plan.value, name: updated.name, updated_at: updated.updated_at }
+    const updated = await updatePlanMetadata(plan.value.id, patch)
+    plan.value = {
+      ...plan.value,
+      name: updated.name,
+      description: updated.description,
+      updated_at: updated.updated_at,
+    }
     revision.value = updated.revision
   }
 
@@ -917,6 +949,7 @@ export const useEditorStore = defineStore('editor', () => {
     selectedDevices,
     selectedWires,
     selectedUnderlay,
+    displayPrecisionIn,
     activeCircuitId,
     isolatedCircuitId,
     clipboardCount,
@@ -939,6 +972,6 @@ export const useEditorStore = defineStore('editor', () => {
     pasteClipboard,
     duplicateSelection,
     flushPendingSave,
-    renameCurrentPlan,
+    updateCurrentPlanMetadata,
   }
 })

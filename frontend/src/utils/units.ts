@@ -1,5 +1,10 @@
 const INCHES_PER_FOOT = 12
-const DEFAULT_RESOLUTION = 1 / 8
+
+/** Default display precision in inches (spec §5.9 tier 1), used when the plan has no override. */
+export const DEFAULT_DISPLAY_PRECISION_IN = 1 / 8
+
+/** The display precisions offered by the settings selects (spec §5.9). */
+export const DISPLAY_PRECISION_CHOICES_IN: readonly number[] = [1, 1 / 2, 1 / 4, 1 / 8]
 
 const FEET_INCHES_PATTERN =
   /^(-)?\s*(?:(\d+(?:\.\d+)?)\s*(?:'|ft)\s*)?(?:(?:(\d+(?:\.\d+)?)\s+)?(\d+)\s*\/\s*(\d+)|(\d+(?:\.\d+)?))?\s*(?:"|in)?\s*$/i
@@ -18,7 +23,10 @@ function greatestCommonDivisor(a: number, b: number): number {
  * @param inches Length in inches (the canonical drawing unit).
  * @param resolution Rounding step in inches: 1, 1/2, 1/4 or 1/8 (default).
  */
-export function formatFeetInches(inches: number, resolution: number = DEFAULT_RESOLUTION): string {
+export function formatFeetInches(
+  inches: number,
+  resolution: number = DEFAULT_DISPLAY_PRECISION_IN,
+): string {
   const denominator = Math.max(1, Math.round(1 / resolution))
   const totalUnits = Math.round(Math.abs(inches) * denominator)
   const sign = inches < 0 && totalUnits > 0 ? '-' : ''
@@ -46,7 +54,10 @@ export function formatFeetInches(inches: number, resolution: number = DEFAULT_RE
  * @param inches Length in inches (the canonical drawing unit).
  * @param resolution Rounding step in inches: 1, 1/2, 1/4 or 1/8 (default).
  */
-export function formatInches(inches: number, resolution: number = DEFAULT_RESOLUTION): string {
+export function formatInches(
+  inches: number,
+  resolution: number = DEFAULT_DISPLAY_PRECISION_IN,
+): string {
   const denominator = Math.max(1, Math.round(1 / resolution))
   const totalUnits = Math.round(Math.abs(inches) * denominator)
   const sign = inches < 0 && totalUnits > 0 ? '-' : ''
