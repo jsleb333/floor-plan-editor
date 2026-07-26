@@ -66,10 +66,16 @@ export function isRestorableToolId(value: string | null): value is ToolId {
 /**
  * The tool to arm when a plan opens (spec E9, content-aware startup): a plan
  * with no walls arms the wall tool — the empty state's one job is getting the
- * first wall drawn — otherwise the saved session's tool is restored (spec P4),
- * defaulting to Select on missing or unknown values.
+ * first wall drawn — unless it carries an underlay, in which case the
+ * calibrate tool is armed so a photo-first plan opens ready to calibrate
+ * (spec P5/U2). Nothing in the document marks an underlay as calibrated —
+ * import seeds a default scale and calibration merely rescales it — so
+ * "underlay present AND no walls yet" is the heuristic for "still
+ * uncalibrated": once tracing starts, walls exist and the saved session's
+ * tool is restored instead (spec P4), defaulting to Select on missing or
+ * unknown values.
  */
 export function startupToolFor(document: PlanDocument): ToolId {
-  if (document.walls.length === 0) return 'wall'
+  if (document.walls.length === 0) return document.underlay ? 'calibrate' : 'wall'
   return isRestorableToolId(document.active_tool) ? document.active_tool : 'select'
 }

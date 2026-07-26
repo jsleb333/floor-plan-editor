@@ -2,6 +2,7 @@
 import { Grid3x3, Magnet, Ruler } from 'lucide-vue-next'
 import { computed } from 'vue'
 
+import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { SnapToggleId } from '@/composables/useSnapping'
 import type { Point } from '@/types/plan'
 import type { WallReference } from '@/utils/geometry'
@@ -29,6 +30,8 @@ const emit = defineEmits<{
   'toggle-snap': [id: SnapToggleId]
   'show-shortcuts': []
 }>()
+
+const precisionIn = useDisplayPrecision()
 
 const REFERENCE_LABELS: Record<WallReference, string> = {
   center: 'center',
@@ -87,7 +90,7 @@ const snapToggles = computed(() => [
 
     <span class="min-w-40 tabular-nums" aria-label="Cursor position">
       <template v-if="cursor">
-        {{ formatFeetInches(cursor.x) }}, {{ formatFeetInches(cursor.y) }}
+        {{ formatFeetInches(cursor.x, precisionIn) }}, {{ formatFeetInches(cursor.y, precisionIn) }}
       </template>
       <template v-else>—</template>
     </span>

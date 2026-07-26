@@ -147,10 +147,10 @@ export function makeUnderlay(overrides: Partial<Underlay> = {}): Underlay {
   }
 }
 
-/** Builds a complete, empty v6 document; override any field per test. */
+/** Builds a complete, empty v7 document; override any field per test. */
 export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocument {
   return {
-    schema_version: 6,
+    schema_version: 7,
     viewport: { center: { x: 0, y: 0 }, zoom: 1 },
     underlay: null,
     walls: [],
@@ -161,6 +161,7 @@ export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocumen
     devices: [],
     thickness_presets_in: [12, 4.5, 3.5],
     catalog_defaults: {},
+    display_precision_in: null,
     circuits: [],
     wires: [],
     control_links: [],
@@ -169,11 +170,12 @@ export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocumen
   }
 }
 
-/** Builds a full plan wrapping a (default empty) v2 document. */
+/** Builds a full plan wrapping a (default empty) v7 document. */
 export function makePlan(overrides: Partial<Plan> = {}): Plan {
   return {
     id: 'plan-1',
     name: 'Basement',
+    description: '',
     revision: 3,
     created_at: '2026-07-01T00:00:00Z',
     updated_at: '2026-07-01T00:00:00Z',

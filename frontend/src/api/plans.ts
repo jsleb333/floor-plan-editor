@@ -5,8 +5,31 @@ export async function listPlans(): Promise<PlanSummary[]> {
   return request<PlanSummary[]>('/plans')
 }
 
-export async function createPlan(name: string): Promise<Plan> {
-  return request<Plan>('/plans', { method: 'POST', body: { name } })
+/**
+ * Optional `POST /api/plans` fields, mirroring the backend `PlanCreateRequest`:
+ * the home-page creation card seeds the description, the uploaded underlay
+ * photo and the tier-2 plan settings in one call (spec P5/§5.9). Omitted
+ * fields keep the server defaults.
+ */
+export interface PlanCreateOptions {
+  description?: string
+  underlay_asset_id?: string
+  thickness_presets_in?: number[]
+  display_precision_in?: number
+}
+
+export async function createPlan(name: string, options: PlanCreateOptions = {}): Promise<Plan> {
+  return request<Plan>('/plans', { method: 'POST', body: { name, ...options } })
+}
+
+/** Partial metadata update for `PATCH /api/plans/{id}`; omitted fields are left unchanged. */
+export interface PlanMetadataPatch {
+  name?: string
+  description?: string
+}
+
+export async function updatePlanMetadata(id: string, patch: PlanMetadataPatch): Promise<Plan> {
+  return request<Plan>(`/plans/${id}`, { method: 'PATCH', body: patch })
 }
 
 export async function getPlan(id: string): Promise<Plan> {
@@ -27,10 +50,6 @@ export async function savePlanDocument(
  */
 export async function getPlanValidation(id: string): Promise<PlanValidation> {
   return request<PlanValidation>(`/plans/${id}/validation`)
-}
-
-export async function renamePlan(id: string, name: string): Promise<Plan> {
-  return request<Plan>(`/plans/${id}`, { method: 'PATCH', body: { name } })
 }
 
 export async function duplicatePlan(id: string): Promise<Plan> {

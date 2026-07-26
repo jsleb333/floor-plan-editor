@@ -9,6 +9,7 @@ import {
   effectiveDefaultLoad,
   effectiveDeviceLoad,
 } from '@/devices/catalog'
+import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { ControlLink, Device, Wall } from '@/types/plan'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
@@ -38,6 +39,8 @@ const emit = defineEmits<{
   /** Removes a control link (spec D6). */
   'remove-control-link': [linkId: string]
 }>()
+
+const precisionIn = useDisplayPrecision()
 
 const labelDraft = ref('')
 const loadDraft = ref('')
@@ -226,7 +229,7 @@ watch(
         <input
           v-model="lengthDraft"
           type="text"
-          :placeholder="formatFeetInches(single.length_in ?? 0)"
+          :placeholder="formatFeetInches(single.length_in ?? 0, precisionIn)"
           class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 outline-none"
           aria-label="Baseboard length in feet and inches"
           @keydown.enter.prevent="applyLength"
@@ -265,7 +268,7 @@ watch(
         <dt>Segment</dt>
         <dd class="text-ink">{{ single.attachment.segment_index + 1 }}</dd>
         <dt>Offset</dt>
-        <dd class="text-ink">{{ formatFeetInches(single.attachment.t) }}</dd>
+        <dd class="text-ink">{{ formatFeetInches(single.attachment.t, precisionIn) }}</dd>
       </dl>
     </div>
 

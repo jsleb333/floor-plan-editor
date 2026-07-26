@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import EditorSidePanel from '@/components/editor/EditorSidePanel.vue'
 import OpeningInspector from '@/components/editor/OpeningInspector.vue'
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
+import PlanSettingsPanel from '@/components/editor/PlanSettingsPanel.vue'
 import StairsInspector from '@/components/editor/StairsInspector.vue'
 import StairsToolOptions from '@/components/editor/StairsToolOptions.vue'
 import ToolPlacementHint from '@/components/editor/ToolPlacementHint.vue'
@@ -16,6 +17,9 @@ import { makeOpening, makeStairs, makeWall } from '../helpers/planFactory'
 function baseProps() {
   return {
     activeTool: 'select' as const,
+    planName: 'Basement',
+    planDescription: '',
+    displayPrecisionIn: null,
     wallThicknessPresetsIn: [12, 4.5, 3.5],
     wallThicknessIn: 3.5,
     wallReference: 'center' as const,
@@ -128,6 +132,42 @@ describe('EditorSidePanel', () => {
 
     expect(wrapper.findComponent(ToolPlacementHint).exists()).toBe(false)
     expect(wrapper.findComponent(OpeningInspector).exists()).toBe(true)
+    expect(wrapper.findComponent(PlanSettingsPanel).exists()).toBe(false)
+  })
+
+  it('shows the plan settings when the select tool is active with nothing selected', () => {
+    const wrapper = mount(EditorSidePanel, {
+      props: { ...baseProps(), planName: 'Basement', displayPrecisionIn: 0.25 },
+    })
+
+    const settings = wrapper.findComponent(PlanSettingsPanel)
+    expect(settings.props('planName')).toBe('Basement')
+    expect(settings.props('displayPrecisionIn')).toBe(0.25)
+    expect(settings.props('thicknessPresetsIn')).toEqual([12, 4.5, 3.5])
+  })
+
+  it('relays the plan settings edits to the page', () => {
+    const wrapper = mount(EditorSidePanel, { props: baseProps() })
+    const settings = wrapper.findComponent(PlanSettingsPanel)
+
+    settings.vm.$emit('rename', 'Cellar')
+    settings.vm.$emit('update-description', 'Reno 2026')
+    settings.vm.$emit('set-thickness-presets', [12, 6])
+    settings.vm.$emit('set-display-precision', 0.5)
+
+    expect(wrapper.emitted('rename')).toEqual([['Cellar']])
+    expect(wrapper.emitted('update-description')).toEqual([['Reno 2026']])
+    expect(wrapper.emitted('set-thickness-presets')).toEqual([[[12, 6]]])
+    expect(wrapper.emitted('set-display-precision')).toEqual([[0.5]])
+  })
+
+  it('keeps the placeholder — not the plan settings — for the calibrate tool with no selection', () => {
+    const wrapper = mount(EditorSidePanel, {
+      props: { ...baseProps(), activeTool: 'calibrate' as const },
+    })
+
+    expect(wrapper.findComponent(PlanSettingsPanel).exists()).toBe(false)
+    expect(wrapper.text()).toContain('Select an element to edit its properties.')
   })
 
   it('shows wall options without a wall inspector while the wall tool is armed', () => {

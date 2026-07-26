@@ -29,6 +29,8 @@ export interface UseCalibrateToolOptions {
   commit: (underlay: Underlay) => void
   /** Called after a successful calibration so the page can return to Select (spec U2). */
   onApplied: () => void
+  /** Display precision for the segment length label (spec §5.9 tier 2); 1/8" when omitted. */
+  displayPrecisionIn?: Ref<number> | ComputedRef<number>
 }
 
 export interface UseCalibrateToolReturn {
@@ -78,7 +80,10 @@ export function useCalibrateTool(options: UseCalibrateToolOptions): UseCalibrate
       a,
       b,
       awaitingLength: isAwaitingLength.value,
-      lengthLabel: a && b && distance(a, b) > EPSILON ? formatFeetInches(distance(a, b)) : null,
+      lengthLabel:
+        a && b && distance(a, b) > EPSILON
+          ? formatFeetInches(distance(a, b), options.displayPrecisionIn?.value)
+          : null,
       warning,
     }
   })

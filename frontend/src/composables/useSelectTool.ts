@@ -123,6 +123,8 @@ export interface UseSelectToolOptions {
   pixelsPerInch: Ref<number>
   /** Shared snap toggles (grid / angle / walls). */
   snapSettings: SnapSettings
+  /** Display precision for the drag dimension chips (spec §5.9 tier 2); 1/8" when omitted. */
+  displayPrecisionIn?: Ref<number> | ComputedRef<number>
 }
 
 /** A temporary dimension chip shown while a segment drags (spec S2a). */
@@ -1447,7 +1449,7 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
         chips.push({
           side: gap.side,
           distanceIn: gap.distanceIn,
-          label: formatFeetInches(gap.distanceIn),
+          label: formatFeetInches(gap.distanceIn, options.displayPrecisionIn?.value),
           from: gap.from,
           to: gap.to,
           active: gap.side === active,
@@ -1461,7 +1463,7 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
         chips.push({
           side: gap.side,
           distanceIn: gap.distanceIn,
-          label: formatFeetInches(gap.distanceIn),
+          label: formatFeetInches(gap.distanceIn, options.displayPrecisionIn?.value),
           from: gap.from,
           to: gap.to,
           active: gap.side === active,

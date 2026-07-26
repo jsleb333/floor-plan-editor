@@ -10,6 +10,7 @@ import LabelInspector from '@/components/editor/LabelInspector.vue'
 import LayersPanel from '@/components/editor/LayersPanel.vue'
 import OpeningInspector from '@/components/editor/OpeningInspector.vue'
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
+import PlanSettingsPanel from '@/components/editor/PlanSettingsPanel.vue'
 import StairsInspector from '@/components/editor/StairsInspector.vue'
 import StairsToolOptions from '@/components/editor/StairsToolOptions.vue'
 import ToolPlacementHint from '@/components/editor/ToolPlacementHint.vue'
@@ -129,6 +130,11 @@ const TOOL_SELECTION_KINDS: Partial<Record<ToolId, ElementKind>> = {
 
 const props = defineProps<{
   activeTool: ToolId
+  /** Plan metadata shown in the plan-settings view (spec §5.9 tier 2/§6.1). */
+  planName: string
+  planDescription: string
+  /** The document's precision override; `null` means the 1/8" default (spec §5.9 tier 2). */
+  displayPrecisionIn: number | null
   wallThicknessPresetsIn: readonly number[]
   wallThicknessIn: number
   wallReference: WallReference
@@ -170,6 +176,10 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  rename: [name: string]
+  'update-description': [description: string]
+  'set-thickness-presets': [presetsIn: number[]]
+  'set-display-precision': [precisionIn: number]
   'set-wall-thickness': [thicknessIn: number]
   'set-wall-reference': [reference: WallReference]
   'set-opening-width': [widthIn: number]
@@ -544,6 +554,18 @@ const activePlaceholder = computed(
             </button>
           </section>
         </div>
+        <!-- Nothing selected under the Select tool: the plan-settings view (spec §6.1/§5.9). -->
+        <PlanSettingsPanel
+          v-else-if="activeTool === 'select'"
+          :plan-name="planName"
+          :plan-description="planDescription"
+          :thickness-presets-in="wallThicknessPresetsIn"
+          :display-precision-in="displayPrecisionIn"
+          @rename="emit('rename', $event)"
+          @update-description="emit('update-description', $event)"
+          @set-thickness-presets="emit('set-thickness-presets', $event)"
+          @set-display-precision="emit('set-display-precision', $event)"
+        />
         <p
           v-else-if="!hasToolSection"
           class="text-ink-muted mt-4 text-center text-xs leading-relaxed"

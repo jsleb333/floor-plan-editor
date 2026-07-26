@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/client'
-import { getPlan, savePlanDocument } from '@/api/plans'
+import { getPlan, savePlanDocument, updatePlanMetadata } from '@/api/plans'
 import { useEditorStore } from '@/stores/editor'
 import { CIRCUIT_PALETTE } from '@/utils/circuits'
 import {
@@ -160,6 +160,60 @@ describe('useEditorStore autosave', () => {
       revision: 3,
       document: makeDocument({ active_tool: 'wall' }),
     })
+  })
+
+  it('setDisplayPrecision writes the override, drives displayPrecisionIn and autosaves, without entering the history', async () => {
+    vi.mocked(getPlan).mockResolvedValue(makePlan())
+    vi.mocked(savePlanDocument).mockResolvedValue({ revision: 4 })
+    const store = useEditorStore()
+    await store.loadPlan('plan-1')
+    expect(store.displayPrecisionIn).toBe(1 / 8)
+
+    store.mutate({ type: 'setDisplayPrecision', precisionIn: 0.25 })
+
+    expect(store.displayPrecisionIn).toBe(0.25)
+    expect(store.canUndo).toBe(false)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(savePlanDocument).toHaveBeenCalledWith('plan-1', {
+      revision: 3,
+      document: makeDocument({ display_precision_in: 0.25 }),
+    })
+  })
+
+  it('setThicknessPresets replaces the preset list and autosaves, without entering the history', async () => {
+    vi.mocked(getPlan).mockResolvedValue(makePlan())
+    vi.mocked(savePlanDocument).mockResolvedValue({ revision: 4 })
+    const store = useEditorStore()
+    await store.loadPlan('plan-1')
+
+    store.mutate({ type: 'setThicknessPresets', presetsIn: [12, 6, 3.5] })
+
+    expect(store.document?.thickness_presets_in).toEqual([12, 6, 3.5])
+    expect(store.canUndo).toBe(false)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(savePlanDocument).toHaveBeenCalledWith('plan-1', {
+      revision: 3,
+      document: makeDocument({ thickness_presets_in: [12, 6, 3.5] }),
+    })
+  })
+
+  it('updateCurrentPlanMetadata patches the plan and adopts the returned metadata and revision', async () => {
+    vi.mocked(getPlan).mockResolvedValue(makePlan())
+    vi.mocked(updatePlanMetadata).mockResolvedValue(
+      makePlan({ name: 'Cellar', description: 'Reno 2026', revision: 5 }),
+    )
+    const store = useEditorStore()
+    await store.loadPlan('plan-1')
+
+    await store.updateCurrentPlanMetadata({ name: 'Cellar', description: 'Reno 2026' })
+
+    expect(updatePlanMetadata).toHaveBeenCalledWith('plan-1', {
+      name: 'Cellar',
+      description: 'Reno 2026',
+    })
+    expect(store.plan?.name).toBe('Cellar')
+    expect(store.plan?.description).toBe('Reno 2026')
+    expect(store.revision).toBe(5)
   })
 
   it('mutate does nothing before a plan is loaded', async () => {

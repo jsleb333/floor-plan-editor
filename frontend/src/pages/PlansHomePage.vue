@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ArchiveRestore, Plus, Trash2, Upload } from 'lucide-vue-next'
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import PlanCard from '@/components/PlanCard.vue'
+import PlanCreateCard from '@/components/PlanCreateCard.vue'
 import { importPlanJson } from '@/export/jsonExport'
 import { usePlansStore } from '@/stores/plans'
+import type { Plan } from '@/types/plan'
 import { formatRelativeTime } from '@/utils/relativeTime'
 
 const router = useRouter()
@@ -14,9 +16,6 @@ const plansStore = usePlansStore()
 const loading = ref(true)
 const error = ref<string | null>(null)
 const creating = ref(false)
-const createBusy = ref(false)
-const newPlanName = ref('')
-const newPlanInput = ref<HTMLInputElement | null>(null)
 const confirmingDeleteId = ref<string | null>(null)
 const importInput = ref<HTMLInputElement | null>(null)
 const importing = ref(false)
@@ -37,32 +36,18 @@ async function run(action: () => Promise<unknown>): Promise<void> {
   }
 }
 
-async function startCreate(): Promise<void> {
+function startCreate(): void {
   creating.value = true
-  newPlanName.value = ''
-  await nextTick()
-  newPlanInput.value?.focus()
 }
 
 function cancelCreate(): void {
   creating.value = false
-  newPlanName.value = ''
 }
 
-async function handleCreate(): Promise<void> {
-  const name = newPlanName.value.trim()
-  if (!name || createBusy.value) return
-  createBusy.value = true
-  error.value = null
-  try {
-    const plan = await plansStore.create(name)
-    creating.value = false
-    await router.push({ name: 'editor', params: { planId: plan.id } })
-  } catch (err) {
-    error.value = messageFrom(err)
-  } finally {
-    createBusy.value = false
-  }
+/** A plan created with a photo opens straight in Calibrate mode (spec P5/E9). */
+async function handleCreated(plan: Plan): Promise<void> {
+  creating.value = false
+  await router.push({ name: 'editor', params: { planId: plan.id } })
 }
 
 function openPlan(id: string): void {
@@ -150,36 +135,7 @@ onMounted(async () => {
     </header>
 
     <main class="mx-auto max-w-5xl px-6 pb-16">
-      <form
-        v-if="creating"
-        aria-label="Create plan"
-        class="border-line bg-surface rounded-card shadow-card mb-6 flex items-center gap-2 border p-3"
-        @submit.prevent="handleCreate"
-      >
-        <input
-          ref="newPlanInput"
-          v-model="newPlanName"
-          type="text"
-          placeholder="Plan name (e.g. Basement)"
-          aria-label="New plan name"
-          class="border-line focus:border-accent flex-1 rounded-md border px-3 py-1.5 text-sm outline-none"
-          @keydown.esc="cancelCreate"
-        />
-        <button
-          type="submit"
-          :disabled="!newPlanName.trim() || createBusy"
-          class="bg-accent hover:bg-accent-strong rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors disabled:opacity-50"
-        >
-          {{ createBusy ? 'Creating…' : 'Create' }}
-        </button>
-        <button
-          type="button"
-          class="text-ink-muted hover:text-ink rounded-md px-3 py-1.5 text-sm transition-colors"
-          @click="cancelCreate"
-        >
-          Cancel
-        </button>
-      </form>
+      <PlanCreateCard v-if="creating" @created="handleCreated" @cancel="cancelCreate" />
 
       <p
         v-if="error"

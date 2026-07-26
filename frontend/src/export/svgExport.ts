@@ -266,7 +266,7 @@ function renderLabel(label: Label): string {
   return `<text x="${num(label.position.x)}" y="${num(label.position.y)}" font-size="${num(labelFontSizeIn(label.size_in))}" fill="${EXPORT_INK}" font-family="sans-serif">${escapeXml(label.text)}</text>`
 }
 
-function renderDimension(dimension: Dimension): string[] {
+function renderDimension(dimension: Dimension, precisionIn?: number): string[] {
   const layout = dimensionLayout(dimension)
   if (!layout) return []
   const out: string[] = []
@@ -278,7 +278,7 @@ function renderDimension(dimension: Dimension): string[] {
     out.push(line(tick.a, tick.b, EXPORT_INK_MUTED, 1.5 * ANNOTATION_STROKE_IN))
   }
   out.push(
-    `<text x="${num(layout.textAnchor.x)}" y="${num(layout.textAnchor.y)}" font-size="${ANNOTATION_TEXT_IN}" text-anchor="middle" fill="${EXPORT_INK}" stroke="${EXPORT_CANVAS}" stroke-width="${TEXT_HALO_STROKE_IN}" paint-order="stroke" font-family="sans-serif" transform="rotate(${num(layout.textAngleDeg)} ${num(layout.textAnchor.x)} ${num(layout.textAnchor.y)})">${escapeXml(formatFeetInches(layout.distanceIn))}</text>`,
+    `<text x="${num(layout.textAnchor.x)}" y="${num(layout.textAnchor.y)}" font-size="${ANNOTATION_TEXT_IN}" text-anchor="middle" fill="${EXPORT_INK}" stroke="${EXPORT_CANVAS}" stroke-width="${TEXT_HALO_STROKE_IN}" paint-order="stroke" font-family="sans-serif" transform="rotate(${num(layout.textAngleDeg)} ${num(layout.textAnchor.x)} ${num(layout.textAnchor.y)})">${escapeXml(formatFeetInches(layout.distanceIn, precisionIn))}</text>`,
   )
   return out
 }
@@ -456,9 +456,13 @@ export function buildPlanSvg(document: PlanDocument, options: SvgExportOptions =
   groups.push(`<g id="devices">${devices.join('')}</g>`)
 
   if (includeAnnotations) {
+    // Dimension texts honour the plan's display precision (spec §5.9 tier 2)
+    // so the export matches the on-canvas annotations.
     const annotations = [
       ...document.labels.map(renderLabel),
-      ...document.dimensions.flatMap(renderDimension),
+      ...document.dimensions.flatMap((dimension) =>
+        renderDimension(dimension, document.display_precision_in ?? undefined),
+      ),
     ]
     groups.push(`<g id="annotations">${annotations.join('')}</g>`)
   }
