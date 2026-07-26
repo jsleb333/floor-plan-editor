@@ -18,6 +18,7 @@ import WallToolOptions from '@/components/editor/WallToolOptions.vue'
 import type { ToolId } from '@/components/editor/tools'
 import { useCircuitValidation } from '@/composables/useCircuitValidation'
 import { DEVICE_CATALOG } from '@/devices/catalog'
+import type { ElementKind } from '@/stores/editor'
 import type {
   Circuit,
   ControlLink,
@@ -66,33 +67,36 @@ const TOOL_HINTS: Partial<Record<ToolId, { title: string; lines: string[] }>> = 
     title: 'Door',
     lines: [
       'Hover a wall to preview the door on its reference line, then click to place it.',
-      'Width, hinge side and swing direction are editable in the Inspector after placement.',
+      'A placed door stays selected below for immediate tweaks; click an existing door to edit it instead of placing.',
     ],
   },
   window: {
     title: 'Window',
     lines: [
       'Hover a wall to preview the window on its reference line, then click to place it.',
-      'Width is editable in the Inspector after placement.',
+      'A placed window stays selected below for immediate tweaks; click an existing window to edit it instead of placing.',
     ],
   },
   stairs: {
     title: 'Stairs',
     lines: [
       'Press to set the origin corner, drag along the run direction, release to place.',
-      'The run is 36" wide by default — width, length, rotation and direction are editable after.',
+      'The run is 36" wide by default; a placed run stays selected below for tweaks, and clicking an existing run edits it.',
       'Esc cancels the drag.',
     ],
   },
   label: {
     title: 'Label',
-    lines: ['Click anywhere to place a text label, then type its text here.'],
+    lines: [
+      'Click anywhere to place a text label, then type its text below.',
+      'Click an existing label to edit it instead of placing.',
+    ],
   },
   dimension: {
     title: 'Dimension',
     lines: [
       'Click two points to measure between them — clicks snap to endpoints, midpoints, walls and the grid.',
-      'Drag the placed dimension to adjust its side offset. Esc cancels the first point.',
+      'A placed dimension stays selected below; click an existing one to edit it. Esc cancels the first point.',
     ],
   },
   wire: {
@@ -102,6 +106,23 @@ const TOOL_HINTS: Partial<Record<ToolId, { title: string; lines: string[] }>> = 
       'Click a source device, then a target device to connect them. The target becomes the next source, so outlets daisy-chain. Esc ends the chain.',
     ],
   },
+}
+
+/**
+ * Tools whose Inspector mirrors the whole selection (spec E2). Placement
+ * tools instead show their options on top and only a selection of their own
+ * kind below (spec E8).
+ */
+const SELECTION_MIRROR_TOOLS: ReadonlySet<ToolId> = new Set(['select', 'calibrate', 'measure'])
+
+/** The selection kind each placement tool inspects under its options (spec E8). */
+const TOOL_SELECTION_KINDS: Partial<Record<ToolId, ElementKind>> = {
+  door: 'opening',
+  window: 'opening',
+  stairs: 'stairs',
+  label: 'label',
+  dimension: 'dimension',
+  device: 'device',
 }
 
 const props = defineProps<{
@@ -183,25 +204,20 @@ const selectionCount = computed(
     (props.selectedUnderlay ? 1 : 0),
 )
 
-const showWallOptions = computed(
-  () => activeTabId.value === 'inspector' && props.activeTool === 'wall',
-)
+/** Whether the Inspector reflects selections of `kind` under the active tool (specs E2/E8). */
+function toolInspects(kind: ElementKind): boolean {
+  if (SELECTION_MIRROR_TOOLS.has(props.activeTool)) return true
+  return TOOL_SELECTION_KINDS[props.activeTool] === kind
+}
+
+const showWallOptions = computed(() => props.activeTool === 'wall')
 
 const showDevicePicker = computed(
-  () =>
-    activeTabId.value === 'inspector' &&
-    props.activeTool === 'device' &&
-    props.deviceArmedType === null,
+  () => props.activeTool === 'device' && props.deviceArmedType === null,
 )
 
 const armedDeviceHint = computed(() => {
-  if (
-    activeTabId.value !== 'inspector' ||
-    props.activeTool !== 'device' ||
-    props.deviceArmedType === null
-  ) {
-    return null
-  }
+  if (props.activeTool !== 'device' || props.deviceArmedType === null) return null
   const entry = DEVICE_CATALOG[props.deviceArmedType]
   const place =
     entry.mount === 'wall'
@@ -212,69 +228,69 @@ const armedDeviceHint = computed(() => {
     lines: [
       place,
       'Type a distance then Enter to set the offset exactly; Tab switches side. The tool stays armed for repeat placement — Esc changes device.',
+      'A placed device stays selected below for tweaks; click an existing device to edit it.',
     ],
   }
 })
 
-const inspectedLabel = computed<Label | null>(() =>
-  activeTabId.value === 'inspector' &&
-  selectionCount.value === 1 &&
-  props.selectedLabels.length === 1 &&
-  (props.activeTool === 'select' || props.activeTool === 'label')
-    ? props.selectedLabels[0]
-    : null,
+const activeHint = computed(() => TOOL_HINTS[props.activeTool] ?? null)
+
+/** Whether a tool options/hint block renders on top of the Inspector (spec E8). */
+const hasToolSection = computed(
+  () =>
+    showWallOptions.value ||
+    showDevicePicker.value ||
+    armedDeviceHint.value !== null ||
+    activeHint.value !== null,
 )
 
-const showToolHint = computed(
-  () =>
-    activeTabId.value === 'inspector' &&
-    props.activeTool in TOOL_HINTS &&
-    !(props.activeTool === 'label' && inspectedLabel.value),
-)
-
-const selectInspecting = computed(
-  () =>
-    activeTabId.value === 'inspector' &&
-    !showWallOptions.value &&
-    !showToolHint.value &&
-    !showDevicePicker.value &&
-    armedDeviceHint.value === null &&
-    !inspectedLabel.value,
-)
+const soloSelection = computed(() => selectionCount.value === 1)
 
 const inspectedWall = computed<Wall | null>(() =>
-  selectInspecting.value && selectionCount.value === 1 && props.selectedWalls.length === 1
+  toolInspects('wall') && soloSelection.value && props.selectedWalls.length === 1
     ? props.selectedWalls[0]
     : null,
 )
 
-const inspectedOpening = computed<Opening | null>(() =>
-  selectInspecting.value && selectionCount.value === 1 && props.selectedOpenings.length === 1
-    ? props.selectedOpenings[0]
-    : null,
-)
+const inspectedOpening = computed<Opening | null>(() => {
+  if (!toolInspects('opening') || !soloSelection.value || props.selectedOpenings.length !== 1) {
+    return null
+  }
+  const opening = props.selectedOpenings[0]
+  // The door and window tools only inspect openings of their own kind (spec E8).
+  if (props.activeTool === 'door' || props.activeTool === 'window') {
+    return opening.kind === props.activeTool ? opening : null
+  }
+  return opening
+})
 
 const inspectedStairs = computed<Stairs | null>(() =>
-  selectInspecting.value && selectionCount.value === 1 && props.selectedStairs.length === 1
+  toolInspects('stairs') && soloSelection.value && props.selectedStairs.length === 1
     ? props.selectedStairs[0]
     : null,
 )
 
+const inspectedLabel = computed<Label | null>(() =>
+  toolInspects('label') && soloSelection.value && props.selectedLabels.length === 1
+    ? props.selectedLabels[0]
+    : null,
+)
+
 const inspectedDimension = computed<Dimension | null>(() =>
-  selectInspecting.value && selectionCount.value === 1 && props.selectedDimensions.length === 1
+  toolInspects('dimension') && soloSelection.value && props.selectedDimensions.length === 1
     ? props.selectedDimensions[0]
     : null,
 )
 
 const inspectedUnderlay = computed<Underlay | null>(() =>
-  selectInspecting.value && selectionCount.value === 1 && props.selectedUnderlay
+  toolInspects('underlay') && soloSelection.value && props.selectedUnderlay
     ? props.selectedUnderlay
     : null,
 )
 
 /** Pure device selection (one or many) — routed to the DeviceInspector. */
 const inspectedDevices = computed<readonly Device[] | null>(() =>
-  selectInspecting.value &&
+  toolInspects('device') &&
   props.selectedDevices.length > 0 &&
   props.selectedDevices.length === selectionCount.value
     ? props.selectedDevices
@@ -282,20 +298,32 @@ const inspectedDevices = computed<readonly Device[] | null>(() =>
 )
 
 const inspectedWire = computed<Wire | null>(() =>
-  selectInspecting.value && selectionCount.value === 1 && props.selectedWires.length === 1
+  toolInspects('wire') && soloSelection.value && props.selectedWires.length === 1
     ? props.selectedWires[0]
     : null,
 )
 
 const showMultiSummary = computed(
   () =>
-    selectInspecting.value &&
+    SELECTION_MIRROR_TOOLS.has(props.activeTool) &&
     selectionCount.value > 1 &&
     inspectedDevices.value === null &&
     inspectedWire.value === null,
 )
 
-const activeHint = computed(() => TOOL_HINTS[props.activeTool] ?? null)
+/** Whether an element inspector (or the multi summary) renders below the tool section. */
+const hasInspectedElement = computed(
+  () =>
+    inspectedWall.value !== null ||
+    inspectedOpening.value !== null ||
+    inspectedStairs.value !== null ||
+    inspectedLabel.value !== null ||
+    inspectedDimension.value !== null ||
+    inspectedUnderlay.value !== null ||
+    inspectedDevices.value !== null ||
+    inspectedWire.value !== null ||
+    showMultiSummary.value,
+)
 
 const activePlaceholder = computed(
   () => TABS.find((tab) => tab.id === activeTabId.value)?.placeholder ?? '',
@@ -349,109 +377,123 @@ const activePlaceholder = computed(
         :underlay-image-size="underlayImageSize"
         @recalibrate="emit('recalibrate')"
       />
-      <WallToolOptions
-        v-else-if="showWallOptions"
-        :presets-in="wallThicknessPresetsIn"
-        :thickness-in="wallThicknessIn"
-        :reference="wallReference"
-        @set-thickness="emit('set-wall-thickness', $event)"
-        @set-reference="emit('set-wall-reference', $event)"
-      />
-      <DevicePicker
-        v-else-if="showDevicePicker"
-        :armed-type="deviceArmedType"
-        @pick="emit('arm-device', $event)"
-      />
-      <ToolPlacementHint
-        v-else-if="armedDeviceHint"
-        :title="armedDeviceHint.title"
-        :lines="armedDeviceHint.lines"
-      />
-      <LabelInspector
-        v-else-if="inspectedLabel"
-        :label="inspectedLabel"
-        :autofocus="activeTool === 'label'"
-        @update-label="emit('update-label', $event)"
-        @delete-label="emit('delete-selection')"
-      />
-      <ToolPlacementHint
-        v-else-if="showToolHint && activeHint"
-        :title="activeHint.title"
-        :lines="activeHint.lines"
-      />
-      <WallInspector
-        v-else-if="inspectedWall"
-        :wall="inspectedWall"
-        :thickness-presets-in="wallThicknessPresetsIn"
-        @update-wall="emit('update-wall', $event)"
-        @delete-wall="emit('delete-selection')"
-        @flash-segments="emit('flash-segments', inspectedWall.id, $event)"
-      />
-      <OpeningInspector
-        v-else-if="inspectedOpening"
-        :opening="inspectedOpening"
-        :walls="walls"
-        @update-opening="emit('update-opening', $event)"
-        @delete-opening="emit('delete-selection')"
-      />
-      <StairsInspector
-        v-else-if="inspectedStairs"
-        :stairs="inspectedStairs"
-        @update-stairs="emit('update-stairs', $event)"
-        @delete-stairs="emit('delete-selection')"
-      />
-      <DimensionInspector
-        v-else-if="inspectedDimension"
-        :dimension="inspectedDimension"
-        @update-dimension="emit('update-dimension', $event)"
-        @delete-dimension="emit('delete-selection')"
-      />
-      <UnderlayInspector
-        v-else-if="inspectedUnderlay"
-        :underlay="inspectedUnderlay"
-        :image-size="underlayImageSize"
-        @update-underlay="emit('update-underlay', $event)"
-        @recalibrate="emit('recalibrate')"
-        @remove-underlay="emit('remove-underlay')"
-      />
-      <DeviceInspector
-        v-else-if="inspectedDevices"
-        :devices="inspectedDevices"
-        :walls="walls"
-        :catalog-defaults="catalogDefaults"
-        :all-devices="allDevices"
-        :control-links="controlLinks"
-        :armed-control-link-switch-id="armedControlLinkSwitchId"
-        @update-device="emit('update-device', $event)"
-        @bulk-update-devices="emit('bulk-update-devices', $event)"
-        @delete-selection="emit('delete-selection')"
-        @arm-control-link="emit('arm-control-link', $event)"
-        @remove-control-link="emit('remove-control-link', $event)"
-      />
-      <WireInspector
-        v-else-if="inspectedWire"
-        :wire="inspectedWire"
-        :circuits="circuits"
-        :devices="allDevices"
-        :walls="walls"
-        @update-wire="emit('update-wire', $event)"
-        @delete-selection="emit('delete-selection')"
-      />
-      <section v-else-if="showMultiSummary" aria-label="Selection summary" class="text-xs">
-        <h3 class="text-ink text-sm font-semibold">Selection</h3>
-        <p class="text-ink-muted mt-1">{{ selectionCount }} elements selected.</p>
-        <button
-          type="button"
-          class="border-danger/40 text-danger hover:bg-danger-soft mt-3 flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 transition-colors"
-          @click="emit('delete-selection')"
+      <template v-else>
+        <!-- Tool options/hint on top while a placement tool is armed (spec E8). -->
+        <WallToolOptions
+          v-if="showWallOptions"
+          :presets-in="wallThicknessPresetsIn"
+          :thickness-in="wallThicknessIn"
+          :reference="wallReference"
+          @set-thickness="emit('set-wall-thickness', $event)"
+          @set-reference="emit('set-wall-reference', $event)"
+        />
+        <DevicePicker
+          v-else-if="showDevicePicker"
+          :armed-type="deviceArmedType"
+          @pick="emit('arm-device', $event)"
+        />
+        <ToolPlacementHint
+          v-else-if="armedDeviceHint"
+          :title="armedDeviceHint.title"
+          :lines="armedDeviceHint.lines"
+        />
+        <ToolPlacementHint
+          v-else-if="activeHint"
+          :title="activeHint.title"
+          :lines="activeHint.lines"
+        />
+
+        <!-- The selection's inspector below: any selection under Select, the
+             tool's own kind while a placement tool is armed (spec E8). -->
+        <div
+          v-if="hasInspectedElement"
+          :class="hasToolSection ? 'border-line mt-4 border-t pt-4' : ''"
         >
-          <Trash2 :size="13" aria-hidden="true" />
-          Delete selection
-        </button>
-      </section>
-      <p v-else class="text-ink-muted mt-4 text-center text-xs leading-relaxed">
-        {{ activePlaceholder }}
-      </p>
+          <WallInspector
+            v-if="inspectedWall"
+            :wall="inspectedWall"
+            :thickness-presets-in="wallThicknessPresetsIn"
+            @update-wall="emit('update-wall', $event)"
+            @delete-wall="emit('delete-selection')"
+            @flash-segments="emit('flash-segments', inspectedWall.id, $event)"
+          />
+          <OpeningInspector
+            v-else-if="inspectedOpening"
+            :opening="inspectedOpening"
+            :walls="walls"
+            @update-opening="emit('update-opening', $event)"
+            @delete-opening="emit('delete-selection')"
+          />
+          <StairsInspector
+            v-else-if="inspectedStairs"
+            :stairs="inspectedStairs"
+            @update-stairs="emit('update-stairs', $event)"
+            @delete-stairs="emit('delete-selection')"
+          />
+          <LabelInspector
+            v-else-if="inspectedLabel"
+            :label="inspectedLabel"
+            :autofocus="activeTool === 'label'"
+            @update-label="emit('update-label', $event)"
+            @delete-label="emit('delete-selection')"
+          />
+          <DimensionInspector
+            v-else-if="inspectedDimension"
+            :dimension="inspectedDimension"
+            @update-dimension="emit('update-dimension', $event)"
+            @delete-dimension="emit('delete-selection')"
+          />
+          <UnderlayInspector
+            v-else-if="inspectedUnderlay"
+            :underlay="inspectedUnderlay"
+            :image-size="underlayImageSize"
+            @update-underlay="emit('update-underlay', $event)"
+            @recalibrate="emit('recalibrate')"
+            @remove-underlay="emit('remove-underlay')"
+          />
+          <DeviceInspector
+            v-else-if="inspectedDevices"
+            :devices="inspectedDevices"
+            :walls="walls"
+            :catalog-defaults="catalogDefaults"
+            :all-devices="allDevices"
+            :control-links="controlLinks"
+            :armed-control-link-switch-id="armedControlLinkSwitchId"
+            @update-device="emit('update-device', $event)"
+            @bulk-update-devices="emit('bulk-update-devices', $event)"
+            @delete-selection="emit('delete-selection')"
+            @arm-control-link="emit('arm-control-link', $event)"
+            @remove-control-link="emit('remove-control-link', $event)"
+          />
+          <WireInspector
+            v-else-if="inspectedWire"
+            :wire="inspectedWire"
+            :circuits="circuits"
+            :devices="allDevices"
+            :walls="walls"
+            @update-wire="emit('update-wire', $event)"
+            @delete-selection="emit('delete-selection')"
+          />
+          <section v-else-if="showMultiSummary" aria-label="Selection summary" class="text-xs">
+            <h3 class="text-ink text-sm font-semibold">Selection</h3>
+            <p class="text-ink-muted mt-1">{{ selectionCount }} elements selected.</p>
+            <button
+              type="button"
+              class="border-danger/40 text-danger hover:bg-danger-soft mt-3 flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 transition-colors"
+              @click="emit('delete-selection')"
+            >
+              <Trash2 :size="13" aria-hidden="true" />
+              Delete selection
+            </button>
+          </section>
+        </div>
+        <p
+          v-else-if="!hasToolSection"
+          class="text-ink-muted mt-4 text-center text-xs leading-relaxed"
+        >
+          {{ activePlaceholder }}
+        </p>
+      </template>
     </div>
   </aside>
 </template>

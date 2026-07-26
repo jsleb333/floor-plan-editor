@@ -23,7 +23,6 @@ import {
   constrainedVertexPosition,
   deviceWallGaps,
   deviceWorldPlacement,
-  dimensionHitTest,
   dimensionLayout,
   dimensionOffsetFor,
   distance,
@@ -34,7 +33,6 @@ import {
   openingWorldRect,
   parallelFaceGaps,
   perpendicular,
-  pointInPolygon,
   pointInRings,
   projectDeviceOntoWalls,
   projectOntoWalls,
@@ -49,6 +47,13 @@ import {
   sampleWirePoints,
 } from '@/utils/geometry'
 import type { Bounds, DeviceGaps, FaceGap } from '@/utils/geometry'
+import {
+  deviceAtPoint,
+  dimensionAtPoint,
+  labelAtPoint,
+  openingAtPoint,
+  stairsAtPoint,
+} from '@/utils/hitTest'
 import type { ImageSize } from '@/utils/imageSize'
 import {
   normalizeDegrees,
@@ -377,15 +382,6 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
     return devices.value.find((device) => device.id === id) ?? null
   }
 
-  function deviceAtPoint(point: Point): Device | null {
-    const list = devices.value
-    for (let i = list.length - 1; i >= 0; i--) {
-      const placement = deviceWorldPlacement(list[i], walls.value)
-      if (placement && pointInPolygon(point, placement.bounds)) return list[i]
-    }
-    return null
-  }
-
   function wireById(id: string): Wire | null {
     return wires.value.find((wire) => wire.id === id) ?? null
   }
@@ -454,52 +450,6 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
     return null
   }
 
-  function openingAtPoint(point: Point): Opening | null {
-    const list = openings.value
-    for (let i = list.length - 1; i >= 0; i--) {
-      const wall = wallById(list[i].wall_id)
-      if (!wall) continue
-      const rect = openingWorldRect(wall, list[i])
-      if (rect && pointInPolygon(point, rect)) return list[i]
-    }
-    return null
-  }
-
-  function stairsAtPoint(point: Point): Stairs | null {
-    const list = stairs.value
-    for (let i = list.length - 1; i >= 0; i--) {
-      if (list[i].length_in > 0 && pointInPolygon(point, stairsCorners(list[i]))) {
-        return list[i]
-      }
-    }
-    return null
-  }
-
-  function labelAtPoint(point: Point): Label | null {
-    const list = labels.value
-    for (let i = list.length - 1; i >= 0; i--) {
-      const bounds = labelBounds(list[i])
-      if (
-        point.x >= bounds.minX &&
-        point.x <= bounds.maxX &&
-        point.y >= bounds.minY &&
-        point.y <= bounds.maxY
-      ) {
-        return list[i]
-      }
-    }
-    return null
-  }
-
-  function dimensionAtPoint(point: Point): Dimension | null {
-    const tolerance = thresholdIn(HANDLE_RADIUS_PX)
-    const list = dimensions.value
-    for (let i = list.length - 1; i >= 0; i--) {
-      if (dimensionHitTest(list[i], point, tolerance)) return list[i]
-    }
-    return null
-  }
-
   /** The underlay hits only when present, visible, unlocked and loaded (spec U3). */
   function underlayAtPoint(point: Point): Underlay | null {
     const current = underlay.value
@@ -535,19 +485,19 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
    * hits last (spec U3: lowest priority, and only when unlocked and visible).
    */
   function elementAtPoint(point: Point): ElementRef | null {
-    const opening = openingAtPoint(point)
+    const opening = openingAtPoint(point, openings.value, walls.value)
     if (opening) return { kind: 'opening', id: opening.id }
-    const dimension = dimensionAtPoint(point)
+    const dimension = dimensionAtPoint(point, dimensions.value, thresholdIn(HANDLE_RADIUS_PX))
     if (dimension) return { kind: 'dimension', id: dimension.id }
-    const label = labelAtPoint(point)
+    const label = labelAtPoint(point, labels.value)
     if (label) return { kind: 'label', id: label.id }
-    const device = deviceAtPoint(point)
+    const device = deviceAtPoint(point, devices.value, walls.value)
     if (device) return { kind: 'device', id: device.id }
     const wire = wireAtPoint(point)
     if (wire) return { kind: 'wire', id: wire.id }
     const wall = wallAtPoint(point)
     if (wall) return wallRef(wall.id)
-    const stair = stairsAtPoint(point)
+    const stair = stairsAtPoint(point, stairs.value)
     if (stair) return { kind: 'stairs', id: stair.id }
     if (underlayAtPoint(point)) return { kind: 'underlay', id: UNDERLAY_ELEMENT_ID }
     return null

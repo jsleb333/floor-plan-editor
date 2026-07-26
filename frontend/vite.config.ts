@@ -19,5 +19,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['tests/**/*.test.ts'],
+    poolOptions: {
+      forks: {
+        // Node >= 23 ships its own global localStorage, which shadows jsdom's
+        // Storage in the workers and breaks every test touching localStorage.
+        execArgv: ['--no-experimental-webstorage'],
+      },
+    },
   },
 })
