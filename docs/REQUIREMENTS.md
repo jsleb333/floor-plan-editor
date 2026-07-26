@@ -205,8 +205,13 @@ follow their devices; only interior control points are absolute.
 - **S3a Wall-to-wall snapping** — Starting or ending a wall near an existing
   wall snaps to the *projected point* on that wall (its reference line or
   faces), creating a T-junction; the junction stays attached when either wall
-  moves. Endpoint-to-endpoint snapping takes priority over projection when
-  both are in range.
+  moves. While a segment is being drawn with angle snapping on, the projected
+  point is where the segment's *constrained direction* crosses the host wall
+  — the segment keeps its 90°/45° angle and still lands exactly on the wall —
+  rather than the freehand perpendicular drop of the cursor (which remains
+  the behavior for the first vertex and while Alt is held).
+  Endpoint-to-endpoint snapping takes priority over projection when both are
+  in range.
 - **S3b Locks and exact-dimension editing** — Each wall segment has a
   **locked/free** flag (padlock toggle in the properties panel and context
   menu; lock-all/unlock-all per chain). Selecting a free segment and typing a

@@ -2,12 +2,15 @@ import type { Ref } from 'vue'
 
 import type { Point, Wall } from '@/types/plan'
 import {
+  EPSILON,
   add,
   alignFree,
   alignOnRay,
   distance,
   dot,
+  length,
   lerp,
+  lineIntersection,
   projectPointOnPolyline,
   scale,
   snapDirection,
@@ -89,9 +92,10 @@ export interface UseSnappingReturn {
   /**
    * Resolves the snapped point for a raw world cursor (priority per specs
    * S3a/E6): chain-start close, wall endpoint, segment midpoint, projection
-   * onto a reference line, alignment with the chain start, then angle/grid
-   * constraints. `free` (Alt held) disables the alignment, angle and grid
-   * constraints only.
+   * onto a reference line (constrained to the pending segment's snapped
+   * direction while drawing with angle snap on), alignment with the chain
+   * start, then angle/grid constraints. `free` (Alt held) disables the
+   * alignment, angle and grid constraints only.
    */
   resolve: (cursor: Point, chain: SnapChainContext | null, free: boolean) => SnapResult
   /** Unit drawing direction `from -> toward`, angle-snapped unless disabled or `free`. */
@@ -138,14 +142,18 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
       }
     }
 
-    if (settings.walls.value) {
-      const wallSnap = resolveWallSnap(cursor, threshold)
-      if (wallSnap) return wallSnap
-    }
-
     const angleActive = settings.angle.value && !free
     const gridActive = settings.grid.value && !free
     const alignActive = !free && chain !== null && chain.vertexCount >= MIN_ALIGN_VERTICES
+
+    if (settings.walls.value) {
+      const ray =
+        chain && angleActive
+          ? { origin: chain.last, dir: snapDirection(sub(cursor, chain.last), true) }
+          : null
+      const wallSnap = resolveWallSnap(cursor, threshold, ray)
+      if (wallSnap) return wallSnap
+    }
 
     if (chain && angleActive) {
       const dir = snapDirection(sub(cursor, chain.last), true)
@@ -197,7 +205,11 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
     return { point: { ...cursor }, marker: null, guide: null, alignGuide: null, attachment: null }
   }
 
-  function resolveWallSnap(cursor: Point, threshold: number): SnapResult | null {
+  function resolveWallSnap(
+    cursor: Point,
+    threshold: number,
+    ray: SnapGuide | null,
+  ): SnapResult | null {
     let endpoint: WallSnapCandidate | null = null
     let midpoint: WallSnapCandidate | null = null
     let projection: WallSnapCandidate | null = null
@@ -220,21 +232,43 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         }
       }
 
-      const projected = projectPointOnPolyline(cursor, ring)
-      if (projected && projected.distance <= threshold) {
-        if (!projection || projected.distance < projection.distance) {
-          const segmentLength = distance(
-            ring[projected.segmentIndex],
-            ring[projected.segmentIndex + 1],
-          )
-          projection = {
-            point: projected.point,
-            distance: projected.distance,
-            attachment: {
-              wallId: wall.id,
-              segmentIndex: projected.segmentIndex,
-              tIn: projected.t * segmentLength,
-            },
+      if (ray) {
+        // Drawing under the angle constraint: the landing point must stay on
+        // the ray, so project along it — where the ray crosses the segment —
+        // instead of dropping the cursor perpendicularly onto the wall.
+        for (let i = 0; i < ring.length - 1; i++) {
+          const segmentDir = sub(ring[i + 1], ring[i])
+          const point = lineIntersection(ray.origin, ray.dir, ring[i], segmentDir)
+          if (!point || dot(sub(point, ray.origin), ray.dir) <= EPSILON) continue
+          const segmentLength = length(segmentDir)
+          const tIn = dot(sub(point, ring[i]), segmentDir) / segmentLength
+          if (tIn < -EPSILON || tIn > segmentLength + EPSILON) continue
+          const d = distance(cursor, point)
+          if (d <= threshold && (!projection || d < projection.distance)) {
+            projection = {
+              point,
+              distance: d,
+              attachment: { wallId: wall.id, segmentIndex: i, tIn },
+            }
+          }
+        }
+      } else {
+        const projected = projectPointOnPolyline(cursor, ring)
+        if (projected && projected.distance <= threshold) {
+          if (!projection || projected.distance < projection.distance) {
+            const segmentLength = distance(
+              ring[projected.segmentIndex],
+              ring[projected.segmentIndex + 1],
+            )
+            projection = {
+              point: projected.point,
+              distance: projected.distance,
+              attachment: {
+                wallId: wall.id,
+                segmentIndex: projected.segmentIndex,
+                tIn: projected.t * segmentLength,
+              },
+            }
           }
         }
       }
@@ -262,7 +296,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
       return {
         point: projection.point,
         marker: 'projection',
-        guide: null,
+        guide: ray,
         alignGuide: null,
         attachment: projection.attachment,
       }
