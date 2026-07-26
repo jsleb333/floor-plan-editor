@@ -9,6 +9,7 @@ import DimensionInspector from '@/components/editor/DimensionInspector.vue'
 import LabelInspector from '@/components/editor/LabelInspector.vue'
 import LayersPanel from '@/components/editor/LayersPanel.vue'
 import OpeningInspector from '@/components/editor/OpeningInspector.vue'
+import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
 import StairsInspector from '@/components/editor/StairsInspector.vue'
 import ToolPlacementHint from '@/components/editor/ToolPlacementHint.vue'
 import UnderlayInspector from '@/components/editor/UnderlayInspector.vue'
@@ -66,14 +67,14 @@ const TOOL_HINTS: Partial<Record<ToolId, { title: string; lines: string[] }>> = 
   door: {
     title: 'Door',
     lines: [
-      'Hover a wall to preview the door on its reference line, then click to place it.',
+      'Hover a wall to preview the door, then click to place it — the options above apply to the ghost live.',
       'A placed door stays selected below for immediate tweaks; click an existing door to edit it instead of placing.',
     ],
   },
   window: {
     title: 'Window',
     lines: [
-      'Hover a wall to preview the window on its reference line, then click to place it.',
+      'Hover a wall to preview the window, then click to place it — the width above applies to the ghost live.',
       'A placed window stays selected below for immediate tweaks; click an existing window to edit it instead of placing.',
     ],
   },
@@ -130,6 +131,10 @@ const props = defineProps<{
   wallThicknessPresetsIn: readonly number[]
   wallThicknessIn: number
   wallReference: WallReference
+  /** Live door/window tool options while those tools are armed (specs S4/S5/E8). */
+  openingWidthIn: number
+  openingHinge: 'left' | 'right'
+  openingSwing: 'in' | 'out'
   /** All walls of the document (host lookup for opening inspection). */
   walls: readonly Wall[]
   /** Currently selected elements (spec E2: contextual properties panel). */
@@ -163,6 +168,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   'set-wall-thickness': [thicknessIn: number]
   'set-wall-reference': [reference: WallReference]
+  'set-opening-width': [widthIn: number]
+  'set-opening-hinge': [hinge: 'left' | 'right']
+  'set-opening-swing': [swing: 'in' | 'out']
   'update-wall': [wall: Wall]
   'update-opening': [opening: Opening]
   'update-stairs': [stairs: Stairs]
@@ -212,6 +220,14 @@ function toolInspects(kind: ElementKind): boolean {
 
 const showWallOptions = computed(() => props.activeTool === 'wall')
 
+const showOpeningOptions = computed(
+  () => props.activeTool === 'door' || props.activeTool === 'window',
+)
+
+const openingKind = computed<'door' | 'window'>(() =>
+  props.activeTool === 'window' ? 'window' : 'door',
+)
+
 const showDevicePicker = computed(
   () => props.activeTool === 'device' && props.deviceArmedType === null,
 )
@@ -239,6 +255,7 @@ const activeHint = computed(() => TOOL_HINTS[props.activeTool] ?? null)
 const hasToolSection = computed(
   () =>
     showWallOptions.value ||
+    showOpeningOptions.value ||
     showDevicePicker.value ||
     armedDeviceHint.value !== null ||
     activeHint.value !== null,
@@ -387,6 +404,23 @@ const activePlaceholder = computed(
           @set-thickness="emit('set-wall-thickness', $event)"
           @set-reference="emit('set-wall-reference', $event)"
         />
+        <template v-else-if="showOpeningOptions">
+          <OpeningToolOptions
+            :kind="openingKind"
+            :width-in="openingWidthIn"
+            :hinge="openingHinge"
+            :swing="openingSwing"
+            @set-width="emit('set-opening-width', $event)"
+            @set-hinge="emit('set-opening-hinge', $event)"
+            @set-swing="emit('set-opening-swing', $event)"
+          />
+          <ToolPlacementHint
+            v-if="activeHint"
+            class="mt-4"
+            :title="activeHint.title"
+            :lines="activeHint.lines"
+          />
+        </template>
         <DevicePicker
           v-else-if="showDevicePicker"
           :armed-type="deviceArmedType"

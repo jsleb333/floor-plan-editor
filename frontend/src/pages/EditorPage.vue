@@ -259,6 +259,12 @@ const openingTool = useOpeningTool({
     editorStore.mutate({ type: 'addOpening', opening }),
   ),
 })
+const {
+  widthIn: openingWidthIn,
+  hinge: openingHinge,
+  swing: openingSwing,
+  inputBuffer: openingInputBuffer,
+} = openingTool
 
 const stairsTool = useStairsTool({
   snapping,
@@ -279,6 +285,7 @@ const statusInputBuffer = computed(() => {
   if (activeTool.value === 'select') return selectInputBuffer.value
   if (activeTool.value === 'calibrate') return calibrateInputBuffer.value
   if (activeTool.value === 'device') return deviceTool.inputBuffer.value
+  if (activeTool.value === 'door' || activeTool.value === 'window') return openingInputBuffer.value
   return ''
 })
 
@@ -564,6 +571,8 @@ function handleActiveToolKey(event: KeyboardEvent): boolean {
       return handleSelectToolKey(event)
     case 'door':
     case 'window':
+      if (openingTool.handleKey(event.key)) return true
+      return event.key === 'Escape' && toolSelection.clearOnEscape()
     case 'label':
       return event.key === 'Escape' && toolSelection.clearOnEscape()
     case 'stairs':
@@ -669,6 +678,9 @@ useToolShortcuts(
     suppress: (event) =>
       (activeTool.value === 'wall' &&
         (wallDrawing.value || wallInputBuffer.value !== '') &&
+        isBufferKey(event.key)) ||
+      ((activeTool.value === 'door' || activeTool.value === 'window') &&
+        (openingTool.preview.value !== null || openingInputBuffer.value !== '') &&
         isBufferKey(event.key)) ||
       (activeTool.value === 'select' &&
         (selectTool.isDragging.value || selectInputBuffer.value !== '') &&
@@ -854,6 +866,9 @@ onBeforeUnmount(() => {
         :wall-thickness-presets-in="thicknessPresetsIn"
         :wall-thickness-in="wallThicknessIn"
         :wall-reference="wallReference"
+        :opening-width-in="openingWidthIn"
+        :opening-hinge="openingHinge"
+        :opening-swing="openingSwing"
         :walls="documentWalls"
         :selected-walls="selectedWalls"
         :selected-openings="selectedOpenings"
@@ -873,6 +888,9 @@ onBeforeUnmount(() => {
         :catalog-defaults="catalogDefaults"
         @set-wall-thickness="wallTool.setThickness($event)"
         @set-wall-reference="wallTool.setReference($event)"
+        @set-opening-width="openingTool.setWidth($event)"
+        @set-opening-hinge="openingTool.setHinge($event)"
+        @set-opening-swing="openingTool.setSwing($event)"
         @update-wall="handleUpdateWall"
         @update-opening="handleUpdateOpening"
         @update-stairs="handleUpdateStairs"

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatFeetInches, parseFeetInches } from '@/utils/units'
+import { formatFeetInches, formatInches, parseFeetInches } from '@/utils/units'
 
 describe('formatFeetInches', () => {
   it('formats whole feet and inches', () => {
@@ -56,6 +56,30 @@ describe('formatFeetInches', () => {
     expect(formatFeetInches(149.6, 1)).toBe(`12'6"`)
     expect(formatFeetInches(149.3, 1 / 2)).toBe(`12'5 1/2"`)
     expect(formatFeetInches(149.2, 1 / 4)).toBe(`12'5 1/4"`)
+  })
+})
+
+describe('formatInches', () => {
+  it('never carries into feet', () => {
+    expect(formatInches(32)).toBe(`32"`)
+    expect(formatInches(150)).toBe(`150"`)
+    expect(formatInches(0)).toBe(`0"`)
+  })
+
+  it('formats reduced eighth fractions', () => {
+    expect(formatInches(4.5)).toBe(`4 1/2"`)
+    expect(formatInches(0.125)).toBe(`1/8"`)
+    expect(formatInches(30.25)).toBe(`30 1/4"`)
+  })
+
+  it('prefixes negative lengths with a minus sign', () => {
+    expect(formatInches(-4.5)).toBe(`-4 1/2"`)
+    expect(formatInches(-0.01)).toBe(`0"`)
+  })
+
+  it('respects a coarser resolution', () => {
+    expect(formatInches(30.6, 1)).toBe(`31"`)
+    expect(formatInches(30.3, 1 / 2)).toBe(`30 1/2"`)
   })
 })
 

@@ -1,12 +1,25 @@
-import { describe, expect, it, vi } from 'vitest'
-import { computed, ref } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { computed, nextTick, ref } from 'vue'
 
-import { useOpeningTool } from '@/composables/useOpeningTool'
+import {
+  DEFAULT_DOOR_WIDTH_IN,
+  DEFAULT_WINDOW_WIDTH_IN,
+  useOpeningTool,
+} from '@/composables/useOpeningTool'
 import type { Opening, Wall } from '@/types/plan'
 import { makeWall } from '../helpers/planFactory'
 
+/** Cursor points around the default east-running wall (y grows down on screen). */
+const ABOVE_WALL = { x: 60, y: -3 }
+const BELOW_WALL = { x: 60, y: 3 }
+const OFF_WALL = { x: 60, y: 50 }
+
 describe('useOpeningTool', () => {
-  function setup(walls: Wall[], kind: 'door' | 'window' = 'door') {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  function setup(walls: Wall[] = [makeWall()], kind: 'door' | 'window' = 'door') {
     const commit = vi.fn<(opening: Opening) => void>()
     const tool = useOpeningTool({
       kind: computed(() => kind),
@@ -17,57 +30,178 @@ describe('useOpeningTool', () => {
     return { tool, commit }
   }
 
-  it('previews the opening at the projected attachment while hovering a wall', () => {
-    const { tool } = setup([makeWall()])
+  it('previews the opening at the projected attachment with the default options', () => {
+    const { tool } = setup()
 
-    tool.setCursor({ x: 60, y: 3 })
+    tool.setCursor(ABOVE_WALL)
     expect(tool.preview.value).toMatchObject({
       kind: 'door',
       wall_id: 'wall-1',
       segment_index: 0,
       t: 60,
-      width_in: 32,
+      width_in: DEFAULT_DOOR_WIDTH_IN,
       hinge: 'left',
       swing: 'in',
     })
 
-    tool.setCursor({ x: 60, y: 50 })
+    tool.setCursor(OFF_WALL)
     expect(tool.preview.value).toBeNull()
   })
 
-  it('commits a door with the parametric host address on click', () => {
-    const { tool, commit } = setup([makeWall()])
+  it('swings the door toward the side of the wall the cursor is on', () => {
+    const { tool } = setup()
 
-    tool.onClick({ x: 60, y: 3 })
-    expect(commit).toHaveBeenCalledTimes(1)
+    tool.setCursor(BELOW_WALL)
+    expect(tool.preview.value?.swing).toBe('out')
+    expect(tool.swing.value).toBe('out')
+
+    tool.setCursor(ABOVE_WALL)
+    expect(tool.preview.value?.swing).toBe('in')
+    expect(tool.swing.value).toBe('in')
+  })
+
+  it('lets the options toggle set the swing, with the cursor overriding it again', () => {
+    const { tool } = setup()
+
+    tool.setSwing('out')
+    expect(tool.swing.value).toBe('out')
+
+    tool.setCursor(ABOVE_WALL)
+    expect(tool.swing.value).toBe('in')
+    expect(tool.preview.value?.swing).toBe('in')
+  })
+
+  it('cycles the hinge side with Tab and reflects it in the preview', () => {
+    const { tool } = setup()
+    tool.setCursor(ABOVE_WALL)
+
+    expect(tool.handleKey('Tab')).toBe(true)
+    expect(tool.hinge.value).toBe('right')
+    expect(tool.preview.value?.hinge).toBe('right')
+
+    expect(tool.handleKey('Tab')).toBe(true)
+    expect(tool.hinge.value).toBe('left')
+  })
+
+  it('ignores Tab for the window tool', () => {
+    const { tool } = setup([makeWall()], 'window')
+
+    expect(tool.handleKey('Tab')).toBe(false)
+  })
+
+  it('drives the preview and the commit with the width option', () => {
+    const { tool, commit } = setup()
+    tool.setWidth(30)
+    tool.setHinge('right')
+
+    tool.setCursor(BELOW_WALL)
+    expect(tool.preview.value).toMatchObject({ width_in: 30, hinge: 'right', swing: 'out' })
+
+    tool.onClick(BELOW_WALL)
     expect(commit.mock.calls[0][0]).toMatchObject({
       kind: 'door',
-      wall_id: 'wall-1',
-      segment_index: 0,
-      t: 60,
-      width_in: 32,
+      width_in: 30,
+      hinge: 'right',
+      swing: 'out',
     })
     expect(commit.mock.calls[0][0].id).not.toBe('opening-preview')
   })
 
-  it('commits a window when the tool kind is window', () => {
+  it('sets the width exactly from digits typed while hovering', () => {
+    const { tool } = setup()
+    tool.setCursor(ABOVE_WALL)
+
+    expect(tool.handleKey('3')).toBe(true)
+    expect(tool.handleKey('0')).toBe(true)
+    expect(tool.inputBuffer.value).toBe('30')
+
+    expect(tool.handleKey('Enter')).toBe(true)
+    expect(tool.inputBuffer.value).toBe('')
+    expect(tool.widthIn.value).toBe(30)
+    expect(tool.preview.value?.width_in).toBe(30)
+  })
+
+  it('ignores typed digits while not hovering a wall', () => {
+    const { tool } = setup()
+
+    expect(tool.handleKey('3')).toBe(false)
+    expect(tool.inputBuffer.value).toBe('')
+  })
+
+  it('clears the typed buffer with Escape without touching the width', () => {
+    const { tool } = setup()
+    tool.setCursor(ABOVE_WALL)
+    tool.handleKey('3')
+
+    expect(tool.handleKey('Escape')).toBe(true)
+    expect(tool.inputBuffer.value).toBe('')
+    expect(tool.widthIn.value).toBe(DEFAULT_DOOR_WIDTH_IN)
+    expect(tool.handleKey('Escape')).toBe(false)
+  })
+
+  it('commits a window with its own default width and kind', () => {
     const { tool, commit } = setup([makeWall()], 'window')
 
-    tool.onClick({ x: 60, y: 3 })
-    expect(commit.mock.calls[0][0].kind).toBe('window')
+    tool.onClick(ABOVE_WALL)
+    expect(commit.mock.calls[0][0]).toMatchObject({
+      kind: 'window',
+      width_in: DEFAULT_WINDOW_WIDTH_IN,
+    })
+  })
+
+  it('keeps door and window widths independent', async () => {
+    const door = setup()
+    door.tool.setWidth(30)
+    await nextTick()
+    const window_ = setup([makeWall()], 'window')
+    window_.tool.setWidth(48)
+    await nextTick()
+
+    expect(setup().tool.widthIn.value).toBe(30)
+    expect(setup([makeWall()], 'window').tool.widthIn.value).toBe(48)
   })
 
   it('clamps the placement so the opening stays within the segment', () => {
-    const { tool, commit } = setup([makeWall()])
+    const { tool, commit } = setup()
 
     tool.onClick({ x: 5, y: 1 })
     expect(commit.mock.calls[0][0].t).toBe(16)
   })
 
   it('does not commit when no wall is within reach', () => {
-    const { tool, commit } = setup([makeWall()])
+    const { tool, commit } = setup()
 
-    tool.onClick({ x: 60, y: 50 })
+    tool.onClick(OFF_WALL)
     expect(commit).not.toHaveBeenCalled()
+  })
+
+  it('restores the last-used options in a new instance', async () => {
+    const { tool } = setup()
+    tool.setWidth(36)
+    tool.setHinge('right')
+    tool.setSwing('out')
+    await nextTick()
+
+    const restored = setup().tool
+    expect(restored.widthIn.value).toBe(36)
+    expect(restored.hinge.value).toBe('right')
+    expect(restored.swing.value).toBe('out')
+  })
+
+  it('records the cursor-driven swing of a placed door as last-used', async () => {
+    const { tool } = setup()
+    tool.onClick(BELOW_WALL)
+    await nextTick()
+
+    expect(setup().tool.swing.value).toBe('out')
+  })
+
+  it('falls back to the defaults when the stored options are corrupted', () => {
+    window.localStorage.setItem('floor-plan:opening-tool-options', '{not json')
+
+    const { tool } = setup()
+    expect(tool.widthIn.value).toBe(DEFAULT_DOOR_WIDTH_IN)
+    expect(tool.hinge.value).toBe('left')
+    expect(tool.swing.value).toBe('in')
   })
 })
