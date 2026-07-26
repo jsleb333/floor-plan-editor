@@ -26,20 +26,27 @@ class TestDemoPlanSeeder:
         await connection.close()
 
     @pytest.fixture
-    async def plan_service(self, connection: aiosqlite.Connection) -> PlanService:
-        """Plan service backed by a real SQLite repository on the test database."""
-        repository = SqlitePlanRepository(connection)
-        await repository.initialize()
-        return PlanService(repository, PlanMigrator())
-
-    @pytest.fixture
-    async def asset_service(
+    async def asset_repository(
         self, connection: aiosqlite.Connection, tmp_path: Path
-    ) -> AssetService:
-        """Asset service backed by a real file repository on a temporary data directory."""
+    ) -> FileAssetRepository:
+        """Real file asset repository on a temporary data directory."""
         repository = FileAssetRepository(connection, tmp_path / "data")
         await repository.initialize()
-        return AssetService(repository, MAX_ASSET_SIZE_BYTES)
+        return repository
+
+    @pytest.fixture
+    async def plan_service(
+        self, connection: aiosqlite.Connection, asset_repository: FileAssetRepository
+    ) -> PlanService:
+        """Plan service backed by real SQLite repositories on the test database."""
+        repository = SqlitePlanRepository(connection)
+        await repository.initialize()
+        return PlanService(repository, PlanMigrator(), asset_repository)
+
+    @pytest.fixture
+    def asset_service(self, asset_repository: FileAssetRepository) -> AssetService:
+        """Asset service backed by the real file repository."""
+        return AssetService(asset_repository, MAX_ASSET_SIZE_BYTES)
 
     @pytest.fixture
     def seeder(self, plan_service: PlanService, asset_service: AssetService) -> DemoPlanSeeder:

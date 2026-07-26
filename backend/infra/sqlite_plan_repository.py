@@ -16,12 +16,19 @@ CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS plans (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
     revision INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     archived_at TEXT NULL,
     document TEXT NOT NULL
 )
+"""
+
+PLANS_TABLE_INFO_SQL = "PRAGMA table_info(plans)"
+
+ADD_DESCRIPTION_COLUMN_SQL = """
+ALTER TABLE plans ADD COLUMN description TEXT NOT NULL DEFAULT ''
 """
 
 CREATE_BACKUPS_TABLE_SQL = """
@@ -35,20 +42,23 @@ CREATE TABLE IF NOT EXISTS document_backups (
 """
 
 INSERT_SQL = """
-INSERT INTO plans (id, name, revision, created_at, updated_at, archived_at, document)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO plans (id, name, description, revision, created_at, updated_at, archived_at, document)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 SELECT_SQL = """
-SELECT id, name, revision, created_at, updated_at, archived_at, document
+SELECT id, name, description, revision, created_at, updated_at, archived_at, document
 FROM plans WHERE id = ?
 """
 
 LIST_SUMMARIES_SQL = """
-SELECT id, name, updated_at, archived_at FROM plans ORDER BY updated_at DESC
+SELECT id, name, description, updated_at, archived_at FROM plans ORDER BY updated_at DESC
 """
 
-RENAME_SQL = "UPDATE plans SET name = ?, updated_at = ? WHERE id = ?"
+UPDATE_METADATA_SQL = """
+UPDATE plans SET name = COALESCE(?, name), description = COALESCE(?, description), updated_at = ?
+WHERE id = ?
+"""
 
 UPDATE_DOCUMENT_SQL = """
 UPDATE plans SET document = ?, revision = revision + 1, updated_at = ?
@@ -88,10 +98,23 @@ class SqlitePlanRepository(PlanRepository):
         self._connection = connection
 
     async def initialize(self) -> None:
-        """Create the plans and document_backups tables if they do not exist yet."""
+        """Create the tables if missing and apply additive column migrations.
+
+        Databases created before the ``description`` column existed gain it
+        through an additive ``ALTER TABLE`` with a default; existing rows are
+        never dropped or rewritten.
+        """
         await self._connection.execute(CREATE_TABLE_SQL)
         await self._connection.execute(CREATE_BACKUPS_TABLE_SQL)
+        await self._ensure_description_column()
         await self._connection.commit()
+
+    async def _ensure_description_column(self) -> None:
+        """Add the description column to a pre-existing plans table lacking it."""
+        cursor = await self._connection.execute(PLANS_TABLE_INFO_SQL)
+        columns = {row[1] for row in await cursor.fetchall()}
+        if "description" not in columns:
+            await self._connection.execute(ADD_DESCRIPTION_COLUMN_SQL)
 
     async def create(self, plan: Plan) -> None:
         """Persist a new plan.
@@ -104,6 +127,7 @@ class SqlitePlanRepository(PlanRepository):
             (
                 plan.id,
                 plan.name,
+                plan.description,
                 plan.revision,
                 plan.created_at.isoformat(),
                 plan.updated_at.isoformat(),
@@ -129,11 +153,12 @@ class SqlitePlanRepository(PlanRepository):
         return RawPlanRecord(
             id=row[0],
             name=row[1],
-            revision=row[2],
-            created_at=datetime.fromisoformat(row[3]),
-            updated_at=datetime.fromisoformat(row[4]),
-            archived_at=datetime.fromisoformat(row[5]) if row[5] else None,
-            document=json.loads(row[6]),
+            description=row[2],
+            revision=row[3],
+            created_at=datetime.fromisoformat(row[4]),
+            updated_at=datetime.fromisoformat(row[5]),
+            archived_at=datetime.fromisoformat(row[6]) if row[6] else None,
+            document=json.loads(row[7]),
         )
 
     async def list_summaries(self) -> list[PlanSummary]:
@@ -149,25 +174,29 @@ class SqlitePlanRepository(PlanRepository):
             PlanSummary(
                 id=row[0],
                 name=row[1],
-                updated_at=datetime.fromisoformat(row[2]),
-                archived_at=datetime.fromisoformat(row[3]) if row[3] else None,
+                description=row[2],
+                updated_at=datetime.fromisoformat(row[3]),
+                archived_at=datetime.fromisoformat(row[4]) if row[4] else None,
             )
             for row in rows
         ]
 
-    async def rename(self, plan_id: str, name: str, updated_at: datetime) -> bool:
-        """Change a plan's name.
+    async def update_metadata(
+        self, plan_id: str, name: str | None, description: str | None, updated_at: datetime
+    ) -> bool:
+        """Change a plan's listing metadata; None fields keep their stored value.
 
         Args:
-            plan_id: Identifier of the plan to rename.
-            name: New plan name.
+            plan_id: Identifier of the plan to update.
+            name: New plan name, or None to leave the name unchanged.
+            description: New plan description, or None to leave it unchanged.
             updated_at: Timestamp to record as the last modification time.
 
         Returns:
-            True when a plan was renamed, False when the id is unknown.
+            True when a plan was updated, False when the id is unknown.
         """
         cursor = await self._connection.execute(
-            RENAME_SQL, (name, updated_at.isoformat(), plan_id)
+            UPDATE_METADATA_SQL, (name, description, updated_at.isoformat(), plan_id)
         )
         await self._connection.commit()
         return cursor.rowcount > 0
