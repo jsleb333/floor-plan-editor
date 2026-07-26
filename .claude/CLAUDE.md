@@ -332,3 +332,4 @@ onMounted(() => periodStore.load())
 - Use Opus or Sonnet subagents as appropriate for the task difficulty and scope.
 - Use git and github for version control.
 - Commit using conventional commits (e.g. `feat: add new wall tool`): one line summary, no authorship. Prefer atomic commits when possible.
+- When debugging, prefer writing a test reproducing the issue *before* fixing it. This ensures the bug is fully understood and prevents regressions.

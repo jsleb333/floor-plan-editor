@@ -85,7 +85,12 @@ const DEFAULT_LABEL_TEXT = 'Room'
 const DEFAULT_LABEL_SIZE_IN = 8
 
 /** Fallback draft for an armed type with no last-used overrides yet (spec E8/§6.1). */
-const EMPTY_DEVICE_DRAFT: DeviceDraft = { label: null, load_w: null, length_in: null }
+const EMPTY_DEVICE_DRAFT: DeviceDraft = {
+  label: null,
+  load_w: null,
+  length_in: null,
+  depth_in: null,
+}
 
 const ARROW_NUDGES: Record<string, { dx: number; dy: number }> = {
   ArrowLeft: { dx: -1, dy: 0 },

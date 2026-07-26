@@ -48,8 +48,8 @@ pure functions in `frontend/src/utils/geometry/`.
 |---|---|
 | Wall reference polyline + `thickness_in` + `reference` side + `closed` + `locked_segments` + `junctions` | Wall outline rings, mitred corners, butt caps, T-junction trims |
 | Opening `{wall_id, segment_index, t, width_in, …}` | Jambs, opening rect, door swing arc, window glazing lines |
-| Attached device `{wall_id, segment_index, t, side}` | World anchor, pictogram rotation, hit bounds, baseboard rect |
-| Free device `position` + `rotation_deg` | Hit bounds |
+| Attached device `{wall_id, segment_index, t, side}` (+ optional `length_in`/`depth_in`) | World anchor, pictogram rotation, hit bounds, footprint rect |
+| Free device `position` + `rotation_deg` (+ optional `length_in`/`depth_in`) | Hit bounds, footprint rect |
 | Wire `{from_device_id, to_device_id, control_points}` | Endpoint world positions, Bézier path |
 | Stairs `{origin, rotation_deg, width_in, length_in, direction}` | Corners, treads, direction arrow |
 | Dimension `{p1, p2, offset_in}` | Extension lines, ticks, live distance text |
@@ -186,7 +186,7 @@ inches, y grows down (SVG space), angles in radians. Module map:
 | `chainEdit.ts` | `setSegmentLength` — exact-dimension edits that propagate through free segments and are blocked by locks, reporting `ok`/`blocked`/`misclosure` (S3b/S3c) |
 | `vertexDrag.ts` | Angle-preserving vertex drag candidates (S3) |
 | `openings.ts` | Parametric address → jambs, opening rect, door/window symbols; `projectOntoWalls` for placement |
-| `devices.ts` | `deviceWorldPlacement` — attachment → world anchor/angle/bounds (+ baseboard rect); `deviceScreenScale` (min 14 px legibility clamp); wall-gap measurement for temp dimensions |
+| `devices.ts` | `deviceWorldPlacement` — attachment → world anchor/angle/bounds (+ true-size footprint rect and inscribed-glyph anchor); `deviceGlyphBox`; `deviceScreenScale` (min 14 px legibility clamp); wall-gap measurement for temp dimensions |
 | `stairs.ts`, `annotations.ts`, `tempDimensions.ts` | Stairs frame/treads/arrow; dimension-line layout; live face-to-face gap chips (S2a) |
 | `wires.ts` | `wireEndpoint` (device id → live world centre), `autoCurveControlPoints`, `wirePathData` (cubic Bézier, Catmull-Rom fallback), sampled hit-testing |
 
@@ -241,7 +241,11 @@ DimensionsLayer`, then the active tool's overlay. Layers read the editor and
 layers stores directly (not via props); only `hairline` and tool previews
 arrive as props. Devices render as `<use href="#pict-{type}">` against a
 `<symbol>` sprite built from the `DEVICE_PICTOGRAMS` registry, counter-scaled
-to keep a minimum on-screen size.
+to keep a minimum on-screen size. A type whose catalog row carries a
+`DeviceFootprint` (REQUIREMENTS D2) additionally draws its true-size outline
+from `deviceWorldPlacement().footprintRect` — real geometry, so never
+counter-scaled — with the pictogram inscribed at the rectangle's centre, still
+clamped. `length_in`/`depth_in` on the device override that footprint.
 
 ### Export
 

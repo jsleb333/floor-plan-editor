@@ -91,6 +91,7 @@ export function makeDevice(overrides: Partial<Device> = {}): Device {
     label: null,
     load_w: null,
     length_in: null,
+    depth_in: null,
     notes: null,
     ...overrides,
   }

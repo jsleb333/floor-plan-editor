@@ -124,8 +124,10 @@ export interface DeviceAttachment {
  * An electrical device placed on the plan (spec §5.4, §8). It carries EITHER a
  * parametric wall `attachment` (spec §4.2) OR an absolute `position` for
  * ceiling/free-standing devices, never both. `load_w` is a per-instance
- * override (`null` = the catalog/plan default applies); `length_in` is the
- * along-wall length of a baseboard heater (`null` for every other type).
+ * override (`null` = the catalog/plan default applies); `length_in` and
+ * `depth_in` override the type's catalog footprint ALONG the wall and ACROSS,
+ * into the room (`null` = that dimension of the footprint applies, and both are
+ * meaningless for symbolic types that have no real size).
  */
 export interface Device {
   id: string
@@ -136,6 +138,7 @@ export interface Device {
   label: string | null
   load_w: number | null
   length_in: number | null
+  depth_in: number | null
   notes: string | null
 }
 

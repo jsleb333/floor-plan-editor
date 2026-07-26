@@ -31,7 +31,8 @@ interface DeviceView {
   id: string
   href: string
   transform: string
-  baseboard: string | null
+  /** Polygon points of the true-size footprint rectangle, or `null` when symbolic. */
+  footprint: string | null
   selected: boolean
   preview: boolean
   dimmed: boolean
@@ -47,23 +48,15 @@ function buildView(device: Device, selected: boolean, isPreview: boolean): Devic
   const placement = deviceWorldPlacement(device, walls)
   if (!placement) return null
   const dimmed = isDimmed(device, isPreview)
-  if (placement.baseboardRect) {
-    return {
-      id: device.id,
-      href: pictogramSymbolId(device.type),
-      transform: '',
-      baseboard: placement.baseboardRect.map((point) => `${point.x},${point.y}`).join(' '),
-      selected,
-      preview: isPreview,
-      dimmed,
-    }
-  }
+  // The footprint rectangle is real geometry and stays at true size; only the
+  // glyph inscribed in it takes the min-screen-size clamp (spec D4).
   const scale = deviceScreenScale(props.pixelsPerInch)
+  const { glyphPosition, angleDeg } = placement
   return {
     id: device.id,
     href: `#${pictogramSymbolId(device.type)}`,
-    transform: `translate(${placement.position.x} ${placement.position.y}) rotate(${placement.angleDeg}) scale(${scale})`,
-    baseboard: null,
+    transform: `translate(${glyphPosition.x} ${glyphPosition.y}) rotate(${angleDeg}) scale(${scale})`,
+    footprint: placement.footprintRect?.map((point) => `${point.x},${point.y}`).join(' ') ?? null,
     selected,
     preview: isPreview,
     dimmed,
@@ -100,8 +93,8 @@ function colorClass(view: DeviceView): string {
     <DevicePictogram />
     <template v-for="view in deviceViews" :key="view.id">
       <polygon
-        v-if="view.baseboard !== null"
-        :points="view.baseboard"
+        v-if="view.footprint !== null"
+        :points="view.footprint"
         fill="none"
         stroke="currentColor"
         :class="colorClass(view)"
@@ -109,7 +102,6 @@ function colorClass(view: DeviceView): string {
         :opacity="viewOpacity(view)"
       />
       <use
-        v-else
         :href="view.href"
         :x="-HALF"
         :y="-HALF"

@@ -317,25 +317,29 @@ Devices are placed from a searchable palette. Each type has a distinct
 pictogram (drawn as SVG, consistent with common electrical-plan symbols and the
 hand-drawn legend). Initial catalog:
 
-| Device | Legend origin | Mount | Voltage | Default load |
-|---|---|---|---|---|
-| Outlet (duplex) | Prise électrique | wall | 120 V | 180 VA¹ |
-| GFCI outlet | Prise DDFT | wall | 120 V | 180 VA¹ |
-| Switch, single-pole | Interrupteur simple | wall | — | 0 |
-| Switch, 3-way | Interrupteur 3-way | wall | — | 0 |
-| Ceiling light | Luminaire plafond | ceiling | 120 V | 15 W |
-| Wall light | Luminaire mural | wall | 120 V | 15 W |
-| Baseboard heater | Plinthe électrique | wall | 240 V | 1000 W |
-| Thermostat | Thermostat | wall | 240 V | 0 |
-| Water heater | Chauffe-eau (WH) | free | 240 V | 3800 W |
-| Air exchanger | Échangeur d'air (EA) | free | 120 V | 150 W |
-| Central vacuum unit | Aspirateur central (VAC) | free | 120 V | 1400 W |
-| Vacuum inlet | Prise aspirateur | wall | low-V | 0 |
-| Smoke detector | Détecteur de fumée (SD) | ceiling | 120 V | 5 W |
-| Network jack | Câble réseau | wall | data | 0 |
-| Electrical panel | Panneau électrique | wall | — | source |
+| Device | Legend origin | Mount | Voltage | Default load | Default size² |
+|---|---|---|---|---|---|
+| Outlet (duplex) | Prise électrique | wall | 120 V | 180 VA¹ | symbol |
+| GFCI outlet | Prise DDFT | wall | 120 V | 180 VA¹ | symbol |
+| Switch, single-pole | Interrupteur simple | wall | — | 0 | symbol |
+| Switch, 3-way | Interrupteur 3-way | wall | — | 0 | symbol |
+| Ceiling light | Luminaire plafond | ceiling | 120 V | 15 W | symbol |
+| Wall light | Luminaire mural | wall | 120 V | 15 W | symbol |
+| Baseboard heater | Plinthe électrique | wall | 240 V | 1000 W | 36" × 3" |
+| Thermostat | Thermostat | wall | 240 V | 0 | symbol |
+| Water heater | Chauffe-eau (WH) | free | 240 V | 3800 W | 22" × 22" |
+| Air exchanger | Échangeur d'air (EA) | free | 120 V | 150 W | 30" × 20" |
+| Central vacuum unit | Aspirateur central (VAC) | free | 120 V | 1400 W | 14" × 14" |
+| Vacuum inlet | Prise aspirateur | wall | low-V | 0 | symbol |
+| Smoke detector | Détecteur de fumée (SD) | ceiling | 120 V | 5 W | symbol |
+| Network jack | Câble réseau | wall | data | 0 | symbol |
+| Electrical panel | Panneau électrique | wall | — | source | 14" × 4" |
 
 ¹ Placeholder per-receptacle allowance; editable per device.
+
+² Footprint of the physically sized types, along the wall × into the room, drawn
+at true scale and editable per device (D2). `symbol` means the type has no real
+size and always draws as a fixed-size pictogram.
 
 - **D1** — Wall-mounted devices snap onto walls and slide along them; they keep
   their wall attachment when the wall moves. Ceiling/free devices place
@@ -343,11 +347,17 @@ hand-drawn legend). Initial catalog:
   (S2a): live offsets to the nearest corners/walls, typed value to position
   exactly.
 - **D2** — Every placed device has editable properties: label (optional),
-  load override (watts), notes. Baseboards additionally have a length and
-  wattage; the pictogram scales with length.
+  load override (watts), notes. The physically sized types (last column of the
+  table) additionally have editable dimensions — length along the wall and depth
+  into the room — starting from their catalog footprint and editable both before
+  placement and after selection; their outline is drawn at true scale from those
+  dimensions. Baseboards also have a wattage.
 - **D3** — Devices can be copied/pasted and duplicated by drag+modifier.
 - **D4** — Device pictograms keep a constant on-screen legibility: they scale
-  with zoom but are clamped to a minimum screen size.
+  with zoom but are clamped to a minimum screen size. A sized device's footprint
+  outline is real geometry and is exempt: it always draws at true scale (so a
+  22" water heater does shrink when zooming out) while the pictogram inscribed
+  in it keeps the clamp.
 - **D5** — The catalog is data-driven (a device-type registry), so new types
   can be added without touching editor logic.
 - **D6** — Control links: a switch can be linked to the light(s) it controls
@@ -633,7 +643,7 @@ Plan
   dimensions: [Dimension] # id, p1, p2, offset
   devices: [Device]       # id, type, label, load_w override, notes,
                           # attachment (§4.2) | position+rotation (free-standing),
-                          # props (e.g. baseboard length_in, wattage)
+                          # footprint overrides (length_in, depth_in) for sized types
   catalog_defaults: {type: load_w}   # plan-level device defaults (§5.9 tier 2)
   thickness_presets: [float]         # plan-level wall presets (§5.9 tier 2)
   display_precision: float | null    # per-plan override, inches (§5.9 tier 2)

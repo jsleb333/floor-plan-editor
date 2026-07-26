@@ -16,6 +16,7 @@ import type {
 } from '@/types/plan'
 import {
   boundsOfPoints,
+  deviceGlyphBox,
   deviceWorldPlacement,
   dimensionLayout,
   doorSymbol,
@@ -233,18 +234,22 @@ function renderPictogramShape(shape: PictogramShape): string {
 function renderDevice(device: Device, walls: readonly Wall[]): string[] {
   const placement = deviceWorldPlacement(device, walls)
   if (!placement) return []
-  if (placement.baseboardRect) {
-    return [
-      `<polygon points="${pointsAttr(placement.baseboardRect)}" fill="none" stroke="${EXPORT_INK}" stroke-width="${1.2 * DEVICE_STROKE_IN}" />`,
-    ]
+  const out: string[] = []
+  // A footprint device (spec D2) draws its true-size rectangle first, then the
+  // same pictogram every other device gets, inscribed at the rectangle's centre.
+  if (placement.footprintRect) {
+    out.push(
+      `<polygon points="${pointsAttr(placement.footprintRect)}" fill="none" stroke="${EXPORT_INK}" stroke-width="${1.2 * DEVICE_STROKE_IN}" />`,
+    )
   }
-  const { position, angleDeg } = placement
+  const { glyphPosition, angleDeg } = placement
   // The pictogram box is authored on [0,12]^2 with the anchor at (6,6); shift it
-  // so (6,6) lands on the world position, then rotate about that anchor.
+  // so (6,6) lands on the world glyph position, then rotate about that anchor.
   const shapes = DEVICE_PICTOGRAMS[device.type].map(renderPictogramShape).join('')
-  return [
-    `<g transform="translate(${num(position.x)} ${num(position.y)}) rotate(${num(angleDeg)}) translate(-6 -6)">${shapes}</g>`,
-  ]
+  out.push(
+    `<g transform="translate(${num(glyphPosition.x)} ${num(glyphPosition.y)}) rotate(${num(angleDeg)}) translate(-6 -6)">${shapes}</g>`,
+  )
+  return out
 }
 
 function circuitWireGroup(
@@ -347,7 +352,11 @@ function contentBounds(
   }
   for (const device of document.devices) {
     const placement = deviceWorldPlacement(device, document.walls)
-    if (placement) bounds = mergeBounds(bounds, placement.bounds)
+    if (!placement) continue
+    // A footprint device draws both its true-size rectangle (`bounds`) and an
+    // inscribed glyph, which may reach past a shallow rectangle (spec D2/D4).
+    bounds = mergeBounds(bounds, placement.bounds)
+    bounds = mergeBounds(bounds, deviceGlyphBox(placement))
   }
   const devicesById = new Map(document.devices.map((device) => [device.id, device]))
   for (const wire of document.wires) {

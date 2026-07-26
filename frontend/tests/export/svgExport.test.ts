@@ -8,7 +8,7 @@ import {
   type UnderlayEmbed,
 } from '@/export/svgExport'
 import type { PlanDocument } from '@/types/plan'
-import { wallOutline } from '@/utils/geometry'
+import { deviceWorldPlacement, wallOutline } from '@/utils/geometry'
 import { ringsToPath } from '@/utils/svgPath'
 
 import {
@@ -98,6 +98,48 @@ describe('buildPlanSvg', () => {
     )
     expect(expected).not.toBe('')
     expect(svg).toContain(`d="${expected}"`)
+  })
+
+  it('serialises a footprint device as its true-size rectangle plus the inscribed glyph', () => {
+    const document = makeDocument({
+      walls: [makeWall()],
+      devices: [makeDevice({ id: 'bb', type: 'baseboard_heater', length_in: 36 })],
+    })
+    const placement = deviceWorldPlacement(document.devices[0], document.walls)
+    if (!placement?.footprintRect) throw new Error('expected a footprint rectangle')
+
+    const svg = buildPlanSvg(document)
+    const points = placement.footprintRect.map((p) => `${p.x},${p.y}`).join(' ')
+    expect(svg).toContain(`<polygon points="${points}"`)
+    // The glyph draws at the rectangle's centre, exactly as on the canvas.
+    expect(svg).toContain(
+      `translate(${placement.glyphPosition.x} ${placement.glyphPosition.y}) rotate(0)`,
+    )
+  })
+
+  it('grows the viewBox to cover a footprint device and the glyph inscribed in it', () => {
+    const heater = makeDevice({
+      id: 'wh',
+      type: 'water_heater',
+      attachment: null,
+      position: { x: 0, y: 0 },
+    })
+    // The 22" rectangle dominates the 12" glyph box, so the content is 22" wide.
+    expect(planViewBox(makeDocument({ devices: [heater] }))).toEqual({
+      minX: -23,
+      minY: -23,
+      width: 46,
+      height: 46,
+    })
+    // A shallow panel (14" x 4") is narrower than its own glyph across the wall,
+    // so the glyph box, not the rectangle, sets the vertical extent.
+    const panel = makeDevice({ id: 'p', type: 'panel', attachment: null, position: { x: 0, y: 0 } })
+    expect(planViewBox(makeDocument({ devices: [panel] }))).toEqual({
+      minX: -19,
+      minY: -18,
+      width: 38,
+      height: 36,
+    })
   })
 
   it('emits one slugged, data-attributed group per circuit carrying its wire in the circuit colour', () => {

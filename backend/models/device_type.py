@@ -3,6 +3,7 @@
 from enum import StrEnum
 
 from backend.models.device_catalog_entry import DeviceCatalogEntry
+from backend.models.device_footprint import DeviceFootprint
 
 
 class DeviceType(StrEnum):
@@ -42,22 +43,39 @@ DEVICE_CATALOG: dict[DeviceType, DeviceCatalogEntry] = {
     ),
     DeviceType.WALL_LIGHT: DeviceCatalogEntry(mount="wall", voltage_v=120, default_load_w=15.0),
     DeviceType.BASEBOARD_HEATER: DeviceCatalogEntry(
-        mount="wall", voltage_v=240, default_load_w=1000.0
+        mount="wall",
+        voltage_v=240,
+        default_load_w=1000.0,
+        footprint=DeviceFootprint(along_in=36.0, across_in=3.0),
     ),
     DeviceType.THERMOSTAT: DeviceCatalogEntry(mount="wall", voltage_v=240, default_load_w=0.0),
     DeviceType.WATER_HEATER: DeviceCatalogEntry(
-        mount="free", voltage_v=240, default_load_w=3800.0
+        mount="free",
+        voltage_v=240,
+        default_load_w=3800.0,
+        footprint=DeviceFootprint(along_in=22.0, across_in=22.0),
     ),
     DeviceType.AIR_EXCHANGER: DeviceCatalogEntry(
-        mount="free", voltage_v=120, default_load_w=150.0
+        mount="free",
+        voltage_v=120,
+        default_load_w=150.0,
+        footprint=DeviceFootprint(along_in=30.0, across_in=20.0),
     ),
     DeviceType.CENTRAL_VACUUM: DeviceCatalogEntry(
-        mount="free", voltage_v=120, default_load_w=1400.0
+        mount="free",
+        voltage_v=120,
+        default_load_w=1400.0,
+        footprint=DeviceFootprint(along_in=14.0, across_in=14.0),
     ),
     DeviceType.VACUUM_INLET: DeviceCatalogEntry(mount="wall", voltage_v=None, default_load_w=0.0),
     DeviceType.SMOKE_DETECTOR: DeviceCatalogEntry(
         mount="ceiling", voltage_v=120, default_load_w=5.0
     ),
     DeviceType.NETWORK_JACK: DeviceCatalogEntry(mount="wall", voltage_v=None, default_load_w=0.0),
-    DeviceType.PANEL: DeviceCatalogEntry(mount="wall", voltage_v=None, default_load_w=0.0),
+    DeviceType.PANEL: DeviceCatalogEntry(
+        mount="wall",
+        voltage_v=None,
+        default_load_w=0.0,
+        footprint=DeviceFootprint(along_in=14.0, across_in=4.0),
+    ),
 }

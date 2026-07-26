@@ -4,7 +4,9 @@ import {
   DEVICE_CATALOG,
   DEVICE_GROUPS,
   DEVICE_TYPES,
+  deviceFootprint,
   effectiveDefaultLoad,
+  effectiveDeviceFootprint,
   effectiveDeviceLoad,
   searchDeviceTypes,
 } from '@/devices/catalog'
@@ -72,6 +74,65 @@ describe('device groups', () => {
       const membersOf = DEVICE_TYPES.filter((type) => DEVICE_CATALOG[type].group === group.id)
       expect(membersOf.length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('device footprints', () => {
+  /** The sized types and their inches, mirroring the backend catalog rows (spec D2). */
+  const SIZED: Readonly<Record<string, readonly [number, number]>> = {
+    baseboard_heater: [36, 3],
+    water_heater: [22, 22],
+    central_vacuum: [14, 14],
+    air_exchanger: [30, 20],
+    panel: [14, 4],
+  }
+
+  it('gives the physically sized types their default along/across size', () => {
+    for (const [type, [along, across]] of Object.entries(SIZED)) {
+      expect(deviceFootprint(type as DeviceType)).toEqual({
+        along_in: along,
+        across_in: across,
+      })
+    }
+  })
+
+  it('leaves every other type symbolic, with no footprint at all', () => {
+    for (const type of DEVICE_TYPES) {
+      if (type in SIZED) continue
+      expect(deviceFootprint(type)).toBeNull()
+    }
+  })
+})
+
+describe('effectiveDeviceFootprint', () => {
+  it('falls back to the catalog footprint when neither override is set', () => {
+    expect(effectiveDeviceFootprint(makeDevice({ type: 'water_heater' }))).toEqual({
+      along_in: 22,
+      across_in: 22,
+    })
+  })
+
+  it('prefers a per-device override over the catalog footprint, dimension by dimension', () => {
+    expect(
+      effectiveDeviceFootprint(makeDevice({ type: 'baseboard_heater', length_in: 72 })),
+    ).toEqual({ along_in: 72, across_in: 3 })
+    expect(effectiveDeviceFootprint(makeDevice({ type: 'baseboard_heater', depth_in: 5 }))).toEqual(
+      {
+        along_in: 36,
+        across_in: 5,
+      },
+    )
+  })
+
+  it('ignores a non-positive override, exactly like a blank field', () => {
+    expect(effectiveDeviceFootprint(makeDevice({ type: 'panel', length_in: 0 }))).toEqual({
+      along_in: 14,
+      across_in: 4,
+    })
+  })
+
+  it('is null for a symbolic type, whose size is the nominal pictogram box', () => {
+    expect(effectiveDeviceFootprint(makeDevice({ type: 'switch', length_in: 40 }))).toBeNull()
   })
 })
 

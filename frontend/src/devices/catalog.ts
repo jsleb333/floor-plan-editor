@@ -7,6 +7,16 @@ export type DeviceMount = 'wall' | 'ceiling' | 'free'
 export type DeviceGroup =
   'sources' | 'power' | 'lighting' | 'controls' | 'heating' | 'equipment' | 'data'
 
+/**
+ * The true physical size of a device in inches (spec §5.4, D2), mirroring the
+ * backend `DeviceFootprint`: `along_in` runs ALONG the host wall (the
+ * pictogram's local x), `across_in` reaches ACROSS, into the room (local y).
+ */
+export interface DeviceFootprint {
+  along_in: number
+  across_in: number
+}
+
 /** One row of the device catalog (spec §5.4, D5), mirroring the backend registry. */
 export interface DeviceCatalogEntry {
   /** English UI label shown in the picker and Inspector. */
@@ -19,6 +29,12 @@ export interface DeviceCatalogEntry {
   voltage_v: number | null
   /** Default electrical load in watts (before plan-level or per-device overrides). */
   default_load_w: number
+  /**
+   * Default physical size in inches, drawn at TRUE world size and editable per
+   * device (spec D2). Absent means the type is SYMBOLIC: it has no real size
+   * and draws at the fixed nominal pictogram size instead.
+   */
+  footprint?: DeviceFootprint
   /** Extra terms the picker search matches beyond the label (spec §6.1). */
   searchTerms: readonly string[]
   /** The picker section this type is sectioned under (UI-only, spec §6.1). */
@@ -127,6 +143,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     mount: 'wall',
     voltage_v: 240,
     default_load_w: 1000,
+    footprint: { along_in: 36, across_in: 3 },
     searchTerms: ['plinthe', 'heat', 'heating', 'convector'],
     group: 'heating',
   },
@@ -145,6 +162,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     mount: 'free',
     voltage_v: 240,
     default_load_w: 3800,
+    footprint: { along_in: 22, across_in: 22 },
     searchTerms: ['wh', 'chauffe-eau', 'tank', 'boiler'],
     group: 'equipment',
   },
@@ -154,6 +172,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     mount: 'free',
     voltage_v: 120,
     default_load_w: 150,
+    footprint: { along_in: 30, across_in: 20 },
     searchTerms: ['ea', 'hrv', 'echangeur', 'ventilation'],
     group: 'equipment',
   },
@@ -163,6 +182,7 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     mount: 'free',
     voltage_v: 120,
     default_load_w: 1400,
+    footprint: { along_in: 14, across_in: 14 },
     searchTerms: ['vac', 'aspirateur', 'vacuum unit'],
     group: 'equipment',
   },
@@ -199,13 +219,11 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
     mount: 'wall',
     voltage_v: null,
     default_load_w: 0,
+    footprint: { along_in: 14, across_in: 4 },
     searchTerms: ['breaker', 'panneau', 'load center', 'distribution'],
     group: 'sources',
   },
 }
-
-/** Default along-wall length of a baseboard heater in inches (spec §5.4, D2). */
-export const DEFAULT_BASEBOARD_LENGTH_IN = 36
 
 /** Wattage presets offered for baseboard heaters (spec §5.9 tier 3). */
 export const BASEBOARD_WATTAGE_PRESETS: readonly number[] = [500, 750, 1000, 1250, 1500, 2000]
@@ -213,6 +231,32 @@ export const BASEBOARD_WATTAGE_PRESETS: readonly number[] = [500, 750, 1000, 125
 /** The catalog entry for a device type. */
 export function catalogEntry(type: DeviceType): DeviceCatalogEntry {
   return DEVICE_CATALOG[type]
+}
+
+/**
+ * The catalog default footprint of a device type in inches, or `null` when the
+ * type is symbolic and has no real size (spec D2).
+ */
+export function deviceFootprint(type: DeviceType): DeviceFootprint | null {
+  return DEVICE_CATALOG[type].footprint ?? null
+}
+
+/**
+ * The footprint a placed device actually occupies in inches: its per-instance
+ * `length_in` / `depth_in` overrides where set (spec D2), else the matching
+ * dimension of the catalog footprint. `null` for symbolic types, whose size is
+ * the nominal pictogram box rather than a real dimension. Non-positive or
+ * non-finite overrides are ignored, exactly like a blank field.
+ */
+export function effectiveDeviceFootprint(device: Device): DeviceFootprint | null {
+  const base = deviceFootprint(device.type)
+  if (!base) return null
+  const along = device.length_in
+  const across = device.depth_in
+  return {
+    along_in: along !== null && Number.isFinite(along) && along > 0 ? along : base.along_in,
+    across_in: across !== null && Number.isFinite(across) && across > 0 ? across : base.across_in,
+  }
 }
 
 /**

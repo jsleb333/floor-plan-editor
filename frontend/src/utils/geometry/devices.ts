@@ -1,3 +1,4 @@
+import { effectiveDeviceFootprint } from '@/devices/catalog'
 import { PICTOGRAM_CENTER, pictogramBaselineY } from '@/devices/pictograms'
 import type { Device, Point, Wall } from '@/types/plan'
 
@@ -17,21 +18,21 @@ import { wallFaceOffsets } from './wallOutline'
 export const DEVICE_NOMINAL_IN = 12
 /** Default screen size (px) a device never shrinks below (spec D4). */
 export const DEVICE_MIN_SCREEN_PX = 14
-/** Depth a baseboard rectangle protrudes into the room from the wall face. */
-export const BASEBOARD_DEPTH_IN = 3
 
-/** A device's world placement, plus its baseboard rectangle when applicable. */
+/** A device's world placement, plus its true-size footprint rectangle when it has one. */
 export interface DevicePlacement {
-  /** Symbol anchor: on the host face for attached devices, else `position`. */
+  /** Wire/attachment anchor: on the host face for attached devices, else `position`. */
   position: Point
   /** Pictogram rotation in degrees (SVG clockwise from +x). */
   angleDeg: number
   /** Host face for attached devices, else `null`. */
   side: 'left' | 'right' | null
-  /** Hit polygon: the nominal box for symbols, the rectangle for baseboards. */
+  /** Hit polygon: the nominal box for symbols, the footprint rectangle otherwise. */
   bounds: Point[]
-  /** Oriented rectangle corners for baseboard heaters, else `null`. */
-  baseboardRect: Point[] | null
+  /** Oriented true-size rectangle corners for a footprint device, else `null`. */
+  footprintRect: Point[] | null
+  /** Where the pictogram glyph draws: the rectangle's centre, else `position`. */
+  glyphPosition: Point
 }
 
 /** Below this the two segment directions count as parallel (no crossing). */
@@ -68,13 +69,13 @@ function clampT(t: number, lengthIn: number): number {
   return Math.max(0, Math.min(t, lengthIn))
 }
 
-/** The four corners of a box centred at `centre`, half-size `half`, in frame `ex`/`ey`. */
-function boxCorners(centre: Point, half: number, ex: Point, ey: Point): Point[] {
+/** The four corners of a box centred at `centre`, half-extents `hx`/`hy`, in frame `ex`/`ey`. */
+function boxCorners(centre: Point, hx: number, hy: number, ex: Point, ey: Point): Point[] {
   return [
-    add(centre, add(scale(ex, -half), scale(ey, -half))),
-    add(centre, add(scale(ex, half), scale(ey, -half))),
-    add(centre, add(scale(ex, half), scale(ey, half))),
-    add(centre, add(scale(ex, -half), scale(ey, half))),
+    add(centre, add(scale(ex, -hx), scale(ey, -hy))),
+    add(centre, add(scale(ex, hx), scale(ey, -hy))),
+    add(centre, add(scale(ex, hx), scale(ey, hy))),
+    add(centre, add(scale(ex, -hx), scale(ey, hy))),
   ]
 }
 
@@ -84,25 +85,37 @@ function boxCorners(centre: Point, half: number, ex: Point, ey: Point): Point[] 
  * Attached devices sit ON the chosen face of the host wall at `t`: the anchor
  * is the reference point offset to that face, and the pictogram is rotated so
  * the wall runs along its local x while its "room" side points away from the
- * wall body (a `right`-side device is flipped 180°). The anchor is then
- * nudged outward, along the face normal, by the device type's pictogram
- * baseline (`pictogramBaselineY`, spec-drawn per symbol) so the symbol's own
- * baseline ink — not the box centre — touches the face; a type with no
- * baseline recorded is unaffected. Baseboards are the one exception: they
- * keep the unshifted face anchor and additionally get an oriented rectangle
- * spanning `length_in` centred at `t` and protruding into the room. Positioned
- * (ceiling/free) devices anchor at `position` and use `rotation_deg`. Returns
- * `null` when the host wall or segment is missing.
+ * wall body (a `right`-side device is flipped 180°). For a SYMBOLIC device
+ * (one whose catalog row has no footprint) the anchor is then nudged outward,
+ * along the face normal, by the device type's pictogram baseline
+ * (`pictogramBaselineY`, spec-drawn per symbol) so the symbol's own baseline
+ * ink — not the box centre — touches the face; a type with no baseline
+ * recorded is unaffected, and its `bounds` are the nominal box.
+ *
+ * A FOOTPRINT device (spec D2 — one with a real size, e.g. a baseboard heater
+ * or a water heater) instead resolves to an oriented rectangle at TRUE world
+ * size, which is both its `footprintRect` and its `bounds`. Attached, it keeps
+ * the unshifted face anchor and the rectangle spans the effective along-wall
+ * length centred at `t`, protruding into the room by the effective depth;
+ * positioned, the rectangle centres on `position` and honours `rotation_deg`.
+ *
+ * D4 interaction: the footprint rectangle is real geometry, so it draws at true
+ * size and NEVER takes the minimum-screen-size counter-scale — a 22" water
+ * heater is meant to shrink as you zoom out. Only the pictogram glyph inscribed
+ * in it stays legible, drawn at `glyphPosition` (the rectangle's centre) under
+ * the usual `deviceScreenScale` clamp. Symbolic devices are unaffected: their
+ * `glyphPosition` is just `position`.
+ *
+ * Returns `null` when the host wall or segment is missing.
  *
  * @param device The device to place.
  * @param walls The document walls, to resolve an attachment's host.
- * @param lengthIn Baseboard length override (defaults to `device.length_in`).
  */
 export function deviceWorldPlacement(
   device: Device,
   walls: readonly Wall[],
-  lengthIn?: number,
 ): DevicePlacement | null {
+  const footprint = effectiveDeviceFootprint(device)
   if (device.attachment) {
     const wall = walls.find((candidate) => candidate.id === device.attachment?.wall_id)
     if (!wall) return null
@@ -121,16 +134,22 @@ export function deviceWorldPlacement(
     const angleRad = angleOf(u) + (side === 'right' ? Math.PI : 0)
     const angleDeg = (angleRad * 180) / Math.PI
 
-    if (device.type === 'baseboard_heater') {
-      const len = lengthIn ?? device.length_in ?? 0
-      const half = len / 2
+    if (footprint) {
+      const half = footprint.along_in / 2
       const lo = clampT(t - half, span.lengthIn)
       const hi = clampT(t + half, span.lengthIn)
       const faceLo = add(add(span.a, scale(u, lo)), scale(perp, faceOffset))
       const faceHi = add(add(span.a, scale(u, hi)), scale(perp, faceOffset))
-      const depth = scale(outward, BASEBOARD_DEPTH_IN)
+      const depth = scale(outward, footprint.across_in)
       const rect = [faceLo, faceHi, add(faceHi, depth), add(faceLo, depth)]
-      return { position, angleDeg, side, bounds: rect, baseboardRect: rect }
+      return {
+        position,
+        angleDeg,
+        side,
+        bounds: rect,
+        footprintRect: rect,
+        glyphPosition: add(position, scale(outward, footprint.across_in / 2)),
+      }
     }
 
     const ex = u
@@ -141,8 +160,9 @@ export function deviceWorldPlacement(
       position: symbolPosition,
       angleDeg,
       side,
-      bounds: boxCorners(symbolPosition, DEVICE_NOMINAL_IN / 2, ex, ey),
-      baseboardRect: null,
+      bounds: boxCorners(symbolPosition, DEVICE_NOMINAL_IN / 2, DEVICE_NOMINAL_IN / 2, ex, ey),
+      footprintRect: null,
+      glyphPosition: symbolPosition,
     }
   }
 
@@ -150,13 +170,32 @@ export function deviceWorldPlacement(
   const angleRad = (device.rotation_deg * Math.PI) / 180
   const ex = { x: Math.cos(angleRad), y: Math.sin(angleRad) }
   const ey = { x: -Math.sin(angleRad), y: Math.cos(angleRad) }
+  const halfX = footprint ? footprint.along_in / 2 : DEVICE_NOMINAL_IN / 2
+  const halfY = footprint ? footprint.across_in / 2 : DEVICE_NOMINAL_IN / 2
+  const corners = boxCorners(device.position, halfX, halfY, ex, ey)
   return {
     position: { ...device.position },
     angleDeg: device.rotation_deg,
     side: null,
-    bounds: boxCorners(device.position, DEVICE_NOMINAL_IN / 2, ex, ey),
-    baseboardRect: null,
+    bounds: corners,
+    footprintRect: footprint ? corners : null,
+    glyphPosition: { ...device.position },
   }
+}
+
+/**
+ * Corners of the nominal pictogram box a placement's glyph occupies: the
+ * `DEVICE_NOMINAL_IN` square centred on `glyphPosition`, rotated with the
+ * placement. Identical to `bounds` for a symbolic device; for a footprint
+ * device it is the ink the inscribed glyph adds around its true-size rectangle,
+ * which content extents (and therefore the export viewBox) must cover.
+ */
+export function deviceGlyphBox(placement: DevicePlacement): Point[] {
+  const angleRad = (placement.angleDeg * Math.PI) / 180
+  const ex = { x: Math.cos(angleRad), y: Math.sin(angleRad) }
+  const ey = { x: -Math.sin(angleRad), y: Math.cos(angleRad) }
+  const half = DEVICE_NOMINAL_IN / 2
+  return boxCorners(placement.glyphPosition, half, half, ex, ey)
 }
 
 /**

@@ -1,7 +1,7 @@
 import { computed, ref, shallowRef } from 'vue'
 import type { ComputedRef, Ref, ShallowRef } from 'vue'
 
-import { DEFAULT_BASEBOARD_LENGTH_IN, catalogEntry } from '@/devices/catalog'
+import { catalogEntry } from '@/devices/catalog'
 import type { Device, DeviceType, Point, Wall } from '@/types/plan'
 import {
   deviceWallGaps,
@@ -23,14 +23,18 @@ const PREVIEW_ID = 'device-preview'
 /**
  * Per-type draft applied to the next placed device (spec E8/§6.1): edited
  * live in the Device tool options while a type is armed. Fields left unset
- * (`null`) fall back to `baseDevice`'s hardcoded defaults, never to another
- * type's draft — the map this lives in is keyed by `DeviceType` precisely so
- * a water heater's load override can never leak onto the next outlet.
+ * (`null`) fall back to the catalog defaults (load, footprint), never to
+ * another type's draft — the map this lives in is keyed by `DeviceType`
+ * precisely so a water heater's load override can never leak onto the next
+ * outlet.
  */
 export interface DeviceDraft {
   label: string | null
   load_w: number | null
+  /** Footprint override ALONG the wall in inches; `null` uses the catalog footprint. */
   length_in: number | null
+  /** Footprint override ACROSS, into the room, in inches; `null` uses the catalog footprint. */
+  depth_in: number | null
 }
 
 export interface UseDeviceToolOptions {
@@ -45,7 +49,7 @@ export interface UseDeviceToolOptions {
   /** Receives each placed device; the caller dispatches the store command. */
   commit: (device: Device) => void
   /**
-   * Last-used per-type draft (label/load/baseboard length), owned by the
+   * Last-used per-type draft (label/load/footprint), owned by the
    * page like the armed type itself (spec E8) and edited by
    * `DeviceToolOptions`. A type absent from the map places with the plain
    * catalog defaults.
@@ -118,8 +122,8 @@ export function useDeviceTool(options: UseDeviceToolOptions): UseDeviceToolRetur
       rotation_deg: 0,
       label: draft?.label ?? null,
       load_w: draft?.load_w ?? null,
-      length_in:
-        draft?.length_in ?? (type === 'baseboard_heater' ? DEFAULT_BASEBOARD_LENGTH_IN : null),
+      length_in: draft?.length_in ?? null,
+      depth_in: draft?.depth_in ?? null,
       notes: null,
     }
   }

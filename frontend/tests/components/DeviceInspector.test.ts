@@ -15,6 +15,7 @@ function outlet(id: string): Device {
     label: null,
     load_w: null,
     length_in: null,
+    depth_in: null,
     notes: null,
   }
 }
@@ -63,6 +64,52 @@ describe('DeviceInspector', () => {
     expect(wrapper.emitted('update-device')?.at(-1)).toEqual([
       expect.objectContaining({ id: 'a', load_w: null }),
     ])
+  })
+
+  it('offers no dimension fields for a symbolic type', () => {
+    const wrapper = mountInspector([outlet('a')])
+
+    expect(wrapper.find('[aria-label="Device dimensions"]').exists()).toBe(false)
+  })
+
+  it('edits both footprint dimensions of any sized device, in feet and inches', async () => {
+    const heater: Device = { ...outlet('wh'), type: 'water_heater' }
+    const wrapper = mountInspector([heater])
+
+    const length = wrapper.get('input[aria-label="Device length in feet and inches"]')
+    const depth = wrapper.get('input[aria-label="Device depth in feet and inches"]')
+    // Placeholders show the effective size — here the 22" x 22" catalog footprint.
+    expect(length.attributes('placeholder')).toBe('1\'10"')
+    expect(depth.attributes('placeholder')).toBe('1\'10"')
+
+    await length.setValue("2'6")
+    await length.trigger('blur')
+    await depth.setValue('18')
+    await depth.trigger('blur')
+
+    expect(wrapper.emitted('update-device')?.at(-2)).toEqual([
+      expect.objectContaining({ id: 'wh', length_in: 30 }),
+    ])
+    expect(wrapper.emitted('update-device')?.at(-1)).toEqual([
+      expect.objectContaining({ id: 'wh', depth_in: 18 }),
+    ])
+  })
+
+  it('shows the per-device override, not the catalog default, as the dimension placeholder', () => {
+    const heater: Device = { ...outlet('bb'), type: 'baseboard_heater', length_in: 48 }
+    const wrapper = mountInspector([heater])
+
+    expect(
+      wrapper.get('input[aria-label="Device length in feet and inches"]').attributes('placeholder'),
+    ).toBe('4\'0"')
+  })
+
+  it('keeps the baseboard wattage presets alongside the dimensions', () => {
+    const heater: Device = { ...outlet('bb'), type: 'baseboard_heater' }
+    const wrapper = mountInspector([heater])
+
+    wrapper.get('[aria-label="Device dimensions"]')
+    expect(wrapper.findAll('[aria-label="Wattage presets"] button')).toHaveLength(6)
   })
 
   it('applies a typed load override to every device in a multi selection', async () => {

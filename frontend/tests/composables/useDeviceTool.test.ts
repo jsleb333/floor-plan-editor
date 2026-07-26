@@ -5,7 +5,7 @@ import type { Ref } from 'vue'
 import { useDeviceTool } from '@/composables/useDeviceTool'
 import type { DeviceDraft, UseDeviceToolReturn } from '@/composables/useDeviceTool'
 import type { SnapSettings } from '@/composables/useSnapping'
-import { DEFAULT_BASEBOARD_LENGTH_IN } from '@/devices/catalog'
+import { deviceFootprint } from '@/devices/catalog'
 import type { Device, DeviceType, Wall } from '@/types/plan'
 import { makeWall } from '../helpers/planFactory'
 
@@ -105,7 +105,7 @@ describe('useDeviceTool', () => {
 
   it('applies the armed type draft label and load override to the preview', () => {
     const tool = setup([makeWall({ id: 'w' })], 'outlet', {
-      outlet: { label: 'Kitchen counter', load_w: 200, length_in: null },
+      outlet: { label: 'Kitchen counter', load_w: 200, length_in: null, depth_in: null },
     })
     tool.setCursor({ x: 60, y: 3 })
 
@@ -115,7 +115,7 @@ describe('useDeviceTool', () => {
 
   it('keeps drafts isolated per device type — another type draft never leaks onto the armed one', () => {
     const tool = setup([makeWall({ id: 'w' })], 'outlet', {
-      water_heater: { label: null, load_w: 4200, length_in: null },
+      water_heater: { label: null, load_w: 4200, length_in: null, depth_in: null },
     })
     tool.setCursor({ x: 60, y: 3 })
 
@@ -123,21 +123,25 @@ describe('useDeviceTool', () => {
     expect(tool.preview.value?.load_w).toBeNull()
   })
 
-  it('falls back to the default baseboard length when the draft has no length override', () => {
+  it('leaves the footprint overrides unset when the draft has none, so the catalog footprint applies', () => {
     const tool = setup([makeWall({ id: 'w' })], 'baseboard_heater', {
-      baseboard_heater: { label: null, load_w: null, length_in: null },
+      baseboard_heater: { label: null, load_w: null, length_in: null, depth_in: null },
     })
     tool.setCursor({ x: 60, y: 3 })
 
-    expect(tool.preview.value?.length_in).toBe(DEFAULT_BASEBOARD_LENGTH_IN)
+    expect(tool.preview.value?.length_in).toBeNull()
+    expect(tool.preview.value?.depth_in).toBeNull()
+    // Which resolves to the baseboard row's 36" x 3" default (spec D2).
+    expect(deviceFootprint('baseboard_heater')).toEqual({ along_in: 36, across_in: 3 })
   })
 
-  it('uses the draft baseboard length override when set', () => {
+  it('uses the draft footprint overrides when set', () => {
     const tool = setup([makeWall({ id: 'w' })], 'baseboard_heater', {
-      baseboard_heater: { label: null, load_w: null, length_in: 48 },
+      baseboard_heater: { label: null, load_w: null, length_in: 48, depth_in: 4 },
     })
     tool.setCursor({ x: 60, y: 3 })
 
     expect(tool.preview.value?.length_in).toBe(48)
+    expect(tool.preview.value?.depth_in).toBe(4)
   })
 })
