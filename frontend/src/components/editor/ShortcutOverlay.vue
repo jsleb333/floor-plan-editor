@@ -16,6 +16,8 @@ interface Shortcut {
 interface ShortcutGroup {
   title: string
   shortcuts: Shortcut[]
+  /** Optional prose under the list, for behaviour a key row can't express. */
+  note?: string
 }
 
 const toolShortcuts = computed<Shortcut[]>(() =>
@@ -56,12 +58,28 @@ const groups = computed<ShortcutGroup[]>(() => [
     ],
   },
   {
-    title: 'View',
+    title: 'Pan',
     shortcuts: [
       { keys: ['Space', 'Drag'], label: 'Pan' },
-      { keys: ['Wheel'], label: 'Zoom to cursor' },
-      { keys: ['?'], label: 'Toggle this overlay' },
+      { keys: ['Middle', 'Drag'], label: 'Pan (mouse)' },
+      { keys: ['2 fingers', 'Scroll'], label: 'Pan (trackpad)' },
+      { keys: ['Shift', 'Wheel'], label: 'Pan horizontally' },
     ],
+    note: 'Space pans while the pointer is over the canvas.',
+  },
+  {
+    title: 'Zoom',
+    shortcuts: [
+      { keys: ['Wheel'], label: 'Zoom to cursor' },
+      { keys: ['Ctrl', 'Wheel'], label: 'Zoom to cursor' },
+      { keys: ['Pinch'], label: 'Zoom to cursor (trackpad)' },
+      { keys: ['Toolbar'], label: 'Zoom to fit / 100%' },
+    ],
+    note: 'Whether a plain scroll zooms or pans follows the scroll mode in the status bar (auto / zoom / pan).',
+  },
+  {
+    title: 'Help',
+    shortcuts: [{ keys: ['?'], label: 'Toggle this overlay' }],
   },
 ])
 
@@ -107,7 +125,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true))
             <ul class="space-y-1.5">
               <li
                 v-for="shortcut in group.shortcuts"
-                :key="shortcut.label"
+                :key="`${shortcut.label}-${shortcut.keys.join('+')}`"
                 class="flex items-center justify-between gap-3 text-sm"
               >
                 <span class="text-ink">{{ shortcut.label }}</span>
@@ -122,6 +140,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true))
                 </span>
               </li>
             </ul>
+            <p v-if="group.note" class="text-ink-faint mt-2 text-xs">{{ group.note }}</p>
           </section>
         </div>
       </section>

@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
 
 import { useViewport } from '@/composables/useViewport'
 import type { Rect } from '@/composables/useViewport'
+import { useViewportGestures } from '@/composables/useViewportGestures'
+import type { ScrollMode } from '@/composables/useViewportGestures'
 import type { Point, Viewport } from '@/types/plan'
 
 const props = defineProps<{
   initialViewport: Viewport
+  /** How an unmodified scroll gesture is interpreted (spec E5). */
+  scrollMode: ScrollMode
 }>()
 
 const emit = defineEmits<{
@@ -21,11 +25,11 @@ const emit = defineEmits<{
 
 const MINOR_GRID_IN = 3
 const MAJOR_GRID_IN = 12
-/** M1 default document extents used by zoom-to-fit: a 30' x 30' region. */
+/** Extents zoom-to-fit falls back to on an empty plan: a 30' x 30' region. */
 const DEFAULT_EXTENTS: Rect = { x: 0, y: 0, width: 360, height: 360 }
 const FIT_PADDING_PX = 48
-const WHEEL_ZOOM_SENSITIVITY = 0.0015
-const PINCH_ZOOM_SENSITIVITY = 0.01
+/** Smallest world extent zoom-to-fit will frame, so a single element still fits sanely. */
+const MIN_FIT_EXTENT_IN = 48
 /** Screen spacing (px) below which a grid layer is fully faded out. */
 const GRID_FADE_START_PX = 5
 const GRID_FADE_RANGE_PX = 10
@@ -34,11 +38,7 @@ const RULER_STEPS_FEET = [1, 2, 5, 10, 20, 50, 100, 200, 500]
 
 const containerEl = ref<HTMLElement | null>(null)
 const viewport = useViewport(props.initialViewport)
-const spaceHeld = ref(false)
-const panning = ref(false)
-let panPointerId: number | null = null
-let pressPointerId: number | null = null
-let lastPanPoint: Point | null = null
+const gestures = useViewportGestures(viewport, toRef(props, 'scrollMode'))
 let resizeObserver: ResizeObserver | null = null
 
 const scale = viewport.scale
@@ -106,11 +106,7 @@ const ticksY = computed(() =>
   ),
 )
 
-const cursorClass = computed(() => {
-  if (panning.value) return 'cursor-grabbing'
-  if (spaceHeld.value) return 'cursor-grab'
-  return 'cursor-default'
-})
+const cursorClass = gestures.cursorClass
 
 function screenPointFromEvent(event: PointerEvent | WheelEvent): Point {
   const el = containerEl.value
@@ -120,74 +116,54 @@ function screenPointFromEvent(event: PointerEvent | WheelEvent): Point {
 }
 
 function onPointerDown(event: PointerEvent): void {
-  const isPanGesture = event.button === 1 || (event.button === 0 && spaceHeld.value)
-  if (!isPanGesture) {
-    if (event.button === 0 && !panning.value) {
-      pressPointerId = event.pointerId
-      // Capture so drags keep receiving moves when the pointer leaves the canvas.
-      if (event.currentTarget instanceof Element) {
-        event.currentTarget.setPointerCapture(event.pointerId)
-      }
-      emit('canvas-press', viewport.screenToWorld(screenPointFromEvent(event)), {
-        shift: event.shiftKey,
-        alt: event.altKey,
-      })
-    }
-    return
-  }
-  panning.value = true
-  panPointerId = event.pointerId
-  lastPanPoint = { x: event.clientX, y: event.clientY }
+  const screen = screenPointFromEvent(event)
+  const outcome = gestures.pointerDown(event, screen)
+  if (outcome === 'ignored') return
+  // Capture so drags keep receiving moves when the pointer leaves the canvas.
   if (event.currentTarget instanceof Element) {
     event.currentTarget.setPointerCapture(event.pointerId)
   }
-  event.preventDefault()
+  if (outcome === 'pan') {
+    event.preventDefault()
+    return
+  }
+  emit('canvas-press', viewport.screenToWorld(screen), {
+    shift: event.shiftKey,
+    alt: event.altKey,
+  })
 }
 
 function onPointerMove(event: PointerEvent): void {
-  if (panning.value && event.pointerId === panPointerId && lastPanPoint) {
-    viewport.panByScreen(event.clientX - lastPanPoint.x, event.clientY - lastPanPoint.y)
-    lastPanPoint = { x: event.clientX, y: event.clientY }
-  }
-  emit('cursor-move', viewport.screenToWorld(screenPointFromEvent(event)))
+  gestures.setPointerInside(true)
+  const screen = screenPointFromEvent(event)
+  // A pan moves the camera, not the cursor: skipping the emit keeps tool
+  // previews and snapping from recomputing every frame of the drag.
+  if (gestures.pointerMove(event, screen) === 'pan') return
+  emit('cursor-move', viewport.screenToWorld(screen))
 }
 
 function onPointerUp(event: PointerEvent): void {
-  if (event.pointerId === pressPointerId) {
-    pressPointerId = null
-    emit('canvas-release', viewport.screenToWorld(screenPointFromEvent(event)))
-    return
-  }
-  if (event.pointerId !== panPointerId) return
-  panning.value = false
-  panPointerId = null
-  lastPanPoint = null
+  const outcome = gestures.pointerUp(event)
+  if (outcome === 'ignored') return
+  const world = viewport.screenToWorld(screenPointFromEvent(event))
+  if (outcome === 'press') emit('canvas-release', world)
+  // Resync the cursor the pan suppressed, so previews land where they belong.
+  else emit('cursor-move', world)
+}
+
+function onPointerEnter(): void {
+  gestures.setPointerInside(true)
 }
 
 function onPointerLeave(): void {
+  gestures.setPointerInside(false)
   emit('cursor-move', null)
 }
 
 function onWheel(event: WheelEvent): void {
-  // Plain wheel zooms to cursor; ctrl+wheel is the trackpad pinch gesture and
-  // zooms too (preventDefault keeps the browser from page-zooming).
-  const sensitivity = event.ctrlKey ? PINCH_ZOOM_SENSITIVITY : WHEEL_ZOOM_SENSITIVITY
-  viewport.zoomAtPoint(Math.exp(-event.deltaY * sensitivity), screenPointFromEvent(event))
-}
-
-function onKeyDown(event: KeyboardEvent): void {
-  if (event.code !== 'Space') return
-  if (event.target instanceof HTMLElement) {
-    const tag = event.target.tagName
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || event.target.isContentEditable)
-      return
-  }
-  spaceHeld.value = true
-  event.preventDefault()
-}
-
-function onKeyUp(event: KeyboardEvent): void {
-  if (event.code === 'Space') spaceHeld.value = false
+  const screen = screenPointFromEvent(event)
+  gestures.wheel(event, screen)
+  emit('cursor-move', viewport.screenToWorld(screen))
 }
 
 let lastEmitted: Viewport | null = null
@@ -206,35 +182,50 @@ watch([viewport.center, viewport.zoom], () => {
   emit('viewport-change', current)
 })
 
-function zoomToFit(): void {
-  viewport.fitToRect(DEFAULT_EXTENTS, FIT_PADDING_PX)
+/**
+ * Frames a world rectangle (spec E5). The host passes the plan's content
+ * bounds; an empty plan falls back to the default 30' region, and a degenerate
+ * rect (one device, a horizontal wall) is grown around its centre so the fit
+ * stays sane.
+ */
+function fitTo(rect: Rect | null): void {
+  if (!rect) {
+    viewport.fitToRect(DEFAULT_EXTENTS, FIT_PADDING_PX)
+    return
+  }
+  const width = Math.max(rect.width, MIN_FIT_EXTENT_IN)
+  const height = Math.max(rect.height, MIN_FIT_EXTENT_IN)
+  viewport.fitToRect(
+    {
+      x: rect.x + rect.width / 2 - width / 2,
+      y: rect.y + rect.height / 2 - height / 2,
+      width,
+      height,
+    },
+    FIT_PADDING_PX,
+  )
 }
 
 function zoomTo100(): void {
   viewport.setZoom(1)
 }
 
-defineExpose({ zoomToFit, zoomTo100 })
+defineExpose({ fitTo, zoomTo100 })
 
 onMounted(() => {
   const el = containerEl.value
-  if (el) {
-    const applySize = () => {
-      viewport.viewportSize.value = { width: el.clientWidth, height: el.clientHeight }
-    }
-    applySize()
-    lastEmitted = viewport.getViewport()
-    resizeObserver = new ResizeObserver(applySize)
-    resizeObserver.observe(el)
+  if (!el) return
+  const applySize = () => {
+    viewport.viewportSize.value = { width: el.clientWidth, height: el.clientHeight }
   }
-  window.addEventListener('keydown', onKeyDown)
-  window.addEventListener('keyup', onKeyUp)
+  applySize()
+  lastEmitted = viewport.getViewport()
+  resizeObserver = new ResizeObserver(applySize)
+  resizeObserver.observe(el)
 })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
-  window.removeEventListener('keydown', onKeyDown)
-  window.removeEventListener('keyup', onKeyUp)
 })
 </script>
 
@@ -253,9 +244,13 @@ onBeforeUnmount(() => {
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerUp"
+      @lostpointercapture="gestures.cancel()"
+      @pointerenter="onPointerEnter"
       @pointerleave="onPointerLeave"
       @dblclick="emit('canvas-double-click')"
       @wheel.prevent="onWheel"
+      @mousedown.middle.prevent
+      @auxclick.prevent
     >
       <defs>
         <pattern
