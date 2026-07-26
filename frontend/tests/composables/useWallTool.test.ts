@@ -175,6 +175,60 @@ describe('useWallTool drawing', () => {
     expect(tool.isDrawing.value).toBe(false)
   })
 
+  it('placing the penultimate vertex snaps it in line with the chain start', () => {
+    const { tool, committed } = makeTool()
+    tool.onClick({ x: 0, y: 0 })
+    tool.onClick({ x: 240, y: 0 })
+    tool.onClick({ x: 240, y: 120 })
+    // 3" short of lining up with the start: alignment pulls it to x=0, so the
+    // close needs no correction at all.
+    tool.onClick({ x: 3, y: 121 })
+    tool.onClick({ x: 1, y: 1 })
+
+    expect(committed).toHaveLength(1)
+    const wall = committed[0]
+    expect(wall.closed).toBe(true)
+    expect(wall.vertices).toHaveLength(4)
+    expect(wall.vertices[3].x).toBeCloseTo(0)
+    expect(wall.vertices[3].y).toBeCloseTo(120)
+  })
+
+  it('closing nudges a slightly misaligned chain end onto the start alignment line', () => {
+    const { tool, committed } = makeTool()
+    tool.onClick({ x: 0, y: 0 })
+    tool.onClick({ x: 240, y: 0 })
+    tool.onClick({ x: 240, y: 120 })
+    tool.setAlt(true)
+    tool.onClick({ x: 2, y: 120 })
+    tool.setAlt(false)
+    tool.onClick({ x: 1, y: 1 })
+
+    // The 2" misalignment slides away along the final segment instead of
+    // spawning an auto-square micro-stub.
+    expect(committed).toHaveLength(1)
+    const wall = committed[0]
+    expect(wall.closed).toBe(true)
+    expect(wall.vertices).toHaveLength(4)
+    expect(wall.vertices[3].x).toBeCloseTo(0)
+    expect(wall.vertices[3].y).toBeCloseTo(120)
+  })
+
+  it('the aligned close nudge applies even with angle snapping off', () => {
+    const { tool, committed } = makeTool({ angle: false, grid: false })
+    tool.onClick({ x: 0, y: 0 })
+    tool.onClick({ x: 240, y: 0 })
+    tool.onClick({ x: 240, y: 120 })
+    tool.setAlt(true)
+    tool.onClick({ x: 2, y: 120 })
+    tool.setAlt(false)
+    tool.onClick({ x: 1, y: 1 })
+
+    expect(committed).toHaveLength(1)
+    expect(committed[0].vertices).toHaveLength(4)
+    expect(committed[0].vertices[3].x).toBeCloseTo(0)
+    expect(committed[0].vertices[3].y).toBeCloseTo(120)
+  })
+
   it('Alt-clicking the chain start closes with a direct segment instead', () => {
     const { tool, committed } = makeTool()
     tool.onClick({ x: 0, y: 0 })
@@ -288,6 +342,42 @@ describe('useWallTool preview', () => {
     expect(preview?.closePoint).toEqual({ x: 0, y: 0 })
     // Closed-loop preview renders two rings (outer + inner face).
     expect(preview?.rings).toHaveLength(2)
+  })
+
+  it('previews the nudged close silhouette before the click', () => {
+    const { tool } = makeTool()
+    tool.onClick({ x: 0, y: 0 })
+    tool.onClick({ x: 240, y: 0 })
+    tool.onClick({ x: 240, y: 120 })
+    tool.setAlt(true)
+    tool.onClick({ x: 2, y: 120 })
+    tool.setAlt(false)
+    tool.setCursor({ x: 1, y: 1 })
+
+    const preview = tool.preview.value
+    expect(preview?.closePoint).toEqual({ x: 0, y: 0 })
+    expect(preview?.rings).toHaveLength(2)
+    // The outer mitre corner at the nudged vertex proves the closing face is
+    // exactly vertical — the uncorrected chain end (x=2) cannot produce it.
+    const corner = preview?.rings
+      .flat()
+      .find((p) => Math.abs(p.x + 1.75) < 0.01 && Math.abs(p.y - 121.75) < 0.01)
+    expect(corner).toBeDefined()
+  })
+
+  it('exposes the alignment guide while drawing toward the start line', () => {
+    const { tool } = makeTool()
+    tool.onClick({ x: 0, y: 0 })
+    tool.onClick({ x: 240, y: 0 })
+    tool.onClick({ x: 240, y: 120 })
+    tool.setCursor({ x: 3, y: 121 })
+
+    const preview = tool.preview.value
+    expect(preview?.point?.x).toBeCloseTo(0)
+    expect(preview?.point?.y).toBeCloseTo(120)
+    expect(preview?.alignGuide?.origin).toEqual({ x: 0, y: 0 })
+    expect(preview?.alignGuide?.dir.x).toBeCloseTo(0)
+    expect(preview?.alignGuide?.dir.y).toBeCloseTo(1)
   })
 
   it('deactivate clears the chain and cursor without committing', () => {

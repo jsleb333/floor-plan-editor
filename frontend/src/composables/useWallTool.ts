@@ -2,12 +2,21 @@ import { computed, shallowRef, ref } from 'vue'
 import type { ComputedRef, Ref, ShallowRef } from 'vue'
 
 import type { Point, Wall, WallEndAttachment } from '@/types/plan'
-import { EPSILON, add, autoSquareClose, distance, scale, wallOutline } from '@/utils/geometry'
+import {
+  EPSILON,
+  add,
+  alignedClose,
+  autoSquareClose,
+  distance,
+  scale,
+  wallOutline,
+} from '@/utils/geometry'
 import type { WallReference } from '@/utils/geometry'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
 import type {
   SnapChainContext,
+  SnapGuide,
   SnapMarkerKind,
   SnapResult,
   UseSnappingReturn,
@@ -38,7 +47,9 @@ export interface WallToolPreview {
   /** Live length of the pending segment, formatted for the on-canvas label. */
   lengthLabel: string | null
   marker: { kind: Exclude<SnapMarkerKind, 'close'>; point: Point } | null
-  guide: { origin: Point; dir: Point } | null
+  guide: SnapGuide | null
+  /** Alignment line through the chain start when the pending point lines up with it (spec S1c). */
+  alignGuide: SnapGuide | null
   /** Chain-start point when the close-loop affordance is engaged (spec S1c). */
   closePoint: Point | null
   reference: WallReference
@@ -80,7 +91,7 @@ export interface UseWallToolReturn {
  * Wall drawing state machine (specs S1/S1a/S1c/S2): click to place reference
  * vertices, Enter/double-click to finish, Esc to cancel, Tab to cycle the
  * reference side, typed lengths for exact input, and a close-loop affordance
- * with auto-square corner insertion.
+ * with aligned-close correction and auto-square corner insertion.
  *
  * Headless by design: all inputs are injected (snap engine, commit callback)
  * and interaction arrives via methods, so the machine is testable without a
@@ -122,10 +133,8 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     const segment = last && point ? { a: last, b: point } : null
 
     let previewChain = point ? [...chain, point] : chain
-    if (snap?.marker === 'close' && snapping.settings.angle.value && !altHeld.value && last) {
-      const heading = snapping.direction(last, chain[0], false)
-      const solution = autoSquareClose(last, heading, chain[0])
-      if (solution) previewChain = [...chain, solution.corner, chain[0]]
+    if (snap?.marker === 'close') {
+      previewChain = [...closingChain(chain), chain[0]]
     }
     const rings =
       previewChain.length >= 2
@@ -147,6 +156,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
           ? { kind: snap.marker, point: snap.point }
           : null,
       guide: snap?.guide ?? null,
+      alignGuide: snap?.alignGuide ?? null,
       closePoint: snap?.marker === 'close' ? snap.point : null,
       reference: reference.value,
       thicknessIn: thicknessIn.value,
@@ -206,17 +216,26 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     finish()
   }
 
-  function closeChain(): void {
-    const chain = vertices.value
+  /**
+   * Vertices of the chain adjusted for closing (spec S1c): a nearly-aligned
+   * chain end is nudged onto the alignment line through the start for a
+   * single exact closing segment; otherwise an auto-square corner is inserted
+   * (angle snap on); Alt closes directly with the chain as placed.
+   */
+  function closingChain(chain: Point[]): Point[] {
+    if (altHeld.value) return chain
     const start = chain[0]
     const last = chain[chain.length - 1]
-    let closingVertices = chain
-    if (snapping.settings.angle.value && !altHeld.value) {
-      const heading = snapping.direction(last, start, false)
-      const solution = autoSquareClose(last, heading, start)
-      if (solution) closingVertices = [...chain, solution.corner]
-    }
-    commitWall(closingVertices, true)
+    const aligned = alignedClose(chain[chain.length - 2], last, start, snapping.thresholdIn())
+    if (aligned) return [...chain.slice(0, -1), aligned]
+    if (!snapping.settings.angle.value) return chain
+    const heading = snapping.direction(last, start, false)
+    const solution = autoSquareClose(last, heading, start)
+    return solution ? [...chain, solution.corner] : chain
+  }
+
+  function closeChain(): void {
+    commitWall(closingChain(vertices.value), true)
   }
 
   function finish(): void {

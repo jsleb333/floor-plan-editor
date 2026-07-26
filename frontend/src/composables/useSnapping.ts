@@ -3,6 +3,8 @@ import type { Ref } from 'vue'
 import type { Point, Wall } from '@/types/plan'
 import {
   add,
+  alignFree,
+  alignOnRay,
   distance,
   dot,
   lerp,
@@ -18,6 +20,8 @@ export const GRID_STEP_IN = 3
 export const SNAP_THRESHOLD_PX = 10
 /** Minimum vertices in the pending chain before the close-loop snap engages (spec S1c). */
 const MIN_CLOSE_VERTICES = 3
+/** Minimum chain vertices before alignment with the start vertex is offered (spec S1c). */
+const MIN_ALIGN_VERTICES = 2
 
 /** Identifier of one snap toggle (status bar buttons). */
 export type SnapToggleId = keyof SnapSettings
@@ -52,12 +56,20 @@ export interface SnapChainContext {
   vertexCount: number
 }
 
+/** A guide line to render alongside a snapped point (angle ray, alignment line). */
+export interface SnapGuide {
+  origin: Point
+  dir: Point
+}
+
 /** A resolved snap: the point to use plus everything needed to visualize it. */
 export interface SnapResult {
   point: Point
   marker: SnapMarkerKind | null
   /** Angle-snap guide ray to render when the direction is constrained. */
-  guide: { origin: Point; dir: Point } | null
+  guide: SnapGuide | null
+  /** Alignment line through the chain start when `point` is snapped in line with it (spec S1c). */
+  alignGuide: SnapGuide | null
   /** Set when the point lies on an existing wall's reference line (projection snap). */
   attachment: WallSnapAttachment | null
 }
@@ -77,8 +89,9 @@ export interface UseSnappingReturn {
   /**
    * Resolves the snapped point for a raw world cursor (priority per specs
    * S3a/E6): chain-start close, wall endpoint, segment midpoint, projection
-   * onto a reference line, then angle/grid constraints. `free` (Alt held)
-   * disables the angle and grid constraints only.
+   * onto a reference line, alignment with the chain start, then angle/grid
+   * constraints. `free` (Alt held) disables the alignment, angle and grid
+   * constraints only.
    */
   resolve: (cursor: Point, chain: SnapChainContext | null, free: boolean) => SnapResult
   /** Unit drawing direction `from -> toward`, angle-snapped unless disabled or `free`. */
@@ -116,7 +129,13 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
       chain.vertexCount >= MIN_CLOSE_VERTICES &&
       distance(cursor, chain.start) <= threshold
     ) {
-      return { point: { ...chain.start }, marker: 'close', guide: null, attachment: null }
+      return {
+        point: { ...chain.start },
+        marker: 'close',
+        guide: null,
+        alignGuide: null,
+        attachment: null,
+      }
     }
 
     if (settings.walls.value) {
@@ -126,24 +145,56 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
 
     const angleActive = settings.angle.value && !free
     const gridActive = settings.grid.value && !free
+    const alignActive = !free && chain !== null && chain.vertexCount >= MIN_ALIGN_VERTICES
 
     if (chain && angleActive) {
       const dir = snapDirection(sub(cursor, chain.last), true)
-      let along = dot(sub(cursor, chain.last), dir)
+      let along = Math.max(dot(sub(cursor, chain.last), dir), 0)
+      if (alignActive) {
+        const aligned = alignOnRay(chain.last, dir, chain.start, along, threshold)
+        if (aligned) {
+          return {
+            point: aligned.point,
+            marker: null,
+            guide: { origin: chain.last, dir },
+            alignGuide: { origin: { ...chain.start }, dir: aligned.guideDir },
+            attachment: null,
+          }
+        }
+      }
       if (gridActive) along = Math.round(along / GRID_STEP_IN) * GRID_STEP_IN
-      along = Math.max(along, 0)
       return {
         point: add(chain.last, scale(dir, along)),
         marker: null,
         guide: { origin: chain.last, dir },
+        alignGuide: null,
         attachment: null,
       }
     }
 
-    if (gridActive) {
-      return { point: snapToGrid(cursor), marker: null, guide: null, attachment: null }
+    if (chain && alignActive) {
+      const aligned = alignFree(cursor, chain.start, threshold)
+      if (aligned) {
+        return {
+          point: aligned.point,
+          marker: null,
+          guide: null,
+          alignGuide: { origin: { ...chain.start }, dir: aligned.guideDir },
+          attachment: null,
+        }
+      }
     }
-    return { point: { ...cursor }, marker: null, guide: null, attachment: null }
+
+    if (gridActive) {
+      return {
+        point: snapToGrid(cursor),
+        marker: null,
+        guide: null,
+        alignGuide: null,
+        attachment: null,
+      }
+    }
+    return { point: { ...cursor }, marker: null, guide: null, alignGuide: null, attachment: null }
   }
 
   function resolveWallSnap(cursor: Point, threshold: number): SnapResult | null {
@@ -190,16 +241,29 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
     }
 
     if (endpoint) {
-      return { point: endpoint.point, marker: 'endpoint', guide: null, attachment: null }
+      return {
+        point: endpoint.point,
+        marker: 'endpoint',
+        guide: null,
+        alignGuide: null,
+        attachment: null,
+      }
     }
     if (midpoint) {
-      return { point: midpoint.point, marker: 'midpoint', guide: null, attachment: null }
+      return {
+        point: midpoint.point,
+        marker: 'midpoint',
+        guide: null,
+        alignGuide: null,
+        attachment: null,
+      }
     }
     if (projection) {
       return {
         point: projection.point,
         marker: 'projection',
         guide: null,
+        alignGuide: null,
         attachment: projection.attachment,
       }
     }

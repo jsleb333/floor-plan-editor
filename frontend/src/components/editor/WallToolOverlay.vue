@@ -32,6 +32,11 @@ const guideEnd = computed(() => {
   return guide ? add(guide.origin, scale(guide.dir, GUIDE_LENGTH_IN)) : null
 })
 
+const alignGuideEnd = computed(() => {
+  const guide = props.preview.alignGuide
+  return guide ? add(guide.origin, scale(guide.dir, GUIDE_LENGTH_IN)) : null
+})
+
 const labelPosition = computed(() => {
   const segment = props.preview.segment
   if (!segment) return null
@@ -60,6 +65,17 @@ const labelPosition = computed(() => {
       class="stroke-accent/40"
       :stroke-width="hairline"
       :stroke-dasharray="`${6 * hairline} ${6 * hairline}`"
+    />
+
+    <line
+      v-if="preview.alignGuide && alignGuideEnd"
+      :x1="preview.alignGuide.origin.x"
+      :y1="preview.alignGuide.origin.y"
+      :x2="alignGuideEnd.x"
+      :y2="alignGuideEnd.y"
+      class="stroke-accent/40"
+      :stroke-width="hairline"
+      :stroke-dasharray="`${2 * hairline} ${4 * hairline}`"
     />
 
     <path

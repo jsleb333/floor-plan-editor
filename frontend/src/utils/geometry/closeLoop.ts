@@ -1,8 +1,8 @@
 import type { Point } from '@/types/plan'
 
-import { ALLOWED_DIRECTIONS } from './angles'
+import { ALIGNMENT_LINE_DIRECTIONS, ALLOWED_DIRECTIONS } from './angles'
 import { lineIntersection } from './lines'
-import { EPSILON, dot, length, normalize, sub } from './vec'
+import { EPSILON, add, cross, distance, dot, length, normalize, scale, sub } from './vec'
 
 /** Solution of an auto-square close (spec S1c). */
 export interface SquareClose {
@@ -47,6 +47,49 @@ export function autoSquareClose(
       bestAddedLength = addedLength
       best = { corner, arrivalDir }
     }
+  }
+  return best
+}
+
+/**
+ * Corrects a nearly-aligned chain end so the loop closes with one exact
+ * segment (spec S1c).
+ *
+ * When the chain end sits within `toleranceIn` of an alignment line through
+ * `startVertex`, closing directly would leave a slight kink and the
+ * auto-square close would insert a sub-tolerance stub. Instead the chain end
+ * is slid *along its final segment's line* (preserving that segment's angle
+ * exactly) to the intersection with the alignment line — or projected
+ * perpendicularly when the final segment is parallel to it. A candidate is
+ * valid when the move stays within `toleranceIn`, the corrected closing
+ * segment is non-degenerate, and the final segment keeps its direction and a
+ * positive length. Returns the corrected chain end, or `null` when the close
+ * is genuinely unaligned (the caller falls back to the auto-square close).
+ */
+export function alignedClose(
+  segStart: Point,
+  chainEnd: Point,
+  startVertex: Point,
+  toleranceIn: number,
+): Point | null {
+  const segment = sub(chainEnd, segStart)
+  if (length(segment) <= EPSILON) return null
+  const dir = normalize(segment)
+
+  let best: Point | null = null
+  let bestDisplacement = Infinity
+  for (const lineDir of ALIGNMENT_LINE_DIRECTIONS) {
+    const den = cross(dir, lineDir)
+    const candidate =
+      Math.abs(den) <= EPSILON
+        ? add(startVertex, scale(lineDir, dot(sub(chainEnd, startVertex), lineDir)))
+        : add(chainEnd, scale(dir, cross(sub(startVertex, chainEnd), lineDir) / den))
+    const displacement = distance(candidate, chainEnd)
+    if (displacement > toleranceIn || displacement >= bestDisplacement) continue
+    if (distance(candidate, startVertex) <= EPSILON) continue
+    if (dot(sub(candidate, segStart), dir) <= EPSILON) continue
+    bestDisplacement = displacement
+    best = candidate
   }
   return best
 }

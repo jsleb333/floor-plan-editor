@@ -134,6 +134,78 @@ describe('useSnapping resolve', () => {
     expect(result.guide?.dir).toEqual({ x: 1, y: 0 })
   })
 
+  it('aligns the angle-snapped point with the chain start and returns the alignment guide', () => {
+    const snapping = makeSnapping()
+    // Drawing west along y=80 toward a chain started at the origin: the
+    // vertical line through the start crosses the ray 2" ahead of the cursor.
+    const result = snapping.resolve({ x: 2, y: 80.5 }, chain([0, 0], [100, 80], 3), false)
+    expect(result.point.x).toBeCloseTo(0)
+    expect(result.point.y).toBeCloseTo(80)
+    expect(result.marker).toBeNull()
+    expect(result.guide?.dir).toEqual({ x: -1, y: 0 })
+    expect(result.alignGuide?.origin).toEqual({ x: 0, y: 0 })
+    expect(result.alignGuide?.dir.x).toBeCloseTo(0)
+    expect(result.alignGuide?.dir.y).toBeCloseTo(1)
+  })
+
+  it('skips start alignment when the crossing is beyond the threshold along the ray', () => {
+    const snapping = makeSnapping()
+    const result = snapping.resolve({ x: 20, y: 80.5 }, chain([0, 0], [100, 80], 3), false)
+    // 20" short of the vertical line: the point stays angle+grid snapped.
+    expect(result.point).toEqual({ x: 19, y: 80 })
+    expect(result.alignGuide).toBeNull()
+  })
+
+  it('offers no start alignment for a single-vertex chain', () => {
+    const snapping = makeSnapping()
+    const result = snapping.resolve({ x: 100, y: 6 }, chain([0, 0], [0, 0], 1), false)
+    expect(result.point.x).toBeCloseTo(99)
+    expect(result.point.y).toBeCloseTo(0)
+    expect(result.alignGuide).toBeNull()
+  })
+
+  it('snaps a free cursor onto the start alignment line when angle snap is off', () => {
+    const snapping = makeSnapping([], { angle: false, grid: false })
+    const result = snapping.resolve({ x: 1.5, y: 60 }, chain([0, 0], [100, 80], 3), false)
+    expect(result.point).toEqual({ x: 0, y: 60 })
+    expect(result.guide).toBeNull()
+    expect(result.alignGuide?.origin).toEqual({ x: 0, y: 0 })
+    expect(result.alignGuide?.dir).toEqual({ x: 0, y: 1 })
+  })
+
+  it('grid snapping does not perturb a start-aligned point', () => {
+    const snapping = makeSnapping([], { angle: false })
+    const result = snapping.resolve({ x: 1.5, y: 59 }, chain([0, 0], [100, 80], 3), false)
+    expect(result.point).toEqual({ x: 0, y: 59 })
+  })
+
+  it('Alt disables the start alignment snap', () => {
+    const snapping = makeSnapping()
+    const result = snapping.resolve({ x: 1.5, y: 60 }, chain([0, 0], [100, 80], 3), true)
+    expect(result.point).toEqual({ x: 1.5, y: 60 })
+    expect(result.alignGuide).toBeNull()
+  })
+
+  it('close snap wins over start alignment near the start vertex', () => {
+    const snapping = makeSnapping()
+    const result = snapping.resolve({ x: 1, y: 1 }, chain([0, 0], [100, 80], 3), false)
+    expect(result.marker).toBe('close')
+    expect(result.alignGuide).toBeNull()
+  })
+
+  it('wall snaps win over start alignment', () => {
+    const host = makeWall({
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 0, y: 240 },
+      ],
+    })
+    const snapping = makeSnapping([host])
+    const result = snapping.resolve({ x: 2, y: 80 }, chain([0, 0], [100, 80], 3), false)
+    expect(result.marker).toBe('projection')
+    expect(result.alignGuide).toBeNull()
+  })
+
   it('Alt (free) disables angle and grid but keeps wall snaps', () => {
     const host = makeWall({
       vertices: [
