@@ -37,6 +37,28 @@ export function formatFeetInches(inches: number, resolution: number = DEFAULT_RE
 }
 
 /**
+ * Formats a length as inches only, e.g. `32"`, `4 1/2"`, `1/8"`.
+ *
+ * Same rounding and fraction-reduction rules as `formatFeetInches`, but never
+ * carries into feet — for values conventionally quoted in inches (wall
+ * thicknesses, opening widths).
+ *
+ * @param inches Length in inches (the canonical drawing unit).
+ * @param resolution Rounding step in inches: 1, 1/2, 1/4 or 1/8 (default).
+ */
+export function formatInches(inches: number, resolution: number = DEFAULT_RESOLUTION): string {
+  const denominator = Math.max(1, Math.round(1 / resolution))
+  const totalUnits = Math.round(Math.abs(inches) * denominator)
+  const sign = inches < 0 && totalUnits > 0 ? '-' : ''
+  const whole = Math.floor(totalUnits / denominator)
+  const numerator = totalUnits - whole * denominator
+  if (numerator === 0) return `${sign}${whole}"`
+  const divisor = greatestCommonDivisor(numerator, denominator)
+  const fraction = `${numerator / divisor}/${denominator / divisor}`
+  return whole > 0 ? `${sign}${whole} ${fraction}"` : `${sign}${fraction}"`
+}
+
+/**
  * Parses a feet-and-inches expression into inches, or `null` when invalid.
  *
  * Accepted forms (case-insensitive, `"`/`in` and whitespace optional):

@@ -2,10 +2,9 @@
 import { computed, ref } from 'vue'
 
 import type { WallReference } from '@/utils/geometry'
-import { parseFeetInches } from '@/utils/units'
+import { formatInches, parseFeetInches } from '@/utils/units'
 
 const THICKNESS_TOLERANCE_IN = 1e-9
-const EIGHTHS_PER_INCH = 8
 
 const props = defineProps<{
   presetsIn: readonly number[]
@@ -26,21 +25,6 @@ const REFERENCE_OPTIONS: readonly { id: WallReference; label: string }[] = [
 
 const customText = ref('')
 const customError = ref(false)
-
-function greatestCommonDivisor(a: number, b: number): number {
-  return b === 0 ? a : greatestCommonDivisor(b, a % b)
-}
-
-/** Inches-only label for thickness values, e.g. `12"`, `4 1/2"`, `3 1/2"`. */
-function inchesLabel(valueIn: number): string {
-  const totalEighths = Math.round(valueIn * EIGHTHS_PER_INCH)
-  const whole = Math.floor(totalEighths / EIGHTHS_PER_INCH)
-  const numerator = totalEighths - whole * EIGHTHS_PER_INCH
-  if (numerator === 0) return `${whole}"`
-  const divisor = greatestCommonDivisor(numerator, EIGHTHS_PER_INCH)
-  const fraction = `${numerator / divisor}/${EIGHTHS_PER_INCH / divisor}`
-  return whole > 0 ? `${whole} ${fraction}"` : `${fraction}"`
-}
 
 function isSelected(presetIn: number): boolean {
   return Math.abs(presetIn - props.thicknessIn) < THICKNESS_TOLERANCE_IN
@@ -86,7 +70,7 @@ function applyCustom(): void {
           "
           @click="emit('set-thickness', preset)"
         >
-          {{ inchesLabel(preset) }}
+          {{ formatInches(preset) }}
           <span class="text-ink-faint ml-0.5">{{ presetRole(index) }}</span>
         </button>
       </div>
@@ -95,7 +79,7 @@ function applyCustom(): void {
         <input
           v-model="customText"
           type="text"
-          :placeholder="isCustomThickness ? inchesLabel(thicknessIn) : `e.g. 5 1/2&quot;`"
+          :placeholder="isCustomThickness ? formatInches(thicknessIn) : `e.g. 5 1/2&quot;`"
           class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 text-xs outline-none"
           :class="customError ? 'border-danger' : ''"
           :aria-invalid="customError"
