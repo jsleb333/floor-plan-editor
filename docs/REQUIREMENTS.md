@@ -211,7 +211,9 @@ follow their devices; only interior control points are absolute.
   rather than the freehand perpendicular drop of the cursor (which remains
   the behavior for the first vertex and while Alt is held).
   Endpoint-to-endpoint snapping takes priority over projection when both are
-  in range.
+  in range. A click that lands on an existing wall (endpoint, midpoint or
+  projection) **terminates the chain** there — reaching existing geometry
+  finishes the wall, no Enter needed; starting *on* a wall does not.
 - **S3b Locks and exact-dimension editing** — Each wall segment has a
   **locked/free** flag (padlock toggle in the properties panel and context
   menu; lock-all/unlock-all per chain). Selecting a free segment and typing a

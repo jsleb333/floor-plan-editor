@@ -89,9 +89,10 @@ export interface UseWallToolReturn {
 
 /**
  * Wall drawing state machine (specs S1/S1a/S1c/S2): click to place reference
- * vertices, Enter/double-click to finish, Esc to cancel, Tab to cycle the
- * reference side, typed lengths for exact input, and a close-loop affordance
- * with aligned-close correction and auto-square corner insertion.
+ * vertices, Enter/double-click to finish (a click landing on an existing wall
+ * finishes there), Esc to cancel, Tab to cycle the reference side, typed
+ * lengths for exact input, and a close-loop affordance with aligned-close
+ * correction and auto-square corner insertion.
  *
  * Headless by design: all inputs are injected (snap engine, commit callback)
  * and interaction arrives via methods, so the machine is testable without a
@@ -200,6 +201,12 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
       return
     }
     pushVertex(snap.point, snap.attachment)
+    // Landing on an existing wall terminates the chain there (spec S3a): the
+    // wall has reached existing geometry, no explicit finish needed. The
+    // remaining markers are all wall snaps ('close' returned above).
+    if (snap.marker !== null && vertices.value.length >= MIN_COMMIT_VERTICES) {
+      finish()
+    }
   }
 
   function onDoubleClick(): void {

@@ -261,7 +261,7 @@ describe('useWallTool drawing', () => {
     ])
   })
 
-  it('ending on a projection snap records an end T-junction on the new wall', () => {
+  it('ending on a projection snap terminates the chain and records an end T-junction', () => {
     const host = makeWall({
       id: 'host',
       vertices: [
@@ -272,12 +272,48 @@ describe('useWallTool drawing', () => {
     const { tool, committed } = makeTool({ walls: [host] })
     tool.onClick({ x: 60, y: 60 })
     tool.onClick({ x: 2, y: 60 })
-    tool.handleKey('Enter')
 
+    // Landing on the host wall commits the chain right away — no Enter.
+    expect(committed).toHaveLength(1)
+    expect(committed[0].closed).toBe(false)
     expect(committed[0].vertices[1]).toEqual({ x: 0, y: 60 })
     expect(committed[0].junctions).toEqual([
       { end: 'end', host_wall_id: 'host', segment_index: 0, t: 60 },
     ])
+    expect(tool.isDrawing.value).toBe(false)
+  })
+
+  it('clicking an existing wall endpoint terminates the chain', () => {
+    const host = makeWall({
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 0, y: 240 },
+      ],
+    })
+    const { tool, committed } = makeTool({ walls: [host] })
+    tool.onClick({ x: 60, y: 0 })
+    tool.onClick({ x: 2, y: 3 })
+
+    expect(committed).toHaveLength(1)
+    expect(committed[0].vertices).toEqual([
+      { x: 60, y: 0 },
+      { x: 0, y: 0 },
+    ])
+    expect(tool.isDrawing.value).toBe(false)
+  })
+
+  it('starting on a wall does not terminate the chain', () => {
+    const host = makeWall({
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 0, y: 240 },
+      ],
+    })
+    const { tool, committed } = makeTool({ walls: [host] })
+    tool.onClick({ x: 2, y: 100 })
+
+    expect(committed).toHaveLength(0)
+    expect(tool.isDrawing.value).toBe(true)
   })
 
   it('ending on a wall keeps the snapped angle, landing the junction on the ray crossing', () => {
@@ -293,7 +329,6 @@ describe('useWallTool drawing', () => {
     // Cursor drifts 3" off the horizontal while reaching for the host wall:
     // the segment must stay horizontal instead of following the cursor.
     tool.onClick({ x: 2, y: 63 })
-    tool.handleKey('Enter')
 
     expect(committed[0].vertices[1].x).toBeCloseTo(0)
     expect(committed[0].vertices[1].y).toBeCloseTo(60)
