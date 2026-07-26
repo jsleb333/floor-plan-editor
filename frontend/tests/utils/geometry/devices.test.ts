@@ -69,6 +69,37 @@ describe('deviceWorldPlacement', () => {
       { x: 42, y: -5 },
     ])
     expect(placement?.bounds).toEqual(placement?.baseboardRect)
+    // The anchor itself stays ON the face — baseboards never take the
+    // pictogram baseline shift, since their rect is already correctly anchored.
+    expect(placement?.position).toEqual({ x: 60, y: -2 })
+  })
+
+  it("shifts a switch's anchor outward from the face by its pictogram baseline", () => {
+    const wall = makeWall({ thickness_in: 3.5 })
+    const device = makeDevice({
+      type: 'switch',
+      attachment: { wall_id: 'wall-1', segment_index: 0, t: 60, side: 'left' },
+    })
+    const placement = deviceWorldPlacement(device, [wall])
+
+    // Left face at y = -1.75. The switch's stem tip (local y 11.5) is the
+    // baseline, so the box centre lands 11.5 - 6 = 5.5" further outward
+    // (up-screen, toward the room) than the bare face anchor.
+    expect(placement?.position).toEqual({ x: 60, y: -7.25 })
+    const c = centroid(placement?.bounds ?? [])
+    expect(c.x).toBeCloseTo(60, 9)
+    expect(c.y).toBeCloseTo(-7.25, 9)
+  })
+
+  it('leaves a face-centred pictogram (outlet) unshifted', () => {
+    const wall = makeWall({ thickness_in: 3.5 })
+    const device = makeDevice({
+      type: 'outlet',
+      attachment: { wall_id: 'wall-1', segment_index: 0, t: 60, side: 'left' },
+    })
+    const placement = deviceWorldPlacement(device, [wall])
+
+    expect(placement?.position).toEqual({ x: 60, y: -1.75 })
   })
 
   it('positions a free device at its absolute position with its own rotation', () => {
