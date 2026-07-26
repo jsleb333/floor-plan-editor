@@ -36,6 +36,7 @@ import { useSnapSettings } from '@/composables/useSnapSettings'
 import { useSnapping } from '@/composables/useSnapping'
 import type { SnapToggleId } from '@/composables/useSnapping'
 import { useStairsTool } from '@/composables/useStairsTool'
+import { useToolSelection } from '@/composables/useToolSelection'
 import { isTypingTarget, useToolShortcuts } from '@/composables/useToolShortcuts'
 import { BASE_PIXELS_PER_INCH } from '@/composables/useViewport'
 import { useWireTool } from '@/composables/useWireTool'
@@ -59,7 +60,8 @@ import type {
   Wire,
 } from '@/types/plan'
 import { controlLinkKind } from '@/utils/circuits'
-import { deviceWorldPlacement, pointInPolygon } from '@/utils/geometry'
+import { deviceWorldPlacement } from '@/utils/geometry'
+import { deviceAtPoint } from '@/utils/hitTest'
 import { loadImageSize } from '@/utils/imageSize'
 import type { ImageSize } from '@/utils/imageSize'
 
@@ -198,6 +200,18 @@ const selectTool = useSelectTool({
 })
 const { preview: selectPreview, inputBuffer: selectInputBuffer } = selectTool
 
+/** Place-then-tweak, edit-in-tool and Esc-clears-selection for placement tools (spec E8). */
+const toolSelection = useToolSelection({
+  store: editorStore,
+  walls: documentWalls,
+  openings: documentOpenings,
+  stairs: documentStairs,
+  labels: documentLabels,
+  dimensions: documentDimensions,
+  devices: documentDevices,
+  pixelsPerInch,
+})
+
 const wireTool = useWireTool({
   activeCircuitId: computed({
     get: () => editorStore.activeCircuitId,
@@ -220,7 +234,9 @@ const deviceTool = useDeviceTool({
   walls: documentWalls,
   pixelsPerInch,
   snapSettings,
-  commit: (device) => editorStore.mutate({ type: 'addDevice', device }),
+  commit: toolSelection.placeThenTweak('device', (device) =>
+    editorStore.mutate({ type: 'addDevice', device }),
+  ),
 })
 
 const calibrateTool = useCalibrateTool({
@@ -239,17 +255,23 @@ const openingTool = useOpeningTool({
   kind: openingKind,
   walls: documentWalls,
   pixelsPerInch,
-  commit: (opening) => editorStore.mutate({ type: 'addOpening', opening }),
+  commit: toolSelection.placeThenTweak('opening', (opening) =>
+    editorStore.mutate({ type: 'addOpening', opening }),
+  ),
 })
 
 const stairsTool = useStairsTool({
   snapping,
-  commit: (stairs) => editorStore.mutate({ type: 'addStairs', stairs }),
+  commit: toolSelection.placeThenTweak('stairs', (stairs) =>
+    editorStore.mutate({ type: 'addStairs', stairs }),
+  ),
 })
 
 const dimensionTool = useDimensionTool({
   snapping,
-  commit: (dimension) => editorStore.mutate({ type: 'addDimension', dimension }),
+  commit: toolSelection.placeThenTweak('dimension', (dimension) =>
+    editorStore.mutate({ type: 'addDimension', dimension }),
+  ),
 })
 
 const statusInputBuffer = computed(() => {
@@ -337,32 +359,24 @@ function handleCursorMove(point: Point | null): void {
   if (activeTool.value === 'calibrate') calibrateTool.setCursor(point)
 }
 
+const commitLabel = toolSelection.placeThenTweak('label', (label: Label) =>
+  editorStore.mutate({ type: 'addLabel', label }),
+)
+
 function placeLabel(point: Point): void {
-  const label: Label = {
+  commitLabel({
     id: crypto.randomUUID(),
     position: { ...point },
     text: DEFAULT_LABEL_TEXT,
     size_in: DEFAULT_LABEL_SIZE_IN,
-  }
-  editorStore.mutate({ type: 'addLabel', label })
-  editorStore.select([{ kind: 'label', id: label.id }])
-}
-
-/** Topmost device under a world point (hit-tests the pictogram box). */
-function deviceAtPoint(point: Point): Device | null {
-  const list = documentDevices.value
-  for (let i = list.length - 1; i >= 0; i--) {
-    const placement = deviceWorldPlacement(list[i], documentWalls.value)
-    if (placement && pointInPolygon(point, placement.bounds)) return list[i]
-  }
-  return null
+  })
 }
 
 /** Creates a control link from the armed switch to the picked device (spec D6). */
 function pickControlLinkTarget(point: Point): void {
   const switchId = armedControlLinkSwitchId.value
   if (!switchId) return
-  const target = deviceAtPoint(point)
+  const target = deviceAtPoint(point, documentDevices.value, documentWalls.value)
   if (!target || target.id === switchId) return
   const switchDevice = documentDevices.value.find((device) => device.id === switchId)
   if (!switchDevice) {
@@ -386,6 +400,9 @@ function handleCanvasPress(point: Point, modifiers: { shift: boolean; alt: boole
     pickControlLinkTarget(point)
     return
   }
+  // Placement tools first offer the click to edit-in-tool (spec E8): a click
+  // on an existing element of the tool's own kind selects it instead of
+  // placing a new one. The wall tool is the exception (spec S3a semantics).
   switch (activeTool.value) {
     case 'wall':
       wallTool.onClick(point)
@@ -395,19 +412,23 @@ function handleCanvasPress(point: Point, modifiers: { shift: boolean; alt: boole
       break
     case 'door':
     case 'window':
-      openingTool.onClick(point)
+      if (!toolSelection.trySelectForEdit(activeTool.value, point)) openingTool.onClick(point)
       break
     case 'stairs':
-      stairsTool.onPress(point)
+      if (!toolSelection.trySelectForEdit('stairs', point)) stairsTool.onPress(point)
       break
     case 'label':
-      placeLabel(point)
+      if (!toolSelection.trySelectForEdit('label', point)) placeLabel(point)
       break
     case 'dimension':
-      dimensionTool.onClick(point)
+      // The second click always completes the pending dimension (spec S8),
+      // even when it lands on an existing annotation.
+      if (dimensionTool.isDrawing.value || !toolSelection.trySelectForEdit('dimension', point)) {
+        dimensionTool.onClick(point)
+      }
       break
     case 'device':
-      deviceTool.onClick(point)
+      if (!toolSelection.trySelectForEdit('device', point)) deviceTool.onClick(point)
       break
     case 'wire':
       wireTool.onClick(point)
@@ -528,17 +549,31 @@ function handleSelectToolKey(event: KeyboardEvent): boolean {
   return false
 }
 
+/**
+ * Esc ladder with a tool armed (specs E4/E8): the tool first cancels its
+ * in-progress action, then the first free Esc clears the selection back to
+ * pure placement, and only after that Esc falls through to the tool's mode
+ * fallback (disarm the device type, return to select).
+ */
 function handleActiveToolKey(event: KeyboardEvent): boolean {
   switch (activeTool.value) {
     case 'wall':
-      return wallTool.handleKey(event.key)
+      if (wallTool.handleKey(event.key)) return true
+      return event.key === 'Escape' && toolSelection.clearOnEscape()
     case 'select':
       return handleSelectToolKey(event)
+    case 'door':
+    case 'window':
+    case 'label':
+      return event.key === 'Escape' && toolSelection.clearOnEscape()
     case 'stairs':
-      return stairsTool.handleKey(event.key)
+      if (stairsTool.handleKey(event.key)) return true
+      return event.key === 'Escape' && toolSelection.clearOnEscape()
     case 'dimension':
-      return dimensionTool.handleKey(event.key)
+      if (dimensionTool.handleKey(event.key)) return true
+      return event.key === 'Escape' && toolSelection.clearOnEscape()
     case 'device':
+      if (event.key === 'Escape' && toolSelection.clearOnEscape()) return true
       if (deviceTool.handleKey(event.key)) return true
       if (event.key === 'Escape') {
         activeTool.value = 'select'
@@ -763,6 +798,9 @@ onBeforeUnmount(() => {
               :preview="wallPreview"
               :hairline="hairline"
             />
+            <!-- Select-tool affordances only: with a placement tool armed the
+                 layers still tint the selection, but no drag handles render,
+                 so placement clicks always win (spec E8). -->
             <SelectionOverlay
               v-if="activeTool === 'select'"
               :preview="selectPreview"
