@@ -68,10 +68,14 @@ import {
  */
 
 /** A resolved underlay ready to inline: its bytes as a data URI plus pixel size. */
-export interface UnderlayEmbed {
-  dataUri: string
+/** The intrinsic pixel size of an underlay image, all its geometry needs. */
+export interface UnderlayPixelSize {
   pixelWidth: number
   pixelHeight: number
+}
+
+export interface UnderlayEmbed extends UnderlayPixelSize {
+  dataUri: string
 }
 
 /** Options controlling what `buildPlanSvg` emits (spec X4). */
@@ -284,7 +288,7 @@ function renderDimension(dimension: Dimension, precisionIn?: number): string[] {
 }
 
 /** World-space corners of the underlay image, applying its calibration transform. */
-function underlayCorners(underlay: Underlay, embed: UnderlayEmbed): Point[] {
+function underlayCorners(underlay: Underlay, embed: UnderlayPixelSize): Point[] {
   const { origin, rotation_deg: rotationDeg, scale } = underlay.transform
   const rad = (rotationDeg * Math.PI) / 180
   const cos = Math.cos(rad)
@@ -319,7 +323,7 @@ function contentBounds(
   document: PlanDocument,
   wallsById: ReadonlyMap<string, Wall>,
   options: Required<Pick<SvgExportOptions, 'includeUnderlay' | 'includeAnnotations'>>,
-  underlay: UnderlayEmbed | null,
+  underlay: UnderlayPixelSize | null,
 ): Bounds | null {
   let bounds: Bounds | null = null
   for (const wall of document.walls) {
@@ -369,6 +373,34 @@ function contentBounds(
     bounds = mergeBounds(bounds, underlayCorners(document.underlay, underlay))
   }
   return bounds
+}
+
+/**
+ * World-space bounds of everything the editor draws, or `null` when the plan
+ * has no content yet.
+ *
+ * Unlike `planViewBox` this adds no export margin and always includes the
+ * underlay and annotations: it answers "where is my plan?" for the editor's
+ * zoom-to-fit (spec E5), reusing the same geometry the export measures so the
+ * two can never disagree.
+ *
+ * @param document The plan to measure.
+ * @param underlaySize Intrinsic pixel size of the underlay image, or null to
+ *     leave the underlay out (it is not loaded, or there is none).
+ *
+ * @returns The bounds in world inches, or null if nothing is drawn.
+ */
+export function planContentBounds(
+  document: PlanDocument,
+  underlaySize: UnderlayPixelSize | null = null,
+): Bounds | null {
+  const wallsById = new Map(document.walls.map((wall) => [wall.id, wall]))
+  return contentBounds(
+    document,
+    wallsById,
+    { includeUnderlay: underlaySize !== null, includeAnnotations: true },
+    underlaySize,
+  )
 }
 
 /** A small default viewBox when the document is empty (a 10' square at origin). */

@@ -34,6 +34,7 @@ import { useDeviceTool } from '@/composables/useDeviceTool'
 import { useDimensionTool } from '@/composables/useDimensionTool'
 import { useOpeningTool } from '@/composables/useOpeningTool'
 import { useSelectTool } from '@/composables/useSelectTool'
+import { nextScrollMode, useScrollMode } from '@/composables/useScrollMode'
 import { useSnapSettings } from '@/composables/useSnapSettings'
 import { useSnapping } from '@/composables/useSnapping'
 import type { AlignmentGuidesView, SnapToggleId } from '@/composables/useSnapping'
@@ -43,6 +44,7 @@ import { isTypingTarget, useToolShortcuts } from '@/composables/useToolShortcuts
 import { BASE_PIXELS_PER_INCH } from '@/composables/useViewport'
 import { useWireTool } from '@/composables/useWireTool'
 import { isBufferKey, useWallTool } from '@/composables/useWallTool'
+import { planContentBounds } from '@/export/svgExport'
 import { planIdFromRoute } from '@/router'
 import { useEditorStore } from '@/stores/editor'
 import { useLayersStore } from '@/stores/layers'
@@ -203,6 +205,7 @@ const isolationHighlightIds = computed<ReadonlySet<string> | null>(() => {
 
 const snapSettings = useSnapSettings()
 const { grid: snapGrid, angle: snapAngle, walls: snapWalls } = snapSettings
+const scrollMode = useScrollMode()
 
 const snapping = useSnapping({
   walls: documentWalls,
@@ -652,6 +655,36 @@ function toggleSnap(id: SnapToggleId): void {
   snapSettings[id].value = !snapSettings[id].value
 }
 
+function cycleScrollMode(): void {
+  scrollMode.value = nextScrollMode(scrollMode.value)
+}
+
+/**
+ * Frames the plan's real content (spec E5). Measured on demand rather than as
+ * a computed: the bounds walk every element, and the document identity changes
+ * on every pan frame.
+ */
+function handleZoomFit(): void {
+  const document = planDocument.value
+  const size = underlayImageSize.value
+  const bounds = document
+    ? planContentBounds(
+        document,
+        size ? { pixelWidth: size.width, pixelHeight: size.height } : null,
+      )
+    : null
+  canvas.value?.fitTo(
+    bounds
+      ? {
+          x: bounds.minX,
+          y: bounds.minY,
+          width: bounds.maxX - bounds.minX,
+          height: bounds.maxY - bounds.minY,
+        }
+      : null,
+  )
+}
+
 function handleHistoryKey(event: KeyboardEvent): boolean {
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return false
   const key = event.key.toLowerCase()
@@ -903,7 +936,7 @@ onBeforeUnmount(() => {
       :save-error="saveError"
       :zoom-percent="zoomPercent"
       @rename="handleRename"
-      @zoom-fit="canvas?.zoomToFit()"
+      @zoom-fit="handleZoomFit"
       @zoom-reset="canvas?.zoomTo100()"
       @export="showExportDialog = true"
     />
@@ -916,6 +949,7 @@ onBeforeUnmount(() => {
           v-if="loadState.status === 'ready' && initialViewport"
           ref="canvas"
           :initial-viewport="initialViewport"
+          :scroll-mode="scrollMode"
           @viewport-change="handleViewportChange"
           @cursor-move="handleCursorMove"
           @canvas-press="handleCanvasPress"
@@ -1078,12 +1112,14 @@ onBeforeUnmount(() => {
       :snap-grid="snapGrid"
       :snap-angle="snapAngle"
       :snap-walls="snapWalls"
+      :scroll-mode="scrollMode"
       :wall-reference="activeTool === 'wall' ? wallReference : null"
       :input-buffer="statusInputBuffer"
       :notice="statusNotice"
       :active-circuit-name="activeTool === 'wire' ? (activeCircuit?.name ?? null) : null"
       :active-circuit-color="activeTool === 'wire' ? (activeCircuit?.color ?? null) : null"
       @toggle-snap="toggleSnap"
+      @cycle-scroll-mode="cycleScrollMode"
       @show-shortcuts="showShortcuts = true"
     />
 

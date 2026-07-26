@@ -208,11 +208,31 @@ The wall render pipeline, in order (identical in canvas and export):
 
 ### Canvas rendering
 
-`ViewportCanvas.vue` is tool-agnostic: it owns pan/zoom (`useViewport` —
-pure screen↔world math, `scale = zoom × 2 px/inch`), pointer capture,
+`ViewportCanvas.vue` is tool-agnostic: it owns pan/zoom, pointer capture,
 grid/rulers, and emits world-coordinate events (`canvas-press`,
 `canvas-release`, `canvas-double-click`, `cursor-move`). It provides
 `hairline = 1/scale` to slot children so strokes stay ~1 px at any zoom.
+
+Pan/zoom is split in two so both halves are testable without a DOM:
+
+- `useViewport.ts` — pure screen↔world math (`scale = zoom × 2 px/inch`),
+  `panByScreen` / `zoomAtPoint` / `fitToRect`, and the SVG root transform.
+- `useViewportGestures.ts` — the input layer over it (REQUIREMENTS E5). One
+  `PointerGesture` discriminated union (`idle | press | pan`) holds the live
+  gesture, so a press and a pan can never overlap: with a mouse every button
+  shares one `pointerId`, and independent flags used to leave the pan latched
+  on. `classifyWheel` normalises `deltaMode` to pixels, then routes the event
+  to zoom or pan per the `ScrollMode` preference (`auto` distinguishes coarse
+  wheel notches from continuous trackpad scrolling; `zoom`/`pan` pin it —
+  persisted by `useScrollMode.ts`). <kbd>Space</kbd> arms the pan modifier
+  only while the pointer is over the canvas, and cancels the keydown so it
+  cannot also activate a focused toolbar button.
+
+The canvas suppresses `cursor-move` for the duration of a pan drag — the
+world point under the cursor only moves because the camera does — and
+re-emits once on release so tool previews resync. Zoom-to-fit is driven by
+the host: `EditorPage` measures `planContentBounds` (the same geometry the
+SVG export uses) on demand and calls the canvas's `fitTo(rect)`.
 
 The draw stack is composed in `EditorPage.vue`'s template inside the canvas
 slot: `UnderlayLayer`, then `StairsLayer → WallsLayer → OpeningsLayer →

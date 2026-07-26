@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Grid3x3, Magnet, Ruler } from 'lucide-vue-next'
+import { Grid3x3, Magnet, Mouse, Ruler } from 'lucide-vue-next'
 import { computed } from 'vue'
 
 import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { SnapToggleId } from '@/composables/useSnapping'
+import type { ScrollMode } from '@/composables/useViewportGestures'
 import type { Point } from '@/types/plan'
 import type { WallReference } from '@/utils/geometry'
 import { formatFeetInches } from '@/utils/units'
@@ -14,6 +15,8 @@ const props = defineProps<{
   snapGrid: boolean
   snapAngle: boolean
   snapWalls: boolean
+  /** How an unmodified scroll gesture is interpreted (spec E5). */
+  scrollMode: ScrollMode
   /** Reference side shown while the wall tool is active; null hides the indicator. */
   wallReference: WallReference | null
   /** Exact-input buffer echo (spec S2); hidden when empty. */
@@ -28,6 +31,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'toggle-snap': [id: SnapToggleId]
+  'cycle-scroll-mode': []
   'show-shortcuts': []
 }>()
 
@@ -44,6 +48,17 @@ const snapToggles = computed(() => [
   { id: 'angle' as const, label: '90°', icon: Magnet, active: props.snapAngle },
   { id: 'walls' as const, label: 'walls', icon: Ruler, active: props.snapWalls },
 ])
+
+const SCROLL_MODE_HINTS: Record<ScrollMode, string> = {
+  auto: 'wheel zooms, trackpad scroll pans',
+  zoom: 'every scroll zooms to the cursor',
+  pan: 'every scroll pans; Ctrl+scroll zooms',
+}
+
+const scrollModeTitle = computed(
+  () =>
+    `Scroll gesture: ${props.scrollMode} — ${SCROLL_MODE_HINTS[props.scrollMode]}. Click to change.`,
+)
 </script>
 
 <template>
@@ -67,6 +82,17 @@ const snapToggles = computed(() => [
         {{ snap.label }}
       </button>
     </div>
+
+    <button
+      type="button"
+      class="text-ink-faint hover:text-ink flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors"
+      :title="scrollModeTitle"
+      :aria-label="scrollModeTitle"
+      @click="emit('cycle-scroll-mode')"
+    >
+      <Mouse :size="12" aria-hidden="true" />
+      scroll: <span class="text-ink">{{ scrollMode }}</span>
+    </button>
 
     <span v-if="wallReference" aria-label="Wall reference side">
       ref: <span class="text-ink">{{ REFERENCE_LABELS[wallReference] }}</span>

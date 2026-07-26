@@ -405,9 +405,30 @@ hand-drawn legend). Initial catalog:
   action, including property edits, with a practical history depth (≥100).
 - **E4** — Esc cancels the in-progress action; Delete removes the selection;
   arrow keys nudge by 1" (Shift = 12").
-- **E5** — Viewport: pan (space-drag / middle-drag / trackpad), zoom to cursor
-  (wheel), zoom-to-fit, 100 % zoom. 60 fps interaction target on plans of
-  realistic size (≤ 200 devices, ≤ 300 wires, ≤ 500 wall segments).
+- **E5 Viewport** — 60 fps interaction target on plans of realistic size
+  (≤ 200 devices, ≤ 300 wires, ≤ 500 wall segments). The complete gesture
+  set, which the in-app shortcut overlay (<kbd>?</kbd>) mirrors:
+
+  | Gesture | Result |
+  |---|---|
+  | <kbd>Space</kbd> + left-drag | Pan. Armed only while the pointer is over the canvas, so <kbd>Space</kbd> still activates a focused button elsewhere. |
+  | Middle-drag | Pan. |
+  | Two-finger trackpad scroll | Pan, both axes. |
+  | <kbd>Shift</kbd> + wheel | Pan horizontally. |
+  | Wheel | Zoom to cursor. |
+  | <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + wheel | Zoom to cursor, whatever the scroll mode. |
+  | Trackpad pinch | Zoom to cursor (arrives as <kbd>Ctrl</kbd> + wheel). |
+  | Top bar / status bar | Zoom to fit, 100 % zoom, scroll mode. |
+
+  Whether an unmodified scroll zooms or pans follows the **scroll mode**, a
+  persisted preference toggled in the status bar: `auto` (default) sends
+  discrete mouse-wheel notches to zoom and continuous trackpad scrolling to
+  pan; `zoom` and `pan` pin one behaviour for hardware the heuristic reads
+  wrong. Wheel deltas are normalised across `deltaMode`, so a Firefox
+  line-mode notch zooms as much as a Chromium pixel-mode one.
+
+  Zoom-to-fit frames the plan's real content bounds — the same geometry the
+  SVG export measures — falling back to a 30' region on an empty plan.
 - **E6** — Snapping is always visualized (snap markers, alignment guides)
   before the click commits, so the user can trust what will happen.
 - **E7** — Layers panel: show/hide and lock per layer (underlay, structure,

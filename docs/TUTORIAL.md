@@ -116,8 +116,8 @@ exact-length checks.
 | # | Kind | Step | Completion |
 |---|---|---|---|
 | 1 | info | Welcome; what this panel is; you can leave anytime | — |
-| 2 | task | Pan the canvas (space-drag or middle-drag) | `doc.viewport.center ≠ entry.viewport.center` |
-| 3 | task | Zoom with the wheel | `doc.viewport.zoom ≠ entry.viewport.zoom` |
+| 2 | task | Pan the canvas (space-drag, middle-drag or two-finger scroll) | `doc.viewport.center ≠ entry.viewport.center` |
+| 3 | task | Zoom with the wheel or a pinch | `doc.viewport.zoom ≠ entry.viewport.zoom` |
 | 4 | task | Zoom to fit (top bar or shortcut) | ui event `zoom-fit` |
 
 ### Chapter 2 — Draw walls
