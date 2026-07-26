@@ -17,11 +17,12 @@ import type {
 import { circuitsByDevice, deviceCircuitColor } from '@/utils/circuitMembership'
 import { validatePlan } from '@/utils/circuits'
 import {
+  DOOR_DASH_IN,
   boundsOfPoints,
   deviceGlyphBox,
   deviceWorldPlacement,
   dimensionLayout,
-  doorSymbol,
+  doorFigure,
   labelBounds,
   labelFontSizeIn,
   openingWorldRect,
@@ -37,7 +38,7 @@ import {
   wirePathData,
 } from '@/utils/geometry'
 import type { Bounds } from '@/utils/geometry'
-import { ringsToPath } from '@/utils/svgPath'
+import { doorStrokeToPath, ringsToPath } from '@/utils/svgPath'
 import { formatFeetInches } from '@/utils/units'
 
 import {
@@ -178,10 +179,12 @@ function renderOpening(opening: Opening, wall: Wall, background: string): string
     line(exact[1], exact[2], EXPORT_WALL_EDGE, STRUCTURE_STROKE_IN),
   ]
   if (opening.kind === 'door') {
-    const door = doorSymbol(wall, opening)
-    if (door) {
+    // Every door style is serialised from the same strokes the canvas draws,
+    // through the same path builder, so the file matches the screen (spec §4.1).
+    for (const stroke of doorFigure(wall, opening)?.strokes ?? []) {
+      const dash = stroke.dashed ? ` stroke-dasharray="${DOOR_DASH_IN.join(' ')}"` : ''
       out.push(
-        `<path d="M ${num(door.hinge.x)} ${num(door.hinge.y)} L ${num(door.leafEnd.x)} ${num(door.leafEnd.y)} A ${num(door.radiusIn)} ${num(door.radiusIn)} 0 0 ${door.sweep} ${num(door.arcEnd.x)} ${num(door.arcEnd.y)}" fill="none" stroke="${EXPORT_WALL_EDGE}" stroke-width="${STRUCTURE_STROKE_IN}" />`,
+        `<path d="${doorStrokeToPath(stroke, num)}" fill="none" stroke="${EXPORT_WALL_EDGE}" stroke-width="${STRUCTURE_STROKE_IN}"${dash} />`,
       )
     }
   } else {

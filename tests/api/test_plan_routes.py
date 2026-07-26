@@ -135,6 +135,7 @@ class TestPlanRoutes:
                     "segment_index": 0,
                     "t": 48.0,
                     "width_in": 32.0,
+                    "style": "sliding",
                     "hinge": "right",
                     "swing": "out",
                 }

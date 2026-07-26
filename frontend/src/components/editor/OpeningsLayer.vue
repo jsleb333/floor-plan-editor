@@ -4,7 +4,8 @@ import { computed } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { useLayersStore } from '@/stores/layers'
 import type { Opening, Point, Wall } from '@/types/plan'
-import { doorSymbol, openingWorldRect, windowSymbol } from '@/utils/geometry'
+import { DOOR_DASH_IN, doorFigure, openingWorldRect, windowSymbol } from '@/utils/geometry'
+import { doorStrokeToPath } from '@/utils/svgPath'
 
 const props = defineProps<{
   /** World-unit stroke width rendering as ~1px on screen. */
@@ -22,13 +23,15 @@ interface OpeningView {
   interruption: string
   /** Jamb strokes across the wall thickness at both ends of the opening. */
   jambs: { a: Point; b: Point }[]
-  /** Door leaf + swing arc path ('' for windows). */
-  doorPath: string
+  /** Leaf/panel paths of the door symbol, per its style (empty for windows). */
+  doorPaths: { d: string; dashed: boolean }[]
   /** Window glazing lines (empty for doors). */
   glazing: { a: Point; b: Point }[]
   selected: boolean
   preview: boolean
 }
+
+const DOOR_DASH_ARRAY = DOOR_DASH_IN.join(' ')
 
 function pointsAttribute(points: readonly Point[]): string {
   return points.map((p) => `${p.x},${p.y}`).join(' ')
@@ -45,7 +48,7 @@ function buildView(
   const inflated = openingWorldRect(wall, opening, props.hairline)
   const exact = openingWorldRect(wall, opening)
   if (!inflated || !exact) return null
-  const door = opening.kind === 'door' ? doorSymbol(wall, opening) : null
+  const door = opening.kind === 'door' ? doorFigure(wall, opening) : null
   return {
     id: opening.id,
     interruption: pointsAttribute(inflated),
@@ -53,10 +56,10 @@ function buildView(
       { a: exact[0], b: exact[3] },
       { a: exact[1], b: exact[2] },
     ],
-    doorPath: door
-      ? `M ${door.hinge.x} ${door.hinge.y} L ${door.leafEnd.x} ${door.leafEnd.y} ` +
-        `A ${door.radiusIn} ${door.radiusIn} 0 0 ${door.sweep} ${door.arcEnd.x} ${door.arcEnd.y}`
-      : '',
+    doorPaths: (door?.strokes ?? []).map((stroke) => ({
+      d: doorStrokeToPath(stroke),
+      dashed: stroke.dashed,
+    })),
     glazing: opening.kind === 'window' ? (windowSymbol(wall, opening) ?? []) : [],
     selected,
     preview: isPreview,
@@ -115,11 +118,13 @@ function symbolClass(view: OpeningView): string {
         :stroke-width="(view.selected ? 1.5 : 1) * hairline"
       />
       <path
-        v-if="view.doorPath"
-        :d="view.doorPath"
+        v-for="(leaf, index) in view.doorPaths"
+        :key="`leaf-${index}`"
+        :d="leaf.d"
         fill="none"
         :class="symbolClass(view)"
         :stroke-width="(view.selected ? 1.5 : 1) * hairline"
+        :stroke-dasharray="leaf.dashed ? DOOR_DASH_ARRAY : undefined"
       />
       <line
         v-for="(pane, index) in view.glazing"

@@ -348,6 +348,7 @@ const openingTool = useOpeningTool({
 })
 const {
   widthIn: openingWidthIn,
+  style: openingStyle,
   hinge: openingHinge,
   swing: openingSwing,
   inputBuffer: openingInputBuffer,
@@ -1138,6 +1139,7 @@ onBeforeUnmount(() => {
         :wall-reference="wallReference"
         :opening-width-in="openingWidthIn"
         :opening-width-presets-in="openingWidthPresetsIn"
+        :opening-style="openingStyle"
         :opening-hinge="openingHinge"
         :opening-swing="openingSwing"
         :stairs-width-in="stairsWidthIn"
@@ -1168,6 +1170,7 @@ onBeforeUnmount(() => {
         @set-wall-thickness="wallTool.setThickness($event)"
         @set-wall-reference="wallTool.setReference($event)"
         @set-opening-width="openingTool.setWidth($event)"
+        @set-opening-style="openingTool.setStyle($event)"
         @set-opening-hinge="openingTool.setHinge($event)"
         @set-opening-swing="openingTool.setSwing($event)"
         @add-opening-width-preset="handleAddOpeningWidthPreset"

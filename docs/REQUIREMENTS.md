@@ -281,15 +281,31 @@ follow their devices; only interior control points are absolute.
   Out of scope: constraints between non-adjacent walls, equality/symmetry
   constraints, or any general parametric solver.
 - **S4 Doors** — Placed onto a wall (snap to wall); properties: width (default
-  32"), hinge side, swing direction. Rendered with the conventional swing arc.
-  All three are settable **before** placement: the tool's Inspector options
-  (E8) offer width presets (24/28/30/32/36" + custom) and hinge/swing
-  toggles, reflected live in the ghost preview. The two binary choices are
-  also on the cursor: the **swing arc follows the side of the wall the
-  cursor is on** (hover across the wall to flip it) and **Tab cycles the
-  hinge side** while hovering — most doors are placed without touching the
-  panel. Options persist as last-used (§5.9 tier 1); after placement the
-  door stays selected for immediate tweaks (E8).
+  32"), **style**, hinge side, swing direction. Five styles cover both room
+  and closet doors, each drawn per architectural convention and all
+  *derived* from the host wall's reference line (§4.2):
+
+  | Style | Symbol | Reads |
+  |---|---|---|
+  | `swing` | one leaf from the hinge jamb + quarter arc to the far jamb | hinge, swing |
+  | `double` | two half-width leaves hinged at opposite jambs, each arcing to the opening centre, both swinging the same way | swing |
+  | `sliding` | two bypassing panels, one per half of the opening, on opposite faces within the wall thickness | hinge (which half slides on which face) |
+  | `bifold` | a shallow V of two equal leaves from the stacking jamb to the opening centre | hinge (stack side), swing (fold side) |
+  | `pocket` | the leaf on the wall's mid-thickness line, plus a dashed cavity running into the wall past the jamb | hinge (pocket side) |
+
+  A style only ever *reads* `hinge`/`swing`; the fields are stored for all
+  doors, and the UI shows exactly the ones the style reads, labelled for it
+  ("Stack side", "Pocket side"). Everything is settable **before**
+  placement: the tool's Inspector options (E8) offer the style buttons,
+  width presets (24/28/30/32/36" + custom, which grows the plan's list —
+  closet widths like 48"/60" land there) and the applicable side toggles,
+  all reflected live in the ghost preview. The two binary choices are also
+  on the cursor: the **swing side follows the side of the wall the cursor is
+  on** (hover across the wall to flip it) and **Tab cycles the hinge side**
+  while hovering — most doors are placed without touching the panel. For a
+  style that ignores a field, the matching gesture simply does nothing.
+  Options persist as last-used (§5.9 tier 1); after placement the door stays
+  selected for immediate tweaks, style included (E8).
 - **S5 Windows** — Placed onto a wall; property: width. Rendered with the
   conventional double-line symbol. Width is settable before placement in the
   tool's Inspector options (presets + custom, last-used remembered) and
@@ -470,7 +486,7 @@ floor to the storey below. They carry no load on this plan — their load overri
     create renders at the cursor before commit (E6 applied to placement).
   - **Options in the Inspector**: while a tool is armed, the Inspector shows
     its options — the same properties the element will be created with
-    (door width/hinge/swing, window width, stairs width/direction, wall
+    (door width/style/hinge/swing, window width, stairs width/direction, wall
     thickness/reference, device type...). They apply to the ghost live and
     persist as last-used (§5.9 tier 1).
   - **Place-then-tweak**: a just-placed element becomes the current
@@ -660,7 +676,8 @@ Plan
                           # thickness_in, reference: center|left|right,
                           # locked_segments: [int],  # indices of locked segments (S3b)
                           # junctions: [{vertex_idx | t: float, wall_id}]  # T-junction attachments
-  openings: [Opening]     # door|window: id, attachment (§4.2), width_in, hinge, swing
+  openings: [Opening]     # door|window: id, attachment (§4.2), width_in,
+                          # style (swing|double|sliding|bifold|pocket, S4), hinge, swing
   stairs: [Stairs]        # id, rect, direction
   labels: [Label]         # id, position, text, size
   dimensions: [Dimension] # id, p1, p2, offset

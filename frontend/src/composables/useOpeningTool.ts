@@ -1,7 +1,9 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import type { ComputedRef, Ref, ShallowRef, WritableComputedRef } from 'vue'
 
-import type { Opening, Point, Wall } from '@/types/plan'
+import type { DoorStyle, Opening, Point, Wall } from '@/types/plan'
+import { doorStyleControls, isDoorStyle } from '@/utils/doorStyles'
+import type { DoorStyleControls } from '@/utils/doorStyles'
 import { clampOpeningT, projectOntoWalls, sideOf, wallSegmentSpan } from '@/utils/geometry'
 import type { WallSegmentSpan } from '@/utils/geometry'
 import { parseFeetInches } from '@/utils/units'
@@ -25,6 +27,7 @@ type Swing = Opening['swing']
 /** Last-used tool options persisted across sessions (specs S4/S5, §5.9 tier 1). */
 interface StoredOpeningOptions {
   doorWidthIn: number
+  doorStyle: DoorStyle
   doorHinge: Hinge
   doorSwing: Swing
   windowWidthIn: number
@@ -37,6 +40,7 @@ function isValidWidth(value: unknown): value is number {
 function readStored(): StoredOpeningOptions {
   const defaults: StoredOpeningOptions = {
     doorWidthIn: DEFAULT_DOOR_WIDTH_IN,
+    doorStyle: 'swing',
     doorHinge: 'left',
     doorSwing: 'in',
     windowWidthIn: DEFAULT_WINDOW_WIDTH_IN,
@@ -49,6 +53,7 @@ function readStored(): StoredOpeningOptions {
     const record = parsed as Partial<Record<keyof StoredOpeningOptions, unknown>>
     return {
       doorWidthIn: isValidWidth(record.doorWidthIn) ? record.doorWidthIn : defaults.doorWidthIn,
+      doorStyle: isDoorStyle(record.doorStyle) ? record.doorStyle : defaults.doorStyle,
       doorHinge: record.doorHinge === 'right' ? 'right' : 'left',
       doorSwing: record.doorSwing === 'out' ? 'out' : 'in',
       windowWidthIn: isValidWidth(record.windowWidthIn)
@@ -76,25 +81,30 @@ export interface UseOpeningToolReturn {
   preview: ComputedRef<Opening | null>
   /** Width the next opening is placed with, per kind (writable, spec E8). */
   widthIn: WritableComputedRef<number>
+  /** Leaf style of the next door — swing, double, sliding, bifold or pocket (spec S4). */
+  style: Ref<DoorStyle>
   /** Hinge side of the next door; Tab cycles it while hovering (spec S4). */
   hinge: Ref<Hinge>
   /**
    * Swing of the next door: the cursor's side of the hovered wall while
    * hovering, else the last-used value; writing records a new last-used
-   * value which the cursor overrides again (spec S4).
+   * value which the cursor overrides again (spec S4). Styles that ignore the
+   * swing side (sliding, pocket) keep the last-used value untouched.
    */
   swing: WritableComputedRef<Swing>
   /** Typed exact-width buffer, echoed in the status bar (specs S2/S5). */
   inputBuffer: Ref<string>
   setWidth: (widthIn: number) => void
+  setStyle: (style: DoorStyle) => void
   setHinge: (hinge: Hinge) => void
   setSwing: (swing: Swing) => void
   setCursor: (point: Point | null) => void
   onClick: (world: Point) => void
   /**
    * Routes a key press to the tool; returns true when consumed (the caller
-   * must then preventDefault/stopPropagation). Tab cycles the door hinge;
-   * digits/Enter/Backspace/Escape drive the typed-width buffer.
+   * must then preventDefault/stopPropagation). Tab cycles the door hinge (a
+   * no-op for styles that ignore it, e.g. double); digits/Enter/Backspace/
+   * Escape drive the typed-width buffer.
    */
   handleKey: (key: string) => boolean
   /** Clears the hover state and typed buffer (on tool switch). */
@@ -105,10 +115,12 @@ export interface UseOpeningToolReturn {
  * Door/window placement tool (specs S4/S5/E8): hovering projects the cursor
  * onto the nearest wall reference line and previews the opening centred at
  * that attachment; clicking commits it with the parametric host address
- * (§4.2). Width, hinge and swing are live tool options: the ghost reflects
- * them, the cursor's side of the wall drives a door's swing, Tab cycles the
- * hinge, typed digits set the width exactly, and the options persist as
- * last-used per kind (§5.9 tier 1).
+ * (§4.2). Width, style, hinge and swing are live tool options: the ghost
+ * reflects them, the cursor's side of the wall drives a door's swing, Tab
+ * cycles the hinge, typed digits set the width exactly, and the options
+ * persist as last-used per kind (§5.9 tier 1). The armed style decides which
+ * side fields it reads (`doorStyleControls`), and the cursor/Tab gestures do
+ * nothing for a field the style ignores rather than writing a dead value.
  *
  * Headless by design: all inputs are injected and interaction arrives via
  * methods, so the machine is testable without a DOM.
@@ -119,17 +131,19 @@ export function useOpeningTool(options: UseOpeningToolOptions): UseOpeningToolRe
   const stored = readStored()
   const doorWidthIn = ref(stored.doorWidthIn)
   const windowWidthIn = ref(stored.windowWidthIn)
+  const style = ref<DoorStyle>(stored.doorStyle)
   const hinge = ref<Hinge>(stored.doorHinge)
   /** Swing used when the cursor doesn't decide: options-toggle clicks and commits record it. */
   const lastSwing = ref<Swing>(stored.doorSwing)
   const inputBuffer = ref('')
   const cursor: ShallowRef<Point | null> = shallowRef(null)
 
-  watch([doorWidthIn, windowWidthIn, hinge, lastSwing], () => {
+  watch([doorWidthIn, windowWidthIn, style, hinge, lastSwing], () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
         doorWidthIn: doorWidthIn.value,
+        doorStyle: style.value,
         doorHinge: hinge.value,
         doorSwing: lastSwing.value,
         windowWidthIn: windowWidthIn.value,
@@ -148,6 +162,10 @@ export function useOpeningTool(options: UseOpeningToolOptions): UseOpeningToolRe
     else windowWidthIn.value = value
   }
 
+  function setStyle(value: DoorStyle): void {
+    style.value = value
+  }
+
   function setHinge(value: Hinge): void {
     hinge.value = value
   }
@@ -156,17 +174,24 @@ export function useOpeningTool(options: UseOpeningToolOptions): UseOpeningToolRe
     lastSwing.value = value
   }
 
+  /** The side fields the armed door style reads (spec S4). */
+  function armedControls(): DoorStyleControls {
+    return doorStyleControls(style.value)
+  }
+
   function thresholdIn(): number {
     return PLACEMENT_RADIUS_PX / Math.max(pixelsPerInch.value, Number.EPSILON)
   }
 
   /**
    * Swing implied by the side of the host segment `world` is on: 'in' swings
-   * toward the left of the segment's travel direction (`doorSymbol`
-   * convention), and `sideOf` reports that same left, so the arc always
-   * renders toward the cursor (spec S4).
+   * toward the left of the segment's travel direction (`doorFigure`
+   * convention), and `sideOf` reports that same left, so the leaf always
+   * renders toward the cursor (spec S4). A style that ignores the swing side
+   * keeps the last-used value instead.
    */
   function swingAt(span: WallSegmentSpan, world: Point): Swing {
+    if (armedControls().swing === null) return lastSwing.value
     const side = sideOf(span.a, span.b, world)
     if (side === 'on') return lastSwing.value
     return side === 'left' ? 'in' : 'out'
@@ -187,6 +212,7 @@ export function useOpeningTool(options: UseOpeningToolOptions): UseOpeningToolRe
       segment_index: placement.segmentIndex,
       t: clampOpeningT(placement.tIn, widthIn.value, span.lengthIn),
       width_in: widthIn.value,
+      style: isDoor ? style.value : 'swing',
       hinge: isDoor ? hinge.value : 'left',
       swing: isDoor ? swingAt(span, world) : 'in',
     }
@@ -206,7 +232,9 @@ export function useOpeningTool(options: UseOpeningToolOptions): UseOpeningToolRe
   function onClick(world: Point): void {
     const opening = openingAt(world)
     if (!opening) return
-    if (opening.kind === 'door') lastSwing.value = opening.swing
+    if (opening.kind === 'door' && armedControls().swing !== null) {
+      lastSwing.value = opening.swing
+    }
     commit({ ...opening, id: crypto.randomUUID() })
   }
 
@@ -220,7 +248,11 @@ export function useOpeningTool(options: UseOpeningToolOptions): UseOpeningToolRe
   function handleKey(key: string): boolean {
     if (key === 'Tab') {
       if (kind.value !== 'door') return false
-      hinge.value = hinge.value === 'left' ? 'right' : 'left'
+      // Consumed either way so focus stays on the canvas, but a style that has
+      // no hinge side (double) gets no dead value written to it (spec S4).
+      if (armedControls().hinge !== null) {
+        hinge.value = hinge.value === 'left' ? 'right' : 'left'
+      }
       return true
     }
     if (key === 'Escape') {
@@ -255,10 +287,12 @@ export function useOpeningTool(options: UseOpeningToolOptions): UseOpeningToolRe
   return {
     preview,
     widthIn,
+    style,
     hinge,
     swing,
     inputBuffer,
     setWidth,
+    setStyle,
     setHinge,
     setSwing,
     setCursor,

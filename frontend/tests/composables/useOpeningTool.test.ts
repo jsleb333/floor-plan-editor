@@ -40,6 +40,7 @@ describe('useOpeningTool', () => {
       segment_index: 0,
       t: 60,
       width_in: DEFAULT_DOOR_WIDTH_IN,
+      style: 'swing',
       hinge: 'left',
       swing: 'in',
     })
@@ -178,14 +179,82 @@ describe('useOpeningTool', () => {
   it('restores the last-used options in a new instance', async () => {
     const { tool } = setup()
     tool.setWidth(36)
+    tool.setStyle('bifold')
     tool.setHinge('right')
     tool.setSwing('out')
     await nextTick()
 
     const restored = setup().tool
     expect(restored.widthIn.value).toBe(36)
+    expect(restored.style.value).toBe('bifold')
     expect(restored.hinge.value).toBe('right')
     expect(restored.swing.value).toBe('out')
+  })
+
+  it('places the armed style, flowing it into the ghost and the commit', () => {
+    const { tool, commit } = setup()
+    tool.setStyle('double')
+
+    tool.setCursor(ABOVE_WALL)
+    expect(tool.preview.value?.style).toBe('double')
+
+    tool.onClick(ABOVE_WALL)
+    expect(commit.mock.calls[0][0].style).toBe('double')
+  })
+
+  it('places a 60" closet slider with the typed width', () => {
+    const { tool, commit } = setup()
+    tool.setStyle('sliding')
+    tool.setCursor(ABOVE_WALL)
+    for (const key of ['6', '0']) tool.handleKey(key)
+    tool.handleKey('Enter')
+
+    tool.onClick(ABOVE_WALL)
+    expect(commit.mock.calls[0][0]).toMatchObject({ style: 'sliding', width_in: 60 })
+  })
+
+  it('leaves the swing untouched by the cursor for a style that ignores it', async () => {
+    const { tool, commit } = setup()
+    tool.setSwing('in')
+    tool.setStyle('pocket')
+
+    tool.setCursor(BELOW_WALL)
+    expect(tool.preview.value?.swing).toBe('in')
+    expect(tool.swing.value).toBe('in')
+
+    tool.onClick(BELOW_WALL)
+    expect(commit.mock.calls[0][0].swing).toBe('in')
+    await nextTick()
+    expect(setup().tool.swing.value).toBe('in')
+  })
+
+  it('still follows the cursor for the styles whose leaves have a room side', () => {
+    const { tool } = setup()
+    tool.setStyle('double')
+
+    tool.setCursor(BELOW_WALL)
+    expect(tool.preview.value?.swing).toBe('out')
+
+    tool.setStyle('bifold')
+    expect(tool.preview.value?.swing).toBe('out')
+  })
+
+  it('consumes Tab without writing a hinge side the style ignores', () => {
+    const { tool } = setup()
+    tool.setStyle('double')
+    tool.setCursor(ABOVE_WALL)
+
+    expect(tool.handleKey('Tab')).toBe(true)
+    expect(tool.hinge.value).toBe('left')
+  })
+
+  it('falls back to the swing style when the stored style is unknown', () => {
+    window.localStorage.setItem(
+      'floor-plan:opening-tool-options',
+      JSON.stringify({ doorStyle: 'barn' }),
+    )
+
+    expect(setup().tool.style.value).toBe('swing')
   })
 
   it('records the cursor-driven swing of a placed door as last-used', async () => {
