@@ -120,7 +120,18 @@ follow their devices; only interior control points are absolute.
   press "save". A saved/saving indicator is visible.
 - **P4** — A plan stores everything needed to restore the session: geometry,
   devices, circuits, wires, underlay reference and calibration, layer states,
-  and last viewport position.
+  last viewport position and active tool.
+- **P5 Creation flow** — "New plan" expands into an inline creation card on
+  the home page (no modal): plan name (required, autofocused), optional
+  description, and an optional underlay photo drop zone. A collapsed
+  "Defaults" expander seeds the plan's settings (§5.9 tier 2: wall thickness
+  presets, display precision) from the app preferences. Creating with a
+  photo uploads it and opens the editor directly in **Calibrate mode** with
+  the underlay loaded (U2) — drop, name, calibrate, trace. Creating without
+  opens the empty-state editor with the wall tool armed (E9). Name and
+  description stay editable later (inline rename in the top bar, plan
+  settings in the Inspector); the description appears on the home-page card
+  under the plan name.
 
 ### 5.2 Underlay (trace over a photo)
 
@@ -154,6 +165,15 @@ follow their devices; only interior control points are absolute.
   away from the room and interior dimensions are exactly what was typed.
   The reference side of an existing wall can be changed later (geometry is
   re-offset accordingly, reference line stays put).
+  The two faces have a consistent **visual identity** everywhere sides
+  matter: while drawing and while a wall is selected, the reference line
+  renders with its start and end marked (drawing direction is what makes
+  left/right meaningful) and each face carries its own subtle tint. The
+  same two tints are reused by the S2a dimension-anchor chips, so "which
+  face am I measuring to" is legible at a glance. The Inspector offers the
+  same centre/left/right control for existing walls plus a one-click
+  **swap sides** action (mirror the thickness offset across the reference
+  line); both show a live canvas preview before committing.
 - **S1b Corners** — Walls meeting at a shared vertex join with a mitre: face
   polygons are computed by offsetting each segment's faces from its reference
   line and intersecting adjacent offsets. Corners between walls of different
@@ -177,6 +197,30 @@ follow their devices; only interior control points are absolute.
   directions don't intersect (parallel), the editor falls back to a direct
   segment to the start point and says so. Holding Alt disables the alignment
   snap and closes with a free-angle segment instead.
+- **S1d Smart thickness flow** — There is **one** wall tool; plan content
+  drives its defaults. Arming the tool on a plan with **no closed wall
+  loop** selects the exterior preset — the first thing drawn on an empty
+  plan is the outside shell. Once at least one closed loop exists, arming
+  selects the interior default preset. At the moment a loop closes (S1c)
+  the active preset switches from exterior to interior default on the spot
+  — the next wall is almost always a partition — with the switch announced
+  quietly in the status bar. An explicit preset pick by the user always
+  wins: it overrides the smart default and suppresses auto-switching until
+  the tool is re-armed. Smart selection only ever affects the *next* wall;
+  it never changes anything already drawn.
+- **S1e Alignment guides from existing geometry** — The chain-start
+  alignment lines of S1c generalize to the whole plan: while a vertex is
+  pending, 0°/45°/90° alignment lines are projected through **every wall
+  endpoint and junction** within a capture radius. When the pending point
+  nears one, it snaps onto the line and a dotted guide renders back to its
+  anchor, with a small marker identifying the anchor; when two guides cross
+  near the cursor, the point snaps to their **intersection** — how a new
+  wall lines up with two existing rooms at once. Noise control: nearest
+  anchors win, at most two guides render at a time, guides fade in/out
+  rather than blink, endpoint anchors outrank junction anchors, and the
+  chain-start guides (S1c) outrank everything while closing a loop. Alt
+  suspends these guides like every other snap. The same guides serve the
+  stairs and dimension tools.
 - **S2 Exact input** — While drawing a wall segment, the user can type a length
   (`12'6`, `9'0 1/8`) to place the next vertex at exactly that distance along
   the current (snapped) direction, measured on the reference line (see S1a).
@@ -237,10 +281,30 @@ follow their devices; only interior control points are absolute.
   constraints, or any general parametric solver.
 - **S4 Doors** — Placed onto a wall (snap to wall); properties: width (default
   32"), hinge side, swing direction. Rendered with the conventional swing arc.
+  All three are settable **before** placement: the tool's Inspector options
+  (E8) offer width presets (24/28/30/32/36" + custom) and hinge/swing
+  toggles, reflected live in the ghost preview. The two binary choices are
+  also on the cursor: the **swing arc follows the side of the wall the
+  cursor is on** (hover across the wall to flip it) and **Tab cycles the
+  hinge side** while hovering — most doors are placed without touching the
+  panel. Options persist as last-used (§5.9 tier 1); after placement the
+  door stays selected for immediate tweaks (E8).
 - **S5 Windows** — Placed onto a wall; property: width. Rendered with the
-  conventional double-line symbol.
-- **S6 Stairs** — A rectangular stair run with direction arrow; properties:
-  width, length, direction ("up"/"down" label).
+  conventional double-line symbol. Width is settable before placement in the
+  tool's Inspector options (presets + custom, last-used remembered) and
+  reflected in the ghost preview; typed digits set it exactly while
+  hovering. After placement the window stays selected (E8).
+- **S6 Stairs** — A rectangular stair run with tread lines and a direction
+  arrow; properties: width, length, rotation, direction ("up"/"down" label).
+  Treads are *derived* from the length at a conventional pitch — there is no
+  per-step model. The tool behaves like every placement tool: width and
+  direction are set beforehand in its Inspector options (last-used
+  remembered), a **ghost preview appears on hover** (tool width, last-used
+  length) before any press, and press-drag sets origin, angle and length —
+  angle-snapped to 0°/45°/90° with the run length shown live. **Typing a
+  length places the far end exactly** (S2 semantics) and **Tab flips
+  up/down** during placement. After placement the stairs stay selected for
+  immediate tweaks (E8).
 - **S7 Room labels** — Free-placed text labels (name + optional computed-free
   area text). Font size adjustable.
 - **S8 Dimension annotations** — The user can add persistent dimension lines
@@ -348,6 +412,32 @@ hand-drawn legend). Initial catalog:
   before the click commits, so the user can trust what will happen.
 - **E7** — Layers panel: show/hide and lock per layer (underlay, structure,
   devices, annotations, each circuit). Locked layers are not selectable.
+- **E8 Tool ergonomics — preview, options, place-then-tweak** — Every
+  placement tool honours the same contract:
+  - **Ghost preview**: a faithful preview of exactly what a click would
+    create renders at the cursor before commit (E6 applied to placement).
+  - **Options in the Inspector**: while a tool is armed, the Inspector shows
+    its options — the same properties the element will be created with
+    (door width/hinge/swing, window width, stairs width/direction, wall
+    thickness/reference, device type...). They apply to the ghost live and
+    persist as last-used (§5.9 tier 1).
+  - **Place-then-tweak**: a just-placed element becomes the current
+    selection and its full properties are editable in the Inspector
+    immediately — no switching to Select to fix the thing just placed. The
+    next placement click simply continues the tool.
+  - **Edit in-tool**: with a tool armed, clicking an existing element *of
+    the tool's own kind* selects it for editing instead of placing a new
+    one — the click target disambiguates (door tool: a click on a wall
+    places a door, a click on an existing door edits it). Esc clears the
+    selection back to pure placement. The wall tool is the one exception:
+    clicks on walls are drawing semantics (S3a); walls are edited with
+    Select.
+- **E9 Content-aware startup** — Opening a plan with no walls arms the
+  **wall tool** (exterior preset, S1d): the empty state's one job is
+  getting the first wall drawn. Otherwise the editor restores the last
+  active tool from the saved session (P4), defaulting to Select. The empty
+  state also offers the two entry paths — "import a photo to trace" /
+  "start drawing walls" (§6.2).
 
 ### 5.8 Export
 
@@ -372,11 +462,14 @@ display resolution (1/8" default), grid size, default snap toggles, panel
 collapsed states, last-used tool options.
 
 **Tier 2 — Plan settings** (stored in the plan document, so plans are
-self-contained): wall thickness presets (default list: 12" exterior,
-4½" interior, 3½" interior *default*; user-editable), device catalog defaults
-(per-type default load — e.g. change "baseboard default" from 1000 W to
-750 W; affects future placements, with an explicit "apply to existing" action,
-never a silent retroactive change).
+self-contained): plan description, wall thickness presets (default list:
+12" exterior, 4½" interior, 3½" interior *default*; user-editable), display
+precision override (falls back to the tier-1 app preference when unset),
+device catalog defaults (per-type default load — e.g. change "baseboard
+default" from 1000 W to 750 W; affects future placements, with an explicit
+"apply to existing" action, never a silent retroactive change). All of
+these are seeded by the creation card (P5) and editable afterwards in the
+Inspector's plan-settings view.
 
 **Tier 3 — Per-element properties** (the Inspector panel):
 
@@ -385,6 +478,7 @@ never a silent retroactive change).
 | Wall | thickness (preset or custom), reference side, per-segment locks |
 | Door | width, hinge side, swing direction |
 | Window | width |
+| Stairs | width, length, rotation, direction (up/down) |
 | Device (all) | label, notes, load override (W) |
 | Baseboard heater | + length along wall, wattage (presets 500/750/1000/1250/1500/2000 W or custom; amps derived at 240 V) |
 | Circuit | name, colour, breaker rating, voltage, kind (power/data/low-V) |
@@ -423,9 +517,10 @@ Fixed, predictable homes for everything; no floating windows.
   shortcut shown in its tooltip. The Device tool opens a searchable pictogram
   flyout with most-recently-used types on top.
 - **Right panel**, three tabs, collapsible as a whole:
-  - **Inspector** — contextual: properties of the current selection; with no
-    selection, the active tool's options (e.g. wall thickness preset +
-    reference side); with nothing active, plan settings.
+  - **Inspector** — contextual: properties of the current selection; with a
+    placement tool armed, the tool's options *and* the just-placed (or
+    in-tool selected) element's properties (E8); with nothing active, plan
+    settings (name, description, presets, display precision).
   - **Circuits** — the circuit list with colour swatch, name,
     `load / breaker` bar and warning badges; the tab itself carries a ⚠ badge
     when any circuit is over 80 %. Selecting a circuit highlights it on
@@ -482,6 +577,14 @@ Fixed, predictable homes for everything; no floating windows.
    backup.
 7. *As the homeowner*, I come back a week later; my plan reopens exactly as I
    left it, including zoom position and layer visibility.
+8. *As the homeowner*, I drop my basement photo on the New plan card, type a
+   name, and land directly in calibration — I'm tracing within a minute.
+9. *As the homeowner*, I open a fresh plan and the wall tool is already
+   armed with the exterior preset; the moment I close the outside loop the
+   preset flips to interior and I draw partitions without touching a panel.
+10. *As the homeowner*, I pick a 30" door, flip its hinge with Tab and its
+    swing by hovering across the wall, place it, then adjust its width in
+    the Inspector — all without ever leaving the door tool.
 
 ---
 
@@ -492,6 +595,7 @@ A plan is stored as one versioned JSON document plus uploaded underlay images.
 ```
 Plan
   id: uuid            name: str           schema_version: int
+  description: str    # optional, shown on the home-page card (§5.1 P5)
   created_at, updated_at, archived_at: datetime | null
   viewport: { center: Point, zoom: float }
   underlay: Underlay | null
@@ -508,6 +612,7 @@ Plan
                           # props (e.g. baseboard length_in, wattage)
   catalog_defaults: {type: load_w}   # plan-level device defaults (§5.9 tier 2)
   thickness_presets: [float]         # plan-level wall presets (§5.9 tier 2)
+  display_precision: float | null    # per-plan override, inches (§5.9 tier 2)
   circuits: [Circuit]     # id, name, color, breaker_a, voltage_v, kind (power|data|lowv)
   wires: [Wire]           # id, circuit_id, from_device_id, to_device_id,
                           # control_points: [Point]
@@ -536,7 +641,7 @@ Underlay
 | Method & path | Purpose |
 |---|---|
 | `GET /api/plans` | List plans (metadata + thumbnail). |
-| `POST /api/plans` | Create plan. |
+| `POST /api/plans` | Create plan (name, optional description, optional underlay asset id + seeded defaults — §5.1 P5). |
 | `GET /api/plans/{id}` | Full plan document. |
 | `PUT /api/plans/{id}` | Replace plan document (autosave). Optimistic concurrency via document revision. |
 | `POST /api/plans/{id}/duplicate` | Duplicate. |
@@ -606,6 +711,12 @@ geometry and the document model; take dependencies only for commodity.
    showcase and the definitive end-to-end acceptance test of M1–M6 (positions
    proportional from the photo; exact dimensions refinable later via the S3b
    lock workflow).
+8. **M8 Drawing-flow polish** — creation card with photo drop (P5);
+   content-aware startup and smart wall presets (E9, S1d); pre-placement
+   options, hover ghosts, place-then-tweak and edit-in-tool for
+   door/window/stairs (S4–S6, E8); plan-wide alignment guides (S1e); wall
+   face identity and side swapping (S1a); plan description and per-plan
+   display precision (§5.9 tier 2).
 
 Each milestone ends with `poe check` green and the relevant user stories
 demonstrable in the running app.
