@@ -704,9 +704,12 @@ Underlay
   kept).
 - Storage: SQLite (`aiosqlite`) — `plans` table with the JSON document in a
   column, plus metadata columns for listing; `assets` table for underlay
-  images. Load computation is done in the backend service layer (single source
-  of truth) and returned by the API; the frontend mirrors it live during
-  editing for instant feedback.
+  images. Load computation exists **twice** on purpose: the backend service
+  serves the API (fixtures, integration tests, automation), and the frontend
+  mirrors the same computation so live editing never waits on a round trip —
+  the editor reads only its own copy. Neither is "the" source of truth; the
+  shared fixture corpus in `tests/fixtures/circuit_validation/` is, and both
+  test suites parametrize over it so a rule added to one side fails the other.
 
 ---
 
