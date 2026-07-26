@@ -22,6 +22,12 @@ export const ALLOWED_DIRECTIONS: readonly Point[] = [
 ]
 
 /**
+ * The four distinct lines spanned by the eight allowed directions, one
+ * representative unit direction per line (spec S1c alignment guides).
+ */
+export const ALIGNMENT_LINE_DIRECTIONS: readonly Point[] = ALLOWED_DIRECTIONS.slice(0, 4)
+
+/**
  * Snaps a raw pointer direction to the nearest of the eight global-axis
  * directions (spec S1).
  *

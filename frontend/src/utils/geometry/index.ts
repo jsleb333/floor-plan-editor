@@ -36,7 +36,13 @@ export {
   type PolylineProjection,
   type SegmentProjection,
 } from './lines'
-export { ALLOWED_DIRECTIONS, snapAngleDeg, snapDirection } from './angles'
+export {
+  ALIGNMENT_LINE_DIRECTIONS,
+  ALLOWED_DIRECTIONS,
+  snapAngleDeg,
+  snapDirection,
+} from './angles'
+export { alignFree, alignOnRay, type StartAlignment } from './startAlignment'
 export {
   offsetPolyline,
   wallFaceOffsets,
@@ -44,7 +50,7 @@ export {
   type WallGeometryInput,
   type WallReference,
 } from './wallOutline'
-export { autoSquareClose, type SquareClose } from './closeLoop'
+export { alignedClose, autoSquareClose, type SquareClose } from './closeLoop'
 export {
   boundsIntersect,
   boundsOfPoints,

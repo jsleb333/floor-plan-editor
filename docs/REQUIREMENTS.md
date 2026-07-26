@@ -160,14 +160,23 @@ follow their devices; only interior control points are absolute.
   thicknesses (e.g. 12" exterior meets 3½" partition) resolve cleanly with the
   thinner wall butting into the thicker one's face. Free wall ends are capped
   square. No gaps, no overlaps, at any angle.
-- **S1c Closing the loop** — When the cursor approaches the chain's start
-  vertex, a close affordance appears. Clicking it performs an **auto-square
-  close**: the final corner is solved as the intersection of the two
-  constrained direction lines (the segment being drawn and the segment
-  arriving at the start vertex), so the loop closes *exactly* while every
-  segment keeps its 90°/45° angle. If the two directions don't intersect
-  (parallel), the editor falls back to a direct segment to the start point and
-  says so. Holding Alt closes with a free-angle segment instead.
+- **S1c Closing the loop** — While drawing, when the pending point comes
+  within the snap threshold of one of the four 90°/45° **alignment lines
+  through the chain's start vertex**, it snaps onto that line and a dotted
+  alignment guide is drawn from the start — so the penultimate corner of a
+  traced loop lines up exactly with where the loop began instead of being
+  eyeballed. When the cursor approaches the start vertex itself, a close
+  affordance appears. Clicking it closes the loop: if the chain end is within
+  the snap threshold of an alignment line through the start, it is **nudged
+  onto that line** (slid along its final segment, preserving that segment's
+  angle) and the loop closes with a single exact segment. Otherwise the click
+  performs an **auto-square close**: the final corner is solved as the
+  intersection of the two constrained direction lines (the segment being
+  drawn and the segment arriving at the start vertex), so the loop closes
+  *exactly* while every segment keeps its 90°/45° angle. If the two
+  directions don't intersect (parallel), the editor falls back to a direct
+  segment to the start point and says so. Holding Alt disables the alignment
+  snap and closes with a free-angle segment instead.
 - **S2 Exact input** — While drawing a wall segment, the user can type a length
   (`12'6`, `9'0 1/8`) to place the next vertex at exactly that distance along
   the current (snapped) direction, measured on the reference line (see S1a).
