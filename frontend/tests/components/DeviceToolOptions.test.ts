@@ -6,7 +6,7 @@ import DeviceToolOptions from '@/components/editor/DeviceToolOptions.vue'
 import type { DeviceDraft } from '@/composables/useDeviceTool'
 import type { DeviceType } from '@/types/plan'
 
-const EMPTY_DRAFT: DeviceDraft = { label: null, load_w: null, length_in: null }
+const EMPTY_DRAFT: DeviceDraft = { label: null, load_w: null, length_in: null, depth_in: null }
 
 interface OptionsProps {
   type: DeviceType
@@ -77,13 +77,14 @@ describe('DeviceToolOptions', () => {
     expect(input.attributes('placeholder')).toBe('default 180 W')
   })
 
-  it('does not show baseboard controls for a non-baseboard type', () => {
+  it('shows neither dimensions nor baseboard controls for a symbolic type', () => {
     const wrapper = mountOptions({ type: 'outlet' })
 
+    expect(wrapper.find('[aria-label="Device dimensions"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Baseboard properties"]').exists()).toBe(false)
   })
 
-  it('shows baseboard length and wattage presets for the baseboard heater type', async () => {
+  it('shows the wattage presets for the baseboard heater type', async () => {
     const wrapper = mountOptions({ type: 'baseboard_heater' })
 
     wrapper.get('[aria-label="Baseboard properties"]')
@@ -98,16 +99,45 @@ describe('DeviceToolOptions', () => {
     expect(wrapper.emitted('update-draft')).toEqual([[{ load_w: 1500 }]])
   })
 
-  it('emits update-draft with a parsed baseboard length and clears the field', async () => {
+  it('offers the catalog footprint as the dimension placeholders for any sized type', () => {
+    const wrapper = mountOptions({ type: 'water_heater' })
+
+    const length = wrapper.get('input[aria-label="Device length in feet and inches"]')
+    const depth = wrapper.get('input[aria-label="Device depth in feet and inches"]')
+    expect(length.attributes('placeholder')).toBe('1\'10"')
+    expect(depth.attributes('placeholder')).toBe('1\'10"')
+  })
+
+  it('shows the draft overrides as the dimension placeholders once set', () => {
+    const wrapper = mountOptions({
+      type: 'baseboard_heater',
+      draft: { ...EMPTY_DRAFT, length_in: 60, depth_in: 4 },
+    })
+
+    expect(
+      wrapper.get('input[aria-label="Device length in feet and inches"]').attributes('placeholder'),
+    ).toBe('5\'0"')
+    expect(
+      wrapper.get('input[aria-label="Device depth in feet and inches"]').attributes('placeholder'),
+    ).toBe('4"')
+  })
+
+  it('emits update-draft with parsed dimensions before placement and clears the fields', async () => {
     const wrapper = mountOptions({ type: 'baseboard_heater' })
-    const input = wrapper.get<HTMLInputElement>(
-      'input[aria-label="Baseboard length in feet and inches"]',
+    const length = wrapper.get<HTMLInputElement>(
+      'input[aria-label="Device length in feet and inches"]',
+    )
+    const depth = wrapper.get<HTMLInputElement>(
+      'input[aria-label="Device depth in feet and inches"]',
     )
 
-    await input.setValue("4'")
-    await input.trigger('keydown.enter')
+    await length.setValue("4'")
+    await length.trigger('keydown.enter')
+    await depth.setValue('5')
+    await depth.trigger('keydown.enter')
 
-    expect(wrapper.emitted('update-draft')).toEqual([[{ length_in: 48 }]])
-    expect(input.element.value).toBe('')
+    expect(wrapper.emitted('update-draft')).toEqual([[{ length_in: 48 }], [{ depth_in: 5 }]])
+    expect(length.element.value).toBe('')
+    expect(depth.element.value).toBe('')
   })
 })

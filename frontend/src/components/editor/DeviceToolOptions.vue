@@ -6,10 +6,11 @@ import type { DeviceDraft } from '@/composables/useDeviceTool'
 import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import {
   BASEBOARD_WATTAGE_PRESETS,
-  DEFAULT_BASEBOARD_LENGTH_IN,
   DEVICE_CATALOG,
+  deviceFootprint,
   effectiveDefaultLoad,
 } from '@/devices/catalog'
+import type { DeviceFootprint } from '@/devices/catalog'
 import type { DeviceType } from '@/types/plan'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
@@ -32,6 +33,7 @@ const precisionIn = useDisplayPrecision()
 
 const labelText = ref('')
 const lengthText = ref('')
+const depthText = ref('')
 // Vue casts a `v-model` bound to `type="number"` to a number as soon as the
 // text parses, so this holds either; the type keeps callers honest.
 const loadText = ref<string | number>('')
@@ -47,7 +49,15 @@ const loadPlaceholder = computed(() => {
   return `${prefix} ${info.value} W`
 })
 
-const effectiveLengthIn = computed(() => props.draft.length_in ?? DEFAULT_BASEBOARD_LENGTH_IN)
+/** The size the next placement gets: the draft's overrides over the catalog footprint (spec D2). */
+const effectiveFootprint = computed<DeviceFootprint | null>(() => {
+  const base = deviceFootprint(props.type)
+  if (!base) return null
+  return {
+    along_in: props.draft.length_in ?? base.along_in,
+    across_in: props.draft.depth_in ?? base.across_in,
+  }
+})
 
 function applyLabel(): void {
   const text = labelText.value.trim()
@@ -72,6 +82,14 @@ function applyLength(): void {
   }
 }
 
+function applyDepth(): void {
+  const parsed = parseFeetInches(depthText.value)
+  if (parsed !== null && parsed > 0) {
+    emit('update-draft', { depth_in: parsed })
+    depthText.value = ''
+  }
+}
+
 function setWattage(watts: number): void {
   emit('update-draft', { load_w: watts })
 }
@@ -82,6 +100,7 @@ watch(
     labelText.value = draft.label ?? ''
     loadText.value = draft.load_w === null ? '' : String(draft.load_w)
     lengthText.value = ''
+    depthText.value = ''
   },
   { immediate: true },
 )
@@ -134,21 +153,39 @@ watch(
       <p class="text-ink-faint mt-1 text-xs">Leave blank to use the {{ loadPlaceholder }}.</p>
     </label>
 
+    <div v-if="effectiveFootprint" aria-label="Device dimensions">
+      <h4 class="text-ink mb-2 text-xs font-semibold">Dimensions</h4>
+      <div class="flex items-start gap-2">
+        <label class="block flex-1">
+          <span class="text-ink-muted text-xs">Length</span>
+          <input
+            v-model="lengthText"
+            type="text"
+            :placeholder="formatFeetInches(effectiveFootprint.along_in, precisionIn)"
+            class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 text-xs outline-none"
+            aria-label="Device length in feet and inches"
+            @keydown.enter.prevent="applyLength"
+            @blur="applyLength"
+          />
+        </label>
+        <label class="block flex-1">
+          <span class="text-ink-muted text-xs">Depth</span>
+          <input
+            v-model="depthText"
+            type="text"
+            :placeholder="formatFeetInches(effectiveFootprint.across_in, precisionIn)"
+            class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 text-xs outline-none"
+            aria-label="Device depth in feet and inches"
+            @keydown.enter.prevent="applyDepth"
+            @blur="applyDepth"
+          />
+        </label>
+      </div>
+    </div>
+
     <div v-if="isBaseboard" aria-label="Baseboard properties">
       <h4 class="text-ink mb-2 text-xs font-semibold">Baseboard</h4>
-      <label class="block">
-        <span class="text-ink-muted text-xs">Length</span>
-        <input
-          v-model="lengthText"
-          type="text"
-          :placeholder="formatFeetInches(effectiveLengthIn, precisionIn)"
-          class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 text-xs outline-none"
-          aria-label="Baseboard length in feet and inches"
-          @keydown.enter.prevent="applyLength"
-          @blur="applyLength"
-        />
-      </label>
-      <div class="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Wattage presets">
+      <div class="flex flex-wrap gap-1.5" role="group" aria-label="Wattage presets">
         <button
           v-for="watts in BASEBOARD_WATTAGE_PRESETS"
           :key="watts"

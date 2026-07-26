@@ -224,7 +224,7 @@ class TestPlanRoutes:
     async def test_update_plan_document__when_document_has_devices__roundtrips_them(
         self, client: AsyncClient
     ) -> None:
-        """A wall-attached outlet, a positioned ceiling light and a baseboard with a length and load override survive a PUT/GET roundtrip intact at the current schema version."""
+        """A wall-attached outlet, a positioned ceiling light and a baseboard with footprint and load overrides survive a PUT/GET roundtrip intact at the current schema version."""
         created = await self._create_plan(client, "Basement")
         document = dict(created["document"])
         document["walls"] = [
@@ -248,6 +248,7 @@ class TestPlanRoutes:
                 "label": None,
                 "load_w": None,
                 "length_in": None,
+                "depth_in": None,
                 "notes": None,
             },
             {
@@ -259,6 +260,7 @@ class TestPlanRoutes:
                 "label": "Salon",
                 "load_w": None,
                 "length_in": None,
+                "depth_in": None,
                 "notes": None,
             },
             {
@@ -275,6 +277,7 @@ class TestPlanRoutes:
                 "label": None,
                 "load_w": 750.0,
                 "length_in": 48.0,
+                "depth_in": 4.0,
                 "notes": "sous la fenêtre",
             },
         ]

@@ -20,7 +20,8 @@ sides enforce it.
 3. **Frontend catalog** — `frontend/src/devices/catalog.ts`: add the type to
    the ordered `DEVICE_TYPES` array (this fixes its position in the picker)
    and to `DEVICE_CATALOG` (label, `legendFr`, mount, voltage, default load,
-   `searchTerms` for the picker).
+   `searchTerms` for the picker, plus an optional `footprint` in inches when the
+   type has a real size — see REQUIREMENTS D2; omit it for a symbolic type).
 4. **Pictogram** — `frontend/src/devices/pictograms.ts`: add a
    `DEVICE_PICTOGRAMS` entry — a list of shapes in the 12×12 box, consistent
    with common electrical-plan symbols. The renderers
@@ -31,9 +32,10 @@ sides enforce it.
    `frontend/tests/devices/catalog.test.ts` (`BACKEND_TYPES` array + count).
 
 Only step outside the registries when the type needs *behavior*, not just a
-symbol. The existing special cases to imitate: baseboard heaters (length
-along the wall — `useDeviceTool.ts`, `utils/geometry/devices.ts`,
-`DeviceInspector.vue`) and the panel (circuit source —
+symbol. A real physical size is not such a case: a `footprint` on the catalog
+row is enough for `utils/geometry/devices.ts` to draw and hit-test the type at
+true scale and for the Inspector and tool options to expose its dimensions. The
+one remaining special case to imitate is the panel (circuit source —
 `utils/circuits.ts`, `EditorPage.vue`).
 
 ## Add a plan schema migration

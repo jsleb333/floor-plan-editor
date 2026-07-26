@@ -17,10 +17,14 @@ class Device(BaseModel):
         wall ``attachment`` (spec section 4.2) or an absolute ``position``
         for ceiling/free-standing devices, never both — and its per-instance
         properties (spec D2): optional label, notes, load override in watts
-        (``None`` means the catalog or plan default applies) and, for
-        baseboard heaters only, a length along the wall. Wall-mount types
-        accept either placement (a panel may be free-standing); ceiling and
-        free types require a position.
+        (``None`` means the catalog or plan default applies) and, for the types
+        whose catalog row carries a ``DeviceFootprint``, size overrides in
+        inches — ``length_in`` ALONG the wall and ``depth_in`` ACROSS, into the
+        room. Either left ``None`` falls back to that dimension of the catalog
+        footprint; both are meaningless for symbolic types, which draw at the
+        editor's nominal pictogram size. Wall-mount types accept either
+        placement (a panel may be free-standing); ceiling and free types
+        require a position.
     """
 
     id: str
@@ -31,6 +35,7 @@ class Device(BaseModel):
     label: str | None = None
     load_w: float | None = None
     length_in: float | None = None
+    depth_in: float | None = None
     notes: str | None = None
 
     @model_validator(mode="after")

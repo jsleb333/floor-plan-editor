@@ -115,9 +115,9 @@ export {
   type ParallelFaceGaps,
 } from './tempDimensions'
 export {
-  BASEBOARD_DEPTH_IN,
   DEVICE_MIN_SCREEN_PX,
   DEVICE_NOMINAL_IN,
+  deviceGlyphBox,
   deviceScreenScale,
   deviceWallGaps,
   deviceWorldPlacement,

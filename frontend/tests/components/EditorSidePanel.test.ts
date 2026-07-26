@@ -15,7 +15,12 @@ import WallToolOptions from '@/components/editor/WallToolOptions.vue'
 import type { DeviceDraft } from '@/composables/useDeviceTool'
 import { makeDevice, makeOpening, makeStairs, makeWall } from '../helpers/planFactory'
 
-const EMPTY_DEVICE_DRAFT: DeviceDraft = { label: null, load_w: null, length_in: null }
+const EMPTY_DEVICE_DRAFT: DeviceDraft = {
+  label: null,
+  load_w: null,
+  length_in: null,
+  depth_in: null,
+}
 
 /** Complete prop set for an idle panel (select tool, empty selection). */
 function baseProps() {
@@ -220,7 +225,7 @@ describe('EditorSidePanel', () => {
 
   it('shows the device tool options and hint above the device inspector once a type is armed', () => {
     const device = makeDevice({ type: 'outlet' })
-    const draft: DeviceDraft = { label: null, load_w: 200, length_in: null }
+    const draft: DeviceDraft = { label: null, load_w: 200, length_in: null, depth_in: null }
     const wrapper = mount(EditorSidePanel, {
       props: {
         ...baseProps(),

@@ -73,9 +73,24 @@ class TestDevice:
             label="Salon",
             load_w=750.0,
             length_in=48.0,
+            depth_in=4.0,
             notes="sous la fenêtre",
         )
 
         dumped = device.model_dump(mode="json")
         assert Device.model_validate(dumped) == device
         assert dumped["type"] == "baseboard_heater"
+        assert dumped["depth_in"] == 4.0
+
+    def test_validation__when_footprint_overrides_are_absent__defaults_them_to_none(self) -> None:
+        """A device stored before footprint overrides existed needs no migration: both slots default to None, meaning "use the catalog footprint"."""
+        device = Device.model_validate(
+            {
+                "id": "wh-1",
+                "type": "water_heater",
+                "position": {"x": 48.0, "y": 60.0},
+            }
+        )
+
+        assert device.length_in is None
+        assert device.depth_in is None

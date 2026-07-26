@@ -35,7 +35,7 @@ describe('DevicesLayer', () => {
     expect(use.attributes('transform')).toContain('translate')
   })
 
-  it('renders a baseboard heater as its own oriented rectangle, not a <use>', () => {
+  it('renders a baseboard heater as its own oriented rectangle plus an inscribed glyph', () => {
     const store = useEditorStore()
     store.document = makeDocument({
       walls: [makeWall()],
@@ -43,8 +43,47 @@ describe('DevicesLayer', () => {
     })
 
     const wrapper = mount(DevicesLayer, { props: { hairline: 0.5, pixelsPerInch: 2 } })
-    expect(wrapper.find('use').exists()).toBe(false)
-    expect(wrapper.find('polygon').exists()).toBe(true)
+    // Left face at y = -1.75 on a 3.5" wall; the 36" x 3" rect protrudes into the room.
+    expect(wrapper.find('polygon').attributes('points')).toBe('42,-1.75 78,-1.75 78,-4.75 42,-4.75')
+    expect(wrapper.find('use').attributes('href')).toBe(`#${pictogramSymbolId('baseboard_heater')}`)
+  })
+
+  it('renders a free water heater at its true 22x22 size, glyph inscribed at the centre', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      devices: [
+        makeDevice({
+          id: 'd1',
+          type: 'water_heater',
+          attachment: null,
+          position: { x: 0, y: 0 },
+        }),
+      ],
+    })
+
+    const wrapper = mount(DevicesLayer, { props: { hairline: 0.5, pixelsPerInch: 2 } })
+    expect(wrapper.find('polygon').attributes('points')).toBe('-11,-11 11,-11 11,11 -11,11')
+    expect(wrapper.find('use').attributes('transform')).toBe('translate(0 0) rotate(0) scale(1)')
+  })
+
+  it('D4: zooming out shrinks the footprint rectangle but clamps only the glyph', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      devices: [
+        makeDevice({
+          id: 'd1',
+          type: 'water_heater',
+          attachment: null,
+          position: { x: 0, y: 0 },
+        }),
+      ],
+    })
+
+    const wrapper = mount(DevicesLayer, { props: { hairline: 0.5, pixelsPerInch: 0.5 } })
+    // The rectangle keeps its real world size — it is meant to shrink on screen.
+    expect(wrapper.find('polygon').attributes('points')).toBe('-11,-11 11,-11 11,11 -11,11')
+    // The glyph counter-scales to stay legible (14 px floor over a 6 px box).
+    expect(wrapper.find('use').attributes('transform')).toContain(`scale(${14 / 6})`)
   })
 
   it('hides all devices when the devices layer is toggled off', async () => {

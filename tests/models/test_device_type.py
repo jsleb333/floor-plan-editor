@@ -30,6 +30,36 @@ class TestDeviceType:
         assert network_jack.voltage_v is None
         assert network_jack.default_load_w == 0.0
 
+    def test_device_catalog__when_a_type_has_a_real_size__carries_its_default_footprint(
+        self,
+    ) -> None:
+        """The physically sized types carry an along/across footprint in inches (spec D2); the baseboard row keeps the editor's historical 36" x 3" default."""
+        expected_footprints = {
+            DeviceType.BASEBOARD_HEATER: (36.0, 3.0),
+            DeviceType.WATER_HEATER: (22.0, 22.0),
+            DeviceType.CENTRAL_VACUUM: (14.0, 14.0),
+            DeviceType.AIR_EXCHANGER: (30.0, 20.0),
+            DeviceType.PANEL: (14.0, 4.0),
+        }
+        for device_type, (along_in, across_in) in expected_footprints.items():
+            footprint = DEVICE_CATALOG[device_type].footprint
+            assert footprint is not None
+            assert (footprint.along_in, footprint.across_in) == (along_in, across_in)
+
+    def test_device_catalog__when_a_type_is_symbolic__carries_no_footprint(self) -> None:
+        """Every other type has no real size and draws at the editor's nominal pictogram size."""
+        sized = {
+            DeviceType.BASEBOARD_HEATER,
+            DeviceType.WATER_HEATER,
+            DeviceType.CENTRAL_VACUUM,
+            DeviceType.AIR_EXCHANGER,
+            DeviceType.PANEL,
+        }
+        for device_type in DeviceType:
+            if device_type in sized:
+                continue
+            assert DEVICE_CATALOG[device_type].footprint is None
+
     def test_device_catalog__when_a_type_carries_no_load__its_voltage_matches_its_kind(
         self,
     ) -> None:

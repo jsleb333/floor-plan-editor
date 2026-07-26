@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  deviceGlyphBox,
   deviceScreenScale,
   deviceWallGaps,
   deviceWorldPlacement,
@@ -62,16 +63,86 @@ describe('deviceWorldPlacement', () => {
     const placement = deviceWorldPlacement(device, [wall])
 
     // Left face at y = -2; the rect protrudes 3" into the room (further -y).
-    expect(placement?.baseboardRect).toEqual([
+    expect(placement?.footprintRect).toEqual([
       { x: 42, y: -2 },
       { x: 78, y: -2 },
       { x: 78, y: -5 },
       { x: 42, y: -5 },
     ])
-    expect(placement?.bounds).toEqual(placement?.baseboardRect)
-    // The anchor itself stays ON the face — baseboards never take the
+    expect(placement?.bounds).toEqual(placement?.footprintRect)
+    // The anchor itself stays ON the face — footprint devices never take the
     // pictogram baseline shift, since their rect is already correctly anchored.
     expect(placement?.position).toEqual({ x: 60, y: -2 })
+    // The inscribed glyph sits at the rectangle's centre, half the depth in.
+    expect(placement?.glyphPosition).toEqual({ x: 60, y: -3.5 })
+  })
+
+  it('resolves an omitted baseboard length to the catalog footprint, unchanged geometry', () => {
+    const wall = makeWall({ thickness_in: 4 })
+    const attachment = { wall_id: 'wall-1', segment_index: 0, t: 60, side: 'left' as const }
+    const fromCatalog = deviceWorldPlacement(
+      makeDevice({ type: 'baseboard_heater', attachment, length_in: null, depth_in: null }),
+      [wall],
+    )
+    const fromOverrides = deviceWorldPlacement(
+      makeDevice({ type: 'baseboard_heater', attachment, length_in: 36, depth_in: 3 }),
+      [wall],
+    )
+
+    expect(fromCatalog?.footprintRect).toEqual(fromOverrides?.footprintRect)
+  })
+
+  it('lets a per-device override beat the catalog footprint', () => {
+    const wall = makeWall({ thickness_in: 4 })
+    const device = makeDevice({
+      type: 'baseboard_heater',
+      attachment: { wall_id: 'wall-1', segment_index: 0, t: 60, side: 'left' },
+      length_in: 48,
+      depth_in: 5,
+    })
+    const placement = deviceWorldPlacement(device, [wall])
+
+    expect(placement?.footprintRect).toEqual([
+      { x: 36, y: -2 },
+      { x: 84, y: -2 },
+      { x: 84, y: -7 },
+      { x: 36, y: -7 },
+    ])
+  })
+
+  it('gives a positioned water heater a true-size 22x22 rectangle centred on its position', () => {
+    const device = makeDevice({
+      type: 'water_heater',
+      attachment: null,
+      position: { x: 100, y: 50 },
+    })
+    const placement = deviceWorldPlacement(device, [])
+
+    expect(placement?.footprintRect).toEqual([
+      { x: 89, y: 39 },
+      { x: 111, y: 39 },
+      { x: 111, y: 61 },
+      { x: 89, y: 61 },
+    ])
+    expect(placement?.bounds).toEqual(placement?.footprintRect)
+    // A positioned footprint device draws its glyph on the rectangle's centre.
+    expect(placement?.glyphPosition).toEqual({ x: 100, y: 50 })
+  })
+
+  it('leaves a symbolic type (switch) on the nominal box with no footprint rectangle', () => {
+    const wall = makeWall({ thickness_in: 3.5 })
+    const device = makeDevice({
+      type: 'switch',
+      attachment: { wall_id: 'wall-1', segment_index: 0, t: 60, side: 'left' },
+    })
+    const placement = deviceWorldPlacement(device, [wall])
+
+    expect(placement?.footprintRect).toBeNull()
+    expect(placement?.glyphPosition).toEqual(placement?.position)
+    expect(placement?.bounds).toHaveLength(4)
+    // The nominal 12" box, not a real size.
+    const box = placement?.bounds ?? []
+    expect(Math.max(...box.map((p) => p.x)) - Math.min(...box.map((p) => p.x))).toBeCloseTo(12, 9)
   })
 
   it("shifts a switch's anchor outward from the face by its pictogram baseline", () => {
@@ -130,6 +201,25 @@ describe('deviceScreenScale', () => {
     expect(deviceScreenScale(2)).toBe(1)
     // At 0.5 px/in the box is 6 px; scale up to reach 14 px.
     expect(deviceScreenScale(0.5)).toBeCloseTo(14 / 6, 9)
+  })
+})
+
+describe('deviceGlyphBox', () => {
+  it('is the nominal box around the glyph, independent of the true-size footprint (spec D4)', () => {
+    const placement = deviceWorldPlacement(
+      makeDevice({ type: 'water_heater', attachment: null, position: { x: 0, y: 0 } }),
+      [],
+    )
+    if (!placement) throw new Error('expected a placement')
+
+    // The 22x22 rectangle is real geometry; the inscribed glyph keeps the
+    // nominal 12" box it is clamped against, centred on the same point.
+    expect(deviceGlyphBox(placement)).toEqual([
+      { x: -6, y: -6 },
+      { x: 6, y: -6 },
+      { x: 6, y: 6 },
+      { x: -6, y: 6 },
+    ])
   })
 })
 

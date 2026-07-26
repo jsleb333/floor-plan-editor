@@ -7,6 +7,7 @@ import {
   BASEBOARD_WATTAGE_PRESETS,
   catalogEntry,
   effectiveDefaultLoad,
+  effectiveDeviceFootprint,
   effectiveDeviceLoad,
 } from '@/devices/catalog'
 import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
@@ -44,6 +45,7 @@ const precisionIn = useDisplayPrecision()
 
 const labelDraft = ref('')
 const lengthDraft = ref('')
+const depthDraft = ref('')
 const rotationDraft = ref('')
 const notesDraft = ref('')
 // Vue casts a `v-model` bound to `type="number"` to a number as soon as the
@@ -70,6 +72,9 @@ const loadPlaceholder = computed(() => {
   const prefix = info.source === 'plan' ? 'plan default' : 'default'
   return `${prefix} ${info.value} W`
 })
+
+/** The size the device actually occupies (spec D2); `null` for symbolic types. */
+const footprint = computed(() => (single.value ? effectiveDeviceFootprint(single.value) : null))
 
 const voltageLabel = computed(() => {
   const volts = entry.value?.voltage_v
@@ -142,6 +147,14 @@ function applyLength(): void {
   }
 }
 
+function applyDepth(): void {
+  const parsed = parseFeetInches(depthDraft.value)
+  if (parsed !== null && parsed > 0) {
+    update({ depth_in: parsed })
+    depthDraft.value = ''
+  }
+}
+
 function applyRotation(): void {
   const parsed = Number.parseFloat(rotationDraft.value)
   if (Number.isFinite(parsed)) {
@@ -177,6 +190,7 @@ watch(
     loadDraft.value = device?.load_w === null || device === null ? '' : String(device.load_w)
     notesDraft.value = device?.notes ?? ''
     lengthDraft.value = ''
+    depthDraft.value = ''
     rotationDraft.value = ''
   },
   { immediate: true },
@@ -224,21 +238,39 @@ watch(
       <p class="text-ink-faint mt-1">Leave blank to use the {{ loadPlaceholder }}.</p>
     </label>
 
+    <div v-if="footprint" aria-label="Device dimensions">
+      <h4 class="text-ink mb-1 font-semibold">Dimensions</h4>
+      <div class="flex items-start gap-2">
+        <label class="block flex-1">
+          <span class="text-ink-muted">Length</span>
+          <input
+            v-model="lengthDraft"
+            type="text"
+            :placeholder="formatFeetInches(footprint.along_in, precisionIn)"
+            class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 outline-none"
+            aria-label="Device length in feet and inches"
+            @keydown.enter.prevent="applyLength"
+            @blur="applyLength"
+          />
+        </label>
+        <label class="block flex-1">
+          <span class="text-ink-muted">Depth</span>
+          <input
+            v-model="depthDraft"
+            type="text"
+            :placeholder="formatFeetInches(footprint.across_in, precisionIn)"
+            class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 outline-none"
+            aria-label="Device depth in feet and inches"
+            @keydown.enter.prevent="applyDepth"
+            @blur="applyDepth"
+          />
+        </label>
+      </div>
+    </div>
+
     <div v-if="single.type === 'baseboard_heater'" aria-label="Baseboard properties">
       <h4 class="text-ink mb-1 font-semibold">Baseboard</h4>
-      <label class="block">
-        <span class="text-ink-muted">Length</span>
-        <input
-          v-model="lengthDraft"
-          type="text"
-          :placeholder="formatFeetInches(single.length_in ?? 0, precisionIn)"
-          class="border-line focus:border-accent mt-1 w-full rounded-md border px-2 py-1 outline-none"
-          aria-label="Baseboard length in feet and inches"
-          @keydown.enter.prevent="applyLength"
-          @blur="applyLength"
-        />
-      </label>
-      <div class="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Wattage presets">
+      <div class="flex flex-wrap gap-1.5" role="group" aria-label="Wattage presets">
         <button
           v-for="watts in BASEBOARD_WATTAGE_PRESETS"
           :key="watts"
