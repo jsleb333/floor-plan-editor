@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { assetUrl } from '@/api/assets'
+import AlignmentGuidesOverlay from '@/components/editor/AlignmentGuidesOverlay.vue'
 import CalibrateOverlay from '@/components/editor/CalibrateOverlay.vue'
 import ControlLinksLayer from '@/components/editor/ControlLinksLayer.vue'
 import DeviceToolOverlay from '@/components/editor/DeviceToolOverlay.vue'
@@ -35,7 +36,7 @@ import { useOpeningTool } from '@/composables/useOpeningTool'
 import { useSelectTool } from '@/composables/useSelectTool'
 import { useSnapSettings } from '@/composables/useSnapSettings'
 import { useSnapping } from '@/composables/useSnapping'
-import type { SnapToggleId } from '@/composables/useSnapping'
+import type { AlignmentGuidesView, SnapToggleId } from '@/composables/useSnapping'
 import { useStairsTool } from '@/composables/useStairsTool'
 import { useToolSelection } from '@/composables/useToolSelection'
 import { isTypingTarget, useToolShortcuts } from '@/composables/useToolShortcuts'
@@ -351,6 +352,28 @@ const dimensionPreview = computed(() =>
 const devicePreview = computed(() =>
   activeTool.value === 'device' ? deviceTool.preview.value : null,
 )
+
+/** S1e alignment guides of the active drawing tool, feeding the shared overlay. */
+const alignmentGuidesView = computed<AlignmentGuidesView | null>(() => {
+  if (activeTool.value === 'wall') {
+    const preview = wallPreview.value
+    return preview?.point && preview.alignmentGuides.length > 0
+      ? { point: preview.point, guides: preview.alignmentGuides }
+      : null
+  }
+  if (activeTool.value === 'stairs') {
+    const guides = stairsTool.alignmentGuides.value
+    const origin = stairsPreview.value?.origin
+    return origin && guides.length > 0 ? { point: origin, guides } : null
+  }
+  if (activeTool.value === 'dimension') {
+    const preview = dimensionPreview.value
+    return preview?.point && preview.alignmentGuides.length > 0
+      ? { point: preview.point, guides: preview.alignmentGuides }
+      : null
+  }
+  return null
+})
 const deviceChips = computed(() => (activeTool.value === 'device' ? deviceTool.chips.value : []))
 
 function deviceCenterById(deviceId: string | null): Point | null {
@@ -914,6 +937,11 @@ onBeforeUnmount(() => {
             />
             <LabelsLayer :hairline="hairline" />
             <DimensionsLayer :hairline="hairline" :preview="dimensionPreview" />
+            <AlignmentGuidesOverlay
+              :guides="alignmentGuidesView?.guides ?? []"
+              :point="alignmentGuidesView?.point ?? null"
+              :hairline="hairline"
+            />
             <WallToolOverlay
               v-if="activeTool === 'wall' && wallPreview"
               :preview="wallPreview"

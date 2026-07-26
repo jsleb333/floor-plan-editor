@@ -326,3 +326,9 @@ onMounted(() => periodStore.load())
 - Focus on testing composables, stores, and utility functions. Component tests should verify user-visible behavior (rendered text, emitted events), not internal state.
 - Use `vi.mock()` for API calls — never hit the real backend in unit tests.
 - Run tests before considering work done.
+
+## Workflows & contributing
+
+- Use Opus or Sonnet subagents as appropriate for the task difficulty and scope.
+- Use git and github for version control.
+- Commit using conventional commits (e.g. `feat: add new wall tool`): one line summary, no authorship. Prefer atomic commits when possible.

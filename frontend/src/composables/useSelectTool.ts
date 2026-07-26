@@ -349,6 +349,10 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
     ),
     pixelsPerInch,
     settings: snapSettings,
+    // Vertex drags resolve with `free` hardcoded off (Alt is folded in before
+    // this call), so the S1e guides would ignore Alt here; they stay a
+    // drawing-tool affordance for now (spec S1e).
+    anchorGuides: false,
   })
 
   const isDragging = computed(

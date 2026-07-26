@@ -294,3 +294,203 @@ describe('useSnapping resolve', () => {
     expect(snapping.resolve({ x: 5.1, y: 100 }, null, false).marker).toBeNull()
   })
 })
+
+describe('useSnapping alignment guides (S1e)', () => {
+  it('snaps a free point onto the vertical line through a wall endpoint and returns its guide', () => {
+    const snapping = makeSnapping([makeWall()])
+    const result = snapping.resolve({ x: 1.5, y: 60 }, null, false)
+    expect(result.point).toEqual({ x: 0, y: 60 })
+    expect(result.marker).toBeNull()
+    expect(result.alignmentGuides).toHaveLength(1)
+    expect(result.alignmentGuides[0].anchor).toEqual({ x: 0, y: 0 })
+    expect(result.alignmentGuides[0].kind).toBe('endpoint')
+    expect(result.alignmentGuides[0].dir).toEqual({ x: 0, y: 1 })
+  })
+
+  it('guide snap outranks the grid: the point stays on the guide, not grid-rounded', () => {
+    const snapping = makeSnapping([makeWall()])
+    const result = snapping.resolve({ x: 1.5, y: 59 }, null, false)
+    expect(result.point).toEqual({ x: 0, y: 59 })
+  })
+
+  it('uses an interior corner vertex as an anchor, preferring the nearest collinear anchor', () => {
+    const wall = makeWall({
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 120, y: 0 },
+        { x: 120, y: -120 },
+      ],
+    })
+    const snapping = makeSnapping([wall])
+    const result = snapping.resolve({ x: 121.5, y: 60 }, null, false)
+    expect(result.point).toEqual({ x: 120, y: 60 })
+    expect(result.alignmentGuides).toHaveLength(1)
+    expect(result.alignmentGuides[0].anchor).toEqual({ x: 120, y: 0 })
+    expect(result.alignmentGuides[0].kind).toBe('endpoint')
+  })
+
+  it('classifies an attached chain end as a junction anchor', () => {
+    const host = makeWall({
+      id: 'host',
+      vertices: [
+        { x: -50, y: 50 },
+        { x: 50, y: 50 },
+      ],
+    })
+    const attached = makeWall({
+      id: 'attached',
+      vertices: [
+        { x: 80, y: -40 },
+        { x: 0, y: 50 },
+      ],
+      junctions: [{ end: 'end', host_wall_id: 'host', segment_index: 0, t: 50 }],
+    })
+    const snapping = makeSnapping([host, attached])
+    const result = snapping.resolve({ x: 2, y: -20 }, null, false)
+    expect(result.point).toEqual({ x: 0, y: -20 })
+    expect(result.alignmentGuides).toHaveLength(1)
+    expect(result.alignmentGuides[0].anchor).toEqual({ x: 0, y: 50 })
+    expect(result.alignmentGuides[0].kind).toBe('junction')
+  })
+
+  it('an endpoint anchor outranks a junction anchor even when its line is farther', () => {
+    const host = makeWall({
+      id: 'host',
+      vertices: [
+        { x: -50, y: 50 },
+        { x: 50, y: 50 },
+      ],
+    })
+    const attached = makeWall({
+      id: 'attached',
+      vertices: [
+        { x: 80, y: -40 },
+        { x: 0, y: 50 },
+      ],
+      junctions: [{ end: 'end', host_wall_id: 'host', segment_index: 0, t: 50 }],
+    })
+    const far = makeWall({
+      id: 'far',
+      vertices: [
+        { x: 6, y: -200 },
+        { x: 6, y: -150 },
+      ],
+    })
+    const snapping = makeSnapping([host, attached, far])
+    // The junction's line (x=0) is 2" away, the endpoint's line (x=6) is 4" away.
+    const result = snapping.resolve({ x: 2, y: -20 }, null, false)
+    expect(result.point).toEqual({ x: 6, y: -20 })
+    expect(result.alignmentGuides).toHaveLength(1)
+    expect(result.alignmentGuides[0].kind).toBe('endpoint')
+    expect(result.alignmentGuides[0].anchor).toEqual({ x: 6, y: -150 })
+  })
+
+  it('snaps to the intersection of two guides from different anchors, rendering both', () => {
+    const horizontal = makeWall({
+      id: 'a',
+      vertices: [
+        { x: -100, y: 0 },
+        { x: 0, y: 0 },
+      ],
+    })
+    const vertical = makeWall({
+      id: 'b',
+      vertices: [
+        { x: 200, y: 50 },
+        { x: 300, y: 50 },
+      ],
+    })
+    const snapping = makeSnapping([horizontal, vertical])
+    const result = snapping.resolve({ x: 2, y: 48 }, null, false)
+    expect(result.point.x).toBeCloseTo(0)
+    expect(result.point.y).toBeCloseTo(50)
+    expect(result.alignmentGuides).toHaveLength(2)
+    const anchors = result.alignmentGuides.map((guide) => guide.anchor)
+    expect(anchors).toContainEqual({ x: 0, y: 0 })
+    expect(anchors).toContainEqual({ x: 200, y: 50 })
+  })
+
+  it('a direct wall snap outranks alignment guides', () => {
+    const host = makeWall({
+      id: 'host',
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 0, y: 240 },
+      ],
+    })
+    const guideSource = makeWall({
+      id: 'source',
+      vertices: [
+        { x: 100, y: 50 },
+        { x: 200, y: 50 },
+      ],
+    })
+    const snapping = makeSnapping([host, guideSource])
+    const result = snapping.resolve({ x: 2, y: 49 }, null, false)
+    expect(result.marker).toBe('projection')
+    expect(result.alignmentGuides).toHaveLength(0)
+  })
+
+  it('Alt suspends alignment guides', () => {
+    const snapping = makeSnapping([makeWall()])
+    const result = snapping.resolve({ x: 1.5, y: 59 }, null, true)
+    expect(result.point).toEqual({ x: 1.5, y: 59 })
+    expect(result.alignmentGuides).toHaveLength(0)
+  })
+
+  it('walls toggle off suspends alignment guides with the other wall-derived snaps', () => {
+    const snapping = makeSnapping([makeWall()], { walls: false, grid: false, angle: false })
+    const result = snapping.resolve({ x: 1.5, y: 59 }, null, false)
+    expect(result.point).toEqual({ x: 1.5, y: 59 })
+    expect(result.alignmentGuides).toHaveLength(0)
+  })
+
+  it('chain-start alignment (S1c) outranks the geometry guides while closing a loop', () => {
+    const wall = makeWall({
+      vertices: [
+        { x: 0, y: 200 },
+        { x: -100, y: 200 },
+      ],
+    })
+    const snapping = makeSnapping([wall])
+    // Drawing west along y=80 toward a chain started at the origin: both the
+    // chain start and the wall endpoint (0,200) offer the vertical line x=0.
+    const result = snapping.resolve({ x: 2, y: 80.5 }, chain([0, 0], [100, 80], 3), false)
+    expect(result.point.x).toBeCloseTo(0)
+    expect(result.point.y).toBeCloseTo(80)
+    expect(result.alignGuide?.origin).toEqual({ x: 0, y: 0 })
+    expect(result.alignmentGuides).toHaveLength(0)
+  })
+
+  it('slides an angle-constrained point along its ray to the guide crossing', () => {
+    const wall = makeWall({
+      vertices: [
+        { x: 0, y: 200 },
+        { x: -50, y: 200 },
+      ],
+    })
+    const snapping = makeSnapping([wall])
+    // Drawing west along y=80: the vertical guide through (0,200) crosses the
+    // ray 2" ahead; the point slides there instead of grid-rounding.
+    const result = snapping.resolve({ x: 2, y: 80.5 }, chain([100, 300], [100, 80], 2), false)
+    expect(result.point).toEqual({ x: 0, y: 80 })
+    expect(result.guide?.dir).toEqual({ x: -1, y: 0 })
+    expect(result.alignGuide).toBeNull()
+    expect(result.alignmentGuides).toHaveLength(1)
+    expect(result.alignmentGuides[0].anchor).toEqual({ x: 0, y: 200 })
+    expect(result.alignmentGuides[0].dir).toEqual({ x: 0, y: 1 })
+  })
+
+  it('anchors beyond the capture radius project no guides', () => {
+    const wall = makeWall({
+      vertices: [
+        { x: 0, y: 300 },
+        { x: 50, y: 300 },
+      ],
+    })
+    const snapping = makeSnapping([wall])
+    // Cursor 282" from the nearest vertex; capture is 250px / 1 px-per-inch.
+    const result = snapping.resolve({ x: 1.5, y: 18 }, null, false)
+    expect(result.alignmentGuides).toHaveLength(0)
+  })
+})

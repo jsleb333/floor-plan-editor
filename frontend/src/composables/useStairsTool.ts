@@ -3,10 +3,11 @@ import type { ComputedRef, Ref, ShallowRef } from 'vue'
 
 import type { Point, Stairs } from '@/types/plan'
 import { angleOf, dot, sub } from '@/utils/geometry'
+import type { AlignmentGuide } from '@/utils/geometry'
 import { parseFeetInches } from '@/utils/units'
 
 import { GRID_STEP_IN } from './useSnapping'
-import type { UseSnappingReturn } from './useSnapping'
+import type { SnapResult, UseSnappingReturn } from './useSnapping'
 import { isBufferKey } from './useWallTool'
 
 /** Default stair run width (spec S6), editable in the Inspector afterwards. */
@@ -71,6 +72,8 @@ export interface UseStairsToolReturn {
    * afterwards (spec S6/E8).
    */
   preview: ComputedRef<Stairs | null>
+  /** Alignment guides engaged by the hover ghost's snapped origin (spec S1e); empty while dragging. */
+  alignmentGuides: ComputedRef<readonly AlignmentGuide[]>
   isDrawing: ComputedRef<boolean>
   /** Width the next run is placed with (live tool option, spec E8). */
   widthIn: Ref<number>
@@ -152,13 +155,18 @@ export function useStairsTool(options: UseStairsToolOptions): UseStairsToolRetur
     }
   }
 
+  /** Snap resolution of the hover ghost's origin (before any press). */
+  const hoverSnap = computed<SnapResult | null>(() => {
+    if (!cursor.value || origin.value) return null
+    return snapping.resolve(cursor.value, null, altHeld.value)
+  })
+
   /**
    * Ghost run before any press (spec S6): anchored so the cursor sits where a
    * press would put the origin, horizontal, with the options width and the
    * last-used length.
    */
-  function hoverGhost(world: Point): Stairs {
-    const anchor = snapping.resolve(world, null, altHeld.value).point
+  function hoverGhost(anchor: Point): Stairs {
     return {
       id: PREVIEW_ID,
       origin: { ...anchor },
@@ -171,8 +179,14 @@ export function useStairsTool(options: UseStairsToolOptions): UseStairsToolRetur
 
   const preview = computed<Stairs | null>(() => {
     if (!cursor.value) return null
-    return origin.value ? pendingRun(cursor.value) : hoverGhost(cursor.value)
+    if (origin.value) return pendingRun(cursor.value)
+    const snap = hoverSnap.value
+    return snap ? hoverGhost(snap.point) : null
   })
+
+  const alignmentGuides = computed<readonly AlignmentGuide[]>(
+    () => hoverSnap.value?.alignmentGuides ?? [],
+  )
 
   function setWidth(value: number): void {
     if (isValidLength(value)) widthIn.value = value
@@ -280,6 +294,7 @@ export function useStairsTool(options: UseStairsToolOptions): UseStairsToolRetur
 
   return {
     preview,
+    alignmentGuides,
     isDrawing,
     widthIn,
     direction,

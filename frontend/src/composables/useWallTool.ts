@@ -11,7 +11,7 @@ import {
   scale,
   wallOutline,
 } from '@/utils/geometry'
-import type { WallReference } from '@/utils/geometry'
+import type { AlignmentGuide, WallReference } from '@/utils/geometry'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
 import type {
@@ -51,6 +51,8 @@ export interface WallToolPreview {
   guide: SnapGuide | null
   /** Alignment line through the chain start when the pending point lines up with it (spec S1c). */
   alignGuide: SnapGuide | null
+  /** Alignment guides through nearby geometry anchors when `point` snapped onto them (spec S1e). */
+  alignmentGuides: readonly AlignmentGuide[]
   /** Chain-start point when the close-loop affordance is engaged (spec S1c). */
   closePoint: Point | null
   reference: WallReference
@@ -189,6 +191,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
           : null,
       guide: snap?.guide ?? null,
       alignGuide: snap?.alignGuide ?? null,
+      alignmentGuides: snap?.alignmentGuides ?? [],
       closePoint: snap?.marker === 'close' ? snap.point : null,
       reference: reference.value,
       thicknessIn: thicknessIn.value,

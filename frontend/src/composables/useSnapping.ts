@@ -6,6 +6,9 @@ import {
   add,
   alignFree,
   alignOnRay,
+  anchorAlignFree,
+  anchorAlignOnRay,
+  collectAlignmentAnchors,
   distance,
   dot,
   length,
@@ -16,15 +19,22 @@ import {
   snapDirection,
   sub,
 } from '@/utils/geometry'
+import type { AlignmentAnchor, AlignmentGuide } from '@/utils/geometry'
 
 /** Default grid pitch for grid snapping, in inches (spec §3: minor grid 3"). */
 export const GRID_STEP_IN = 3
 /** Snap capture radius on screen; converted to world inches by the current zoom. */
 export const SNAP_THRESHOLD_PX = 10
+/** Anchor capture radius on screen for the S1e alignment guides; scales with zoom like the snap threshold. */
+export const ALIGN_ANCHOR_CAPTURE_PX = 250
 /** Minimum vertices in the pending chain before the close-loop snap engages (spec S1c). */
 const MIN_CLOSE_VERTICES = 3
 /** Minimum chain vertices before alignment with the start vertex is offered (spec S1c). */
 const MIN_ALIGN_VERTICES = 2
+/** Shared empty guide list, so misses never allocate per cursor move. */
+const NO_ALIGNMENT_GUIDES: readonly AlignmentGuide[] = []
+/** Shared empty anchor list for resolutions with the S1e guides inactive. */
+const NO_ANCHORS: readonly AlignmentAnchor[] = []
 
 /** Identifier of one snap toggle (status bar buttons). */
 export type SnapToggleId = keyof SnapSettings
@@ -73,8 +83,16 @@ export interface SnapResult {
   guide: SnapGuide | null
   /** Alignment line through the chain start when `point` is snapped in line with it (spec S1c). */
   alignGuide: SnapGuide | null
+  /** Alignment guides through existing-geometry anchors when `point` snapped onto them (spec S1e, at most two). */
+  alignmentGuides: readonly AlignmentGuide[]
   /** Set when the point lies on an existing wall's reference line (projection snap). */
   attachment: WallSnapAttachment | null
+}
+
+/** The snapped point plus its engaged S1e guides, ready for the guides overlay. */
+export interface AlignmentGuidesView {
+  point: Point
+  guides: readonly AlignmentGuide[]
 }
 
 export interface UseSnappingOptions {
@@ -83,6 +101,13 @@ export interface UseSnappingOptions {
   /** Current screen pixels per world inch, to convert the pixel threshold to inches. */
   pixelsPerInch: Ref<number>
   settings: SnapSettings
+  /**
+   * Enables the S1e alignment guides projected through existing wall vertices
+   * (default true). The select tool opts out: its drags fold modifier state
+   * into the `resolve` arguments upstream, and anchor guides there would
+   * fight the drag-specific constraints.
+   */
+  anchorGuides?: boolean
 }
 
 export interface UseSnappingReturn {
@@ -91,11 +116,12 @@ export interface UseSnappingReturn {
   thresholdIn: () => number
   /**
    * Resolves the snapped point for a raw world cursor (priority per specs
-   * S3a/E6): chain-start close, wall endpoint, segment midpoint, projection
-   * onto a reference line (constrained to the pending segment's snapped
-   * direction while drawing with angle snap on), alignment with the chain
-   * start, then angle/grid constraints. `free` (Alt held) disables the
-   * alignment, angle and grid constraints only.
+   * S3a/S1e/E6): chain-start close, wall endpoint, segment midpoint,
+   * projection onto a reference line (constrained to the pending segment's
+   * snapped direction while drawing with angle snap on), alignment with the
+   * chain start (spec S1c), alignment guides through nearby wall vertices and
+   * junctions (spec S1e), then angle/grid constraints. `free` (Alt held)
+   * disables the alignment, angle and grid constraints only.
    */
   resolve: (cursor: Point, chain: SnapChainContext | null, free: boolean) => SnapResult
   /** Unit drawing direction `from -> toward`, angle-snapped unless disabled or `free`. */
@@ -116,9 +142,14 @@ interface WallSnapCandidate {
  */
 export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
   const { walls, pixelsPerInch, settings } = options
+  const anchorGuidesEnabled = options.anchorGuides ?? true
 
   function thresholdIn(): number {
     return SNAP_THRESHOLD_PX / Math.max(pixelsPerInch.value, Number.EPSILON)
+  }
+
+  function anchorCaptureIn(): number {
+    return ALIGN_ANCHOR_CAPTURE_PX / Math.max(pixelsPerInch.value, Number.EPSILON)
   }
 
   function direction(from: Point, toward: Point, free: boolean): Point {
@@ -138,6 +169,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         marker: 'close',
         guide: null,
         alignGuide: null,
+        alignmentGuides: NO_ALIGNMENT_GUIDES,
         attachment: null,
       }
     }
@@ -145,6 +177,9 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
     const angleActive = settings.angle.value && !free
     const gridActive = settings.grid.value && !free
     const alignActive = !free && chain !== null && chain.vertexCount >= MIN_ALIGN_VERTICES
+    // The S1e guides derive from walls, so the walls toggle governs them; Alt
+    // suspends them with the rest of the align/angle family (spec S1e).
+    const anchorsActive = anchorGuidesEnabled && settings.walls.value && !free
 
     if (settings.walls.value) {
       const ray =
@@ -154,6 +189,10 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
       const wallSnap = resolveWallSnap(cursor, threshold, ray)
       if (wallSnap) return wallSnap
     }
+
+    const anchors = anchorsActive
+      ? collectAlignmentAnchors(walls.value, cursor, anchorCaptureIn())
+      : NO_ANCHORS
 
     if (chain && angleActive) {
       const dir = snapDirection(sub(cursor, chain.last), true)
@@ -166,6 +205,20 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
             marker: null,
             guide: { origin: chain.last, dir },
             alignGuide: { origin: { ...chain.start }, dir: aligned.guideDir },
+            alignmentGuides: NO_ALIGNMENT_GUIDES,
+            attachment: null,
+          }
+        }
+      }
+      if (anchors.length > 0) {
+        const anchored = anchorAlignOnRay(chain.last, dir, anchors, along, threshold)
+        if (anchored) {
+          return {
+            point: anchored.point,
+            marker: null,
+            guide: { origin: chain.last, dir },
+            alignGuide: null,
+            alignmentGuides: anchored.guides,
             attachment: null,
           }
         }
@@ -176,6 +229,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         marker: null,
         guide: { origin: chain.last, dir },
         alignGuide: null,
+        alignmentGuides: NO_ALIGNMENT_GUIDES,
         attachment: null,
       }
     }
@@ -188,6 +242,21 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
           marker: null,
           guide: null,
           alignGuide: { origin: { ...chain.start }, dir: aligned.guideDir },
+          alignmentGuides: NO_ALIGNMENT_GUIDES,
+          attachment: null,
+        }
+      }
+    }
+
+    if (anchors.length > 0) {
+      const anchored = anchorAlignFree(cursor, anchors, threshold)
+      if (anchored) {
+        return {
+          point: anchored.point,
+          marker: null,
+          guide: null,
+          alignGuide: null,
+          alignmentGuides: anchored.guides,
           attachment: null,
         }
       }
@@ -199,10 +268,18 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         marker: null,
         guide: null,
         alignGuide: null,
+        alignmentGuides: NO_ALIGNMENT_GUIDES,
         attachment: null,
       }
     }
-    return { point: { ...cursor }, marker: null, guide: null, alignGuide: null, attachment: null }
+    return {
+      point: { ...cursor },
+      marker: null,
+      guide: null,
+      alignGuide: null,
+      alignmentGuides: NO_ALIGNMENT_GUIDES,
+      attachment: null,
+    }
   }
 
   function resolveWallSnap(
@@ -280,6 +357,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         marker: 'endpoint',
         guide: null,
         alignGuide: null,
+        alignmentGuides: NO_ALIGNMENT_GUIDES,
         attachment: null,
       }
     }
@@ -289,6 +367,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         marker: 'midpoint',
         guide: null,
         alignGuide: null,
+        alignmentGuides: NO_ALIGNMENT_GUIDES,
         attachment: null,
       }
     }
@@ -298,6 +377,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         marker: 'projection',
         guide: ray,
         alignGuide: null,
+        alignmentGuides: NO_ALIGNMENT_GUIDES,
         attachment: projection.attachment,
       }
     }
