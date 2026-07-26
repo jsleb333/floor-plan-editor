@@ -17,6 +17,8 @@ const props = defineProps<{
   wallReference: WallReference | null
   /** Exact-input buffer echo (spec S2); hidden when empty. */
   inputBuffer: string
+  /** Transient quiet notice (spec §6.2, e.g. the S1d preset switch); null hides it. */
+  notice: string | null
   /** Active circuit name shown while the wire tool is active; null hides it (spec §6.1). */
   activeCircuitName: string | null
   /** Active circuit colour swatch, paired with the name. */
@@ -70,6 +72,8 @@ const snapToggles = computed(() => [
     <span v-if="inputBuffer" class="text-ink tabular-nums" aria-label="Typed length">
       {{ inputBuffer }} ⏎
     </span>
+
+    <span v-if="notice" role="status" class="text-accent">{{ notice }}</span>
 
     <span v-if="activeCircuitName" class="flex items-center gap-1.5" aria-label="Active circuit">
       circuit:

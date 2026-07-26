@@ -36,6 +36,7 @@ class PlanMigrator:
             2: self._migrate_v2_to_v3,
             3: self._migrate_v3_to_v4,
             4: self._migrate_v4_to_v5,
+            5: self._migrate_v5_to_v6,
         }
 
     def migrate(self, raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -130,4 +131,19 @@ class PlanMigrator:
         document.setdefault("wires", [])
         document.setdefault("control_links", [])
         document["schema_version"] = 5
+        return document
+
+    @staticmethod
+    def _migrate_v5_to_v6(document: dict[str, Any]) -> dict[str, Any]:
+        """Add the v6 persisted active-tool slot (spec P4/E9), empty by default.
+
+        Args:
+            document: A schema v5 document dict.
+
+        Returns:
+            The same dict brought to schema version 6, with no active tool
+            recorded — the editor falls back to its content-aware startup.
+        """
+        document.setdefault("active_tool", None)
+        document["schema_version"] = 6
         return document

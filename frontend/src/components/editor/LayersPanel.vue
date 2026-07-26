@@ -2,14 +2,12 @@
 import { Crosshair, Eye, EyeOff, ImageUp, Lock, LockOpen, Trash2 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 
-import { assetUrl, uploadAsset } from '@/api/assets'
+import { useUnderlayImport } from '@/composables/useUnderlayImport'
 import { useUnderlayRotation } from '@/composables/useUnderlayRotation'
 import { useEditorStore } from '@/stores/editor'
 import { useLayersStore } from '@/stores/layers'
 import type { Underlay } from '@/types/plan'
-import { loadImageSize } from '@/utils/imageSize'
 import type { ImageSize } from '@/utils/imageSize'
-import { DEFAULT_UNDERLAY_OPACITY, initialUnderlayTransform } from '@/utils/underlay'
 
 const props = defineProps<{
   /** Natural pixel size of the underlay image; rotation pivots about its centre when known. */
@@ -21,13 +19,10 @@ const emit = defineEmits<{
   recalibrate: []
 }>()
 
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png']
-
 const editorStore = useEditorStore()
 const layersStore = useLayersStore()
 
-const uploading = ref(false)
-const uploadError = ref<string | null>(null)
+const { uploading, error: uploadError, importFile } = useUnderlayImport()
 const dragOver = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -53,34 +48,6 @@ const {
 function update(patch: Partial<Underlay>): void {
   if (!underlay.value) return
   editorStore.mutate({ type: 'setUnderlay', underlay: { ...underlay.value, ...patch } })
-}
-
-async function importFile(file: File): Promise<void> {
-  uploadError.value = null
-  if (!ACCEPTED_TYPES.includes(file.type)) {
-    uploadError.value = 'Only JPEG and PNG images are supported.'
-    return
-  }
-  uploading.value = true
-  try {
-    const asset = await uploadAsset(file)
-    const size = await loadImageSize(assetUrl(asset.id))
-    const centre = editorStore.document?.viewport.center ?? { x: 0, y: 0 }
-    editorStore.mutate({
-      type: 'setUnderlay',
-      underlay: {
-        image_ref: asset.id,
-        transform: initialUnderlayTransform(size, centre),
-        opacity: DEFAULT_UNDERLAY_OPACITY,
-        locked: false,
-        visible: true,
-      },
-    })
-  } catch (error) {
-    uploadError.value = error instanceof Error ? error.message : 'Upload failed'
-  } finally {
-    uploading.value = false
-  }
 }
 
 function onFileChange(event: Event): void {

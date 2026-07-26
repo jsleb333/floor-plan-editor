@@ -147,10 +147,10 @@ export function makeUnderlay(overrides: Partial<Underlay> = {}): Underlay {
   }
 }
 
-/** Builds a complete, empty v5 document; override any field per test. */
+/** Builds a complete, empty v6 document; override any field per test. */
 export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocument {
   return {
-    schema_version: 5,
+    schema_version: 6,
     viewport: { center: { x: 0, y: 0 }, zoom: 1 },
     underlay: null,
     walls: [],
@@ -164,6 +164,7 @@ export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocumen
     circuits: [],
     wires: [],
     control_links: [],
+    active_tool: null,
     ...overrides,
   }
 }

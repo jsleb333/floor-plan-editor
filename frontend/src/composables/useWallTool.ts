@@ -25,6 +25,7 @@ import type {
 
 /** Interior 3½" is the default thickness preset (spec S1). */
 export const DEFAULT_WALL_THICKNESS_IN = 3.5
+const THICKNESS_TOLERANCE_IN = 1e-9
 const MIN_COMMIT_VERTICES = 2
 const REFERENCE_CYCLE: readonly WallReference[] = ['center', 'left', 'right']
 const BUFFER_CHAR_PATTERN = /^[0-9'"/. ]$/
@@ -61,6 +62,18 @@ export interface UseWallToolOptions {
   snapping: UseSnappingReturn
   /** Receives each finished wall; the caller dispatches the store command. */
   commit: (wall: Wall) => void
+  /**
+   * Plan-level thickness presets driving the smart defaults (spec S1d).
+   * Preset convention (spec §5.9 tier 2): the list is ordered from outermost
+   * to innermost — the FIRST preset is the exterior wall preset and the LAST
+   * is the interior default (seeded [12, 4.5, 3.5]: 12" exterior, 3.5"
+   * interior default). Omitted or empty disables the smart preset flow.
+   */
+  presetsIn?: Ref<readonly number[]> | ComputedRef<readonly number[]>
+  /** Whether the plan already contains a closed wall loop (spec S1d). */
+  hasClosedLoop?: Ref<boolean> | ComputedRef<boolean>
+  /** Notified when closing a loop auto-switches to the interior default (spec S1d). */
+  onAutoPreset?: (thicknessIn: number) => void
 }
 
 export interface UseWallToolReturn {
@@ -85,21 +98,32 @@ export interface UseWallToolReturn {
   cancel: () => void
   /** Cancels the pending chain and clears modifier state (on tool switch). */
   deactivate: () => void
+  /**
+   * Applies the smart preset for arming (spec S1d): exterior preset while the
+   * plan has no closed loop, interior default once one exists. Also clears
+   * any explicit-pick override, re-enabling the loop-close auto-switch. Call
+   * every time the wall tool becomes the active tool.
+   */
+  arm: () => void
 }
 
 /**
- * Wall drawing state machine (specs S1/S1a/S1c/S2): click to place reference
- * vertices, Enter/double-click to finish (a click landing on an existing wall
- * finishes there), Esc to cancel, Tab to cycle the reference side, typed
- * lengths for exact input, and a close-loop affordance with aligned-close
- * correction and auto-square corner insertion.
+ * Wall drawing state machine (specs S1/S1a/S1c/S1d/S2): click to place
+ * reference vertices, Enter/double-click to finish (a click landing on an
+ * existing wall finishes there), Esc to cancel, Tab to cycle the reference
+ * side, typed lengths for exact input, a close-loop affordance with
+ * aligned-close correction and auto-square corner insertion, and the smart
+ * thickness flow — exterior preset on an empty plan, interior default once a
+ * loop exists or closes, always overridden by an explicit pick.
  *
  * Headless by design: all inputs are injected (snap engine, commit callback)
  * and interaction arrives via methods, so the machine is testable without a
  * DOM or a component tree.
  */
 export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
-  const { snapping, commit } = options
+  const { snapping, commit, onAutoPreset } = options
+  const presetsIn = options.presetsIn ?? ref<readonly number[]>([])
+  const hasClosedLoop = options.hasClosedLoop ?? ref(false)
 
   const thicknessIn = ref(DEFAULT_WALL_THICKNESS_IN)
   const reference = ref<WallReference>('center')
@@ -110,6 +134,9 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
 
   let startAttachment: WallSnapAttachment | null = null
   let lastAttachment: WallSnapAttachment | null = null
+  // Whether the user explicitly picked a thickness since the last arm; an
+  // explicit pick always wins and suppresses the smart presets (spec S1d).
+  let manualOverride = false
 
   const isDrawing = computed(() => vertices.value.length > 0)
 
@@ -173,7 +200,35 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
   }
 
   function setThickness(value: number): void {
-    if (value > 0) thicknessIn.value = value
+    if (value <= 0) return
+    thicknessIn.value = value
+    manualOverride = true
+  }
+
+  function arm(): void {
+    manualOverride = false
+    const presets = presetsIn.value
+    if (presets.length === 0) return
+    thicknessIn.value = hasClosedLoop.value ? presets[presets.length - 1] : presets[0]
+  }
+
+  /**
+   * The loop-close switch (spec S1d): the moment a chain commit closes a loop,
+   * the active exterior preset flips to the interior default — the next wall
+   * is almost always a partition. Runs AFTER the wall is committed, so it only
+   * ever affects the next wall; an explicit pick since arming, a non-exterior
+   * active thickness or an exterior-only preset list leave everything alone.
+   */
+  function autoSelectInteriorPreset(): void {
+    if (manualOverride) return
+    const presets = presetsIn.value
+    if (presets.length === 0) return
+    const exterior = presets[0]
+    const interior = presets[presets.length - 1]
+    if (Math.abs(thicknessIn.value - exterior) > THICKNESS_TOLERANCE_IN) return
+    if (Math.abs(interior - exterior) <= THICKNESS_TOLERANCE_IN) return
+    thicknessIn.value = interior
+    onAutoPreset?.(interior)
   }
 
   function setReference(value: WallReference): void {
@@ -268,6 +323,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
       junctions,
     })
     reset()
+    if (closed) autoSelectInteriorPreset()
   }
 
   function commitTypedLength(): void {
@@ -361,6 +417,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     handleKey,
     cancel,
     deactivate,
+    arm,
   }
 }
 
