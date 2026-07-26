@@ -30,7 +30,12 @@ class PlanDocument(BaseModel):
         thickness presets (spec section 5.9 tier 2, ordered [exterior,
         interior alternative, interior default]), the per-plan display
         precision override ``display_precision_in`` (spec section 5.9 tier
-        2; None falls back to the tier-1 app preference), the electrical
+        2; None falls back to the tier-1 app preference), the per-plan
+        ``preset_lists`` (spec section 5.9 tier 2; user-grown option buttons
+        for tools such as door/window/stairs width, keyed by a canonical name
+        from ``backend.constants`` — e.g. ``door_width`` — a key absent from
+        the dict means "use that list's built-in defaults", so new preset
+        lists never require a schema change), the electrical
         layout — the colour-coded ``circuits``, the ``wires`` connecting
         devices into them (spec section 5.6) and the documentary switch
         ``control_links`` (spec D6) — and the ``active_tool`` last armed in
@@ -58,6 +63,7 @@ class PlanDocument(BaseModel):
         default_factory=lambda: list(DEFAULT_THICKNESS_PRESETS_IN)
     )
     display_precision_in: float | None = None
+    preset_lists: dict[str, list[float]] = Field(default_factory=dict)
     circuits: list[Circuit] = Field(default_factory=list)
     wires: list[Wire] = Field(default_factory=list)
     control_links: list[ControlLink] = Field(default_factory=list)

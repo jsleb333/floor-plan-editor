@@ -43,6 +43,7 @@ class TestPlanRoutes:
         assert created["document"]["catalog_defaults"] == {}
         assert created["document"]["thickness_presets_in"] == [12.0, 4.5, 3.5]
         assert created["document"]["display_precision_in"] is None
+        assert created["document"]["preset_lists"] == {}
         assert created["document"]["circuits"] == []
         assert created["document"]["wires"] == []
         assert created["document"]["control_links"] == []
@@ -72,7 +73,7 @@ class TestPlanRoutes:
     async def test_update_plan_document__when_document_has_structure_elements__roundtrips(
         self, client: AsyncClient
     ) -> None:
-        """A full v7 document with an underlay and one of each structure element survives a PUT/GET roundtrip byte for byte."""
+        """A full v7 document with an underlay, one of each structure element and a grown door-width preset list survives a PUT/GET roundtrip byte for byte."""
         created = await self._create_plan(client, "Basement")
         document = {
             "schema_version": 7,
@@ -168,6 +169,7 @@ class TestPlanRoutes:
             "catalog_defaults": {},
             "thickness_presets_in": [12.0, 4.5, 3.5, 5.5],
             "display_precision_in": 0.125,
+            "preset_lists": {"door_width": [24.0, 28.0, 30.0, 32.0, 36.0, 54.0]},
             "circuits": [],
             "wires": [],
             "control_links": [],
@@ -216,6 +218,7 @@ class TestPlanRoutes:
         assert refetched["document"]["control_links"] == []
         assert refetched["document"]["active_tool"] is None
         assert refetched["document"]["display_precision_in"] is None
+        assert refetched["document"]["preset_lists"] == {}
         assert refetched["document"]["viewport"] == v2_document["viewport"]
 
     async def test_update_plan_document__when_document_has_devices__roundtrips_them(

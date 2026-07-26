@@ -162,6 +162,7 @@ export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocumen
     thickness_presets_in: [12, 4.5, 3.5],
     catalog_defaults: {},
     display_precision_in: null,
+    preset_lists: {},
     circuits: [],
     wires: [],
     control_links: [],

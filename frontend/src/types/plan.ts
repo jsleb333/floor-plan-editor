@@ -196,7 +196,9 @@ export interface Underlay {
  * electrical layout — colour-coded `circuits`, the `wires` connecting
  * devices into them (spec §5.6) and the documentary switch `control_links`
  * (spec D6) — the v4 devices and catalog defaults, structure collections,
- * wall thickness presets and tracing underlay.
+ * wall thickness presets and tracing underlay. `preset_lists` is additive
+ * (no schema bump): it generalizes the wall-thickness-presets idea to any
+ * plan-grown option-button list.
  */
 export interface PlanDocument {
   schema_version: number
@@ -213,6 +215,12 @@ export interface PlanDocument {
   catalog_defaults: Record<string, number>
   /** Per-plan display precision override in inches; `null` falls back to 1/8" (spec §5.9 tier 2). */
   display_precision_in: number | null
+  /**
+   * Plan-grown option-button lists, keyed by a canonical name (spec §5.9 tier
+   * 2, `frontend/src/utils/presetLists.ts`) — e.g. `door_width`. A key absent
+   * from the map means "use that list's built-in defaults".
+   */
+  preset_lists: Record<string, number[]>
   /** Colour-coded circuits fed from the electrical panel (spec §5.5). */
   circuits: Circuit[]
   /** Curved connections wiring devices into circuits (spec §5.6). */

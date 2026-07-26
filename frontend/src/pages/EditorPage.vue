@@ -68,6 +68,12 @@ import { deviceWorldPlacement } from '@/utils/geometry'
 import { deviceAtPoint } from '@/utils/hitTest'
 import { loadImageSize } from '@/utils/imageSize'
 import type { ImageSize } from '@/utils/imageSize'
+import {
+  PRESET_LIST_NAMES,
+  resolve as resolvePresetList,
+  withValue as withPresetValue,
+} from '@/utils/presetLists'
+import type { PresetListName } from '@/utils/presetLists'
 import { formatInches } from '@/utils/units'
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready' }
@@ -316,6 +322,14 @@ const {
   inputBuffer: openingInputBuffer,
 } = openingTool
 
+/** Width presets for the door/window tool's current kind (spec §5.9 tier 2). */
+const openingWidthPresetsIn = computed<readonly number[]>(() =>
+  resolvePresetList(
+    openingKind.value === 'window' ? PRESET_LIST_NAMES.windowWidth : PRESET_LIST_NAMES.doorWidth,
+    planDocument.value,
+  ),
+)
+
 const stairsTool = useStairsTool({
   snapping,
   commit: toolSelection.placeThenTweak('stairs', (stairs) =>
@@ -327,6 +341,11 @@ const {
   direction: stairsDirection,
   inputBuffer: stairsInputBuffer,
 } = stairsTool
+
+/** Stair-width presets, resolved from the document (spec §5.9 tier 2). */
+const stairsWidthPresetsIn = computed<readonly number[]>(() =>
+  resolvePresetList(PRESET_LIST_NAMES.stairsWidth, planDocument.value),
+)
 
 const dimensionTool = useDimensionTool({
   snapping,
@@ -473,6 +492,23 @@ function handleSetThicknessPresets(presetsIn: number[]): void {
 
 function handleSetDisplayPrecision(precisionIn: number): void {
   editorStore.mutate({ type: 'setDisplayPrecision', precisionIn })
+}
+
+/** Grows preset list `name` with `widthIn` (spec §5.9 tier 2); never enters undo history. */
+function addPresetValue(name: PresetListName, widthIn: number): void {
+  const current = resolvePresetList(name, planDocument.value)
+  editorStore.mutate({ type: 'setPresetList', name, valuesIn: withPresetValue(current, widthIn) })
+}
+
+function handleAddOpeningWidthPreset(widthIn: number): void {
+  addPresetValue(
+    openingKind.value === 'window' ? PRESET_LIST_NAMES.windowWidth : PRESET_LIST_NAMES.doorWidth,
+    widthIn,
+  )
+}
+
+function handleAddStairsWidthPreset(widthIn: number): void {
+  addPresetValue(PRESET_LIST_NAMES.stairsWidth, widthIn)
 }
 
 function handleCursorMove(point: Point | null): void {
@@ -1054,9 +1090,11 @@ onBeforeUnmount(() => {
         :wall-thickness-in="wallThicknessIn"
         :wall-reference="wallReference"
         :opening-width-in="openingWidthIn"
+        :opening-width-presets-in="openingWidthPresetsIn"
         :opening-hinge="openingHinge"
         :opening-swing="openingSwing"
         :stairs-width-in="stairsWidthIn"
+        :stairs-width-presets-in="stairsWidthPresetsIn"
         :stairs-direction="stairsDirection"
         :walls="documentWalls"
         :selected-walls="selectedWalls"
@@ -1084,8 +1122,10 @@ onBeforeUnmount(() => {
         @set-opening-width="openingTool.setWidth($event)"
         @set-opening-hinge="openingTool.setHinge($event)"
         @set-opening-swing="openingTool.setSwing($event)"
+        @add-opening-width-preset="handleAddOpeningWidthPreset"
         @set-stairs-width="stairsTool.setWidth($event)"
         @set-stairs-direction="stairsTool.setDirection($event)"
+        @add-stairs-width-preset="handleAddStairsWidthPreset"
         @update-wall="handleUpdateWall"
         @preview-wall="handlePreviewWall"
         @update-opening="handleUpdateOpening"

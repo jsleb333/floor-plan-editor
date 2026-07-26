@@ -271,7 +271,19 @@ inverses; undo replays inverses in reverse. History is capped at 100 entries
 (spec E3). `beginTransaction`/`commitTransaction` coalesce a gesture (e.g. a
 drag's stream of `update*` commands collapses to the final one) into one
 undo step; `abortTransaction` replays inverses immediately (used by Esc).
-Viewport changes are saved but never recorded in history.
+Viewport changes are saved but never recorded in history — plan-settings
+commands (`setThicknessPresets`, `setDisplayPrecision`, `setPresetList`)
+follow the same pattern.
+
+`setPresetList` generalizes the wall-thickness-presets idea to any named,
+per-plan option-button list (spec §5.9 tier 2):
+`frontend/src/utils/presetLists.ts` resolves a list's effective values
+(`resolve`, falling back to built-in defaults when the document has no entry
+for that name) and grows it with a newly committed value (`withValue` —
+ascending, de-duplicated within a small tolerance, capped at
+`MAX_PRESET_LIST_SIZE` by dropping the entry farthest from the new one).
+`OpeningToolOptions.vue` and `StairsToolOptions.vue` call it whenever a typed
+custom width isn't already a preset.
 
 Selection is a `Map<'kind:id', ElementRef>` in the same store, pruned
 automatically when elements disappear. The store also holds the circuit

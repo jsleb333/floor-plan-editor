@@ -3,15 +3,25 @@ import { describe, expect, it } from 'vitest'
 
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
 
+const DOOR_WIDTH_PRESETS_IN: readonly number[] = [24, 28, 30, 32, 36]
+const WINDOW_WIDTH_PRESETS_IN: readonly number[] = [24, 36, 48, 60, 72]
+
 interface OptionsProps {
   kind: 'door' | 'window'
   widthIn: number
+  presetsIn: readonly number[]
   hinge: 'left' | 'right'
   swing: 'in' | 'out'
 }
 
 function mountOptions(overrides: Partial<OptionsProps> = {}) {
-  const props: OptionsProps = { kind: 'door', widthIn: 32, hinge: 'left', swing: 'in' }
+  const props: OptionsProps = {
+    kind: 'door',
+    widthIn: 32,
+    presetsIn: DOOR_WIDTH_PRESETS_IN,
+    hinge: 'left',
+    swing: 'in',
+  }
   return mount(OpeningToolOptions, { props: { ...props, ...overrides } })
 }
 
@@ -42,6 +52,40 @@ describe('OpeningToolOptions', () => {
 
     expect(wrapper.emitted('set-width')).toEqual([[30]])
     expect(input.element.value).toBe('')
+  })
+
+  it('also emits add-width-preset when the committed custom value is not already a preset', async () => {
+    const wrapper = mountOptions()
+    const input = wrapper.get<HTMLInputElement>(
+      'input[aria-label="Custom width in feet and inches"]',
+    )
+
+    await input.setValue('54')
+    await input.trigger('keydown.enter')
+
+    expect(wrapper.emitted('set-width')).toEqual([[54]])
+    expect(wrapper.emitted('add-width-preset')).toEqual([[54]])
+  })
+
+  it('does not emit add-width-preset when the committed custom value matches an existing preset', async () => {
+    const wrapper = mountOptions()
+    const input = wrapper.get<HTMLInputElement>(
+      'input[aria-label="Custom width in feet and inches"]',
+    )
+
+    await input.setValue('30')
+    await input.trigger('keydown.enter')
+
+    expect(wrapper.emitted('set-width')).toEqual([[30]])
+    expect(wrapper.emitted('add-width-preset')).toBeUndefined()
+  })
+
+  it('does not emit add-width-preset when a preset button is clicked', async () => {
+    const wrapper = mountOptions()
+
+    await buttonByText(wrapper, '30"').trigger('click')
+
+    expect(wrapper.emitted('add-width-preset')).toBeUndefined()
   })
 
   it('flags an invalid custom width without emitting', async () => {
@@ -75,7 +119,11 @@ describe('OpeningToolOptions', () => {
   })
 
   it('shows window presets without hinge or swing controls for the window kind', () => {
-    const wrapper = mountOptions({ kind: 'window', widthIn: 36 })
+    const wrapper = mountOptions({
+      kind: 'window',
+      widthIn: 36,
+      presetsIn: WINDOW_WIDTH_PRESETS_IN,
+    })
 
     expect(buttonByText(wrapper, '72"').attributes('aria-pressed')).toBe('false')
     expect(wrapper.find('[aria-label="Hinge side"]').exists()).toBe(false)
