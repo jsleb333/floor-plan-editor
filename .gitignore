@@ -21,3 +21,7 @@ Thumbs.db
 
 # local
 **/*.local.*
+
+# Claude Code scratch state; worktrees are checkouts of this same repo
+.claude/worktrees/
+.claude/settings.local.json
