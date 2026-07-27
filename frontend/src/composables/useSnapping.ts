@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 
-import type { Joint, Point, Wall, WallEnd, WallSide } from '@/types/plan'
+import type { Point, Wall, WallEnd, WallSide } from '@/types/plan'
 import {
   EPSILON,
   add,
@@ -35,8 +35,6 @@ const MIN_ALIGN_VERTICES = 2
 const NO_ALIGNMENT_GUIDES: readonly AlignmentGuide[] = []
 /** Shared empty anchor list for resolutions with the S1e guides inactive. */
 const NO_ANCHORS: readonly AlignmentAnchor[] = []
-/** Shared empty joint list, for callers that snap without connectivity context. */
-const NO_JOINTS: readonly Joint[] = []
 
 /** Identifier of one snap toggle (status bar buttons). */
 export type SnapToggleId = keyof SnapSettings
@@ -118,8 +116,6 @@ export interface AlignmentGuidesView {
 export interface UseSnappingOptions {
   /** Existing walls to snap against (the pending chain is never included). */
   walls: Ref<readonly Wall[]>
-  /** How those walls connect, for classifying the S1e junction anchors. */
-  joints?: Ref<readonly Joint[]>
   /**
    * The resolved network, which is what makes a wall's SURFACES snappable — the
    * thing the user can actually see and point at. Without it the engine falls
@@ -147,8 +143,8 @@ export interface UseSnappingReturn {
    * S3a/S1e/E6): chain-start close, wall endpoint, segment midpoint,
    * projection onto a reference line (constrained to the pending segment's
    * snapped direction while drawing with angle snap on), alignment with the
-   * chain start (spec S1c), alignment guides through nearby wall vertices and
-   * junctions (spec S1e), then angle/grid constraints. `free` (Alt held)
+   * chain start (spec S1c), alignment guides through nearby network anchors
+   * (spec S1e), then angle/grid constraints. `free` (Alt held)
    * disables the alignment, angle and grid constraints only.
    */
   resolve: (cursor: Point, chain: SnapChainContext | null, free: boolean) => SnapResult
@@ -170,7 +166,7 @@ interface WallSnapCandidate {
  * headlessly testable and reusable by the Phase C editing tools.
  */
 export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
-  const { walls, joints, network, pixelsPerInch, settings } = options
+  const { walls, network, pixelsPerInch, settings } = options
   const anchorGuidesEnabled = options.anchorGuides ?? true
 
   function thresholdIn(): number {
@@ -221,7 +217,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
     }
 
     const anchors = anchorsActive
-      ? collectAlignmentAnchors(walls.value, joints?.value ?? NO_JOINTS, cursor, anchorCaptureIn())
+      ? collectAlignmentAnchors(network?.value.anchors ?? NO_ANCHORS, cursor, anchorCaptureIn())
       : NO_ANCHORS
 
     if (chain && angleActive) {

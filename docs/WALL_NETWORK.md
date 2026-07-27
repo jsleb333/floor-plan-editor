@@ -1,6 +1,6 @@
 # Wall network — design
 
-Status: **phases 0–3 landed, 4 open** — the `network/` module, the canvas
+Status: **all phases landed** (0–4) — the `network/` module, the canvas
 and export drawing from it, and connectivity now stored on the document (schema
 v8). Supersedes the ad-hoc T-junction handling (`Wall.junctions` and
 `junctionTrim.ts`). Written against schema v7; lands as schema v8.
@@ -302,6 +302,11 @@ Two things the build taught us, recorded because they change later phases:
   spine-placed endpoint as the same T. Landings within tolerance of a segment's
   ends are left for the corner and flush passes, which is what keeps an
   unequal-thickness continuation from being mis-read as a T.
+- **Absence-of-guides tests were passing for the wrong reason.** Moving the
+  anchor set onto the network meant a harness that supplied no network produced
+  no anchors, so every "Alt suspends the guides" style assertion would have
+  passed whether or not Alt did anything. They now all supply the network, which
+  is what makes them assertions about behaviour rather than about a missing input.
 - **Relation ids are derived from the parties, not random.** Three places create
   relations — the wall tool, a drag, the coincidence pass — and with random ids
   the same relation created twice would be two records. Deriving the id from the

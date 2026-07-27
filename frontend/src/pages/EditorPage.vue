@@ -57,7 +57,6 @@ import type {
   Device,
   DeviceType,
   Dimension,
-  Joint,
   Label,
   Opening,
   Point,
@@ -126,7 +125,6 @@ const thicknessPresetsIn = computed<readonly number[]>(
   () => planDocument.value?.thickness_presets_in ?? [],
 )
 const documentWalls = computed<readonly Wall[]>(() => planDocument.value?.walls ?? [])
-const documentJoints = computed<readonly Joint[]>(() => planDocument.value?.joints ?? [])
 const documentOpenings = computed<readonly Opening[]>(() => planDocument.value?.openings ?? [])
 const documentStairs = computed<readonly Stairs[]>(() => planDocument.value?.stairs ?? [])
 const documentLabels = computed<readonly Label[]>(() => planDocument.value?.labels ?? [])
@@ -247,7 +245,6 @@ const scrollMode = useScrollMode()
 
 const snapping = useSnapping({
   walls: documentWalls,
-  joints: documentJoints,
   network: computed(() => editorStore.wallNetwork),
   pixelsPerInch,
   settings: snapSettings,
