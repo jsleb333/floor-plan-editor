@@ -115,8 +115,10 @@ describe('OpeningsLayer', () => {
       const canvasPaths = wrapper.findAll('path').map((path) => path.attributes('d'))
       // The export rounds coordinates to 4 decimals; on this axis-aligned wall
       // every coordinate is exact, so the strings must match character for character.
-      const structure = buildPlanSvg(document).match(/<g id="structure">(.*?)<\/g>/)?.[1] ?? ''
-      const exportedPaths = [...structure.matchAll(/<path d="([^"]*)" fill="none"/g)].map(
+      // Scoped to the openings subgroup: the walls layer also writes fill="none"
+      // outline strokes, which are not door geometry.
+      const openings = buildPlanSvg(document).match(/<g id="openings">(.*?)<\/g>/)?.[1] ?? ''
+      const exportedPaths = [...openings.matchAll(/<path d="([^"]*)" fill="none"/g)].map(
         (match) => match[1],
       )
 
