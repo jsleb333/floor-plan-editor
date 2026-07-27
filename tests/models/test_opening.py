@@ -24,7 +24,9 @@ class TestOpening:
         """The field is additive: a document stored before it existed still validates, as a plain hinged door."""
         assert _door().style == "swing"
 
-    @pytest.mark.parametrize("style", ["swing", "double", "sliding", "bifold", "pocket"])
+    @pytest.mark.parametrize(
+        "style", ["swing", "double", "sliding", "bifold", "double_bifold", "pocket"]
+    )
     def test_style__when_set_and_dumped__roundtrips_through_validation(self, style: str) -> None:
         """Every closet style survives a save/load cycle unchanged."""
         door = _door(style=style, width_in=60.0, hinge="right", swing="out")
@@ -35,6 +37,6 @@ class TestOpening:
         assert Opening.model_validate(dumped) == door
 
     def test_style__when_unknown__is_rejected(self) -> None:
-        """Only the five drafted styles are accepted."""
+        """Only the six drafted styles are accepted."""
         with pytest.raises(ValidationError):
             _door(style="barn")

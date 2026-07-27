@@ -14,8 +14,9 @@ class Opening(BaseModel):
         line to the opening centre) instead of world coordinates, so it
         follows the wall through any edit. ``style``, ``hinge`` and ``swing``
         are meaningful for doors only; ``style`` selects the leaf
-        configuration (single swing, double, sliding, bifold or pocket) and
-        decides which of ``hinge``/``swing`` the drawn symbol reads.
+        configuration (single swing, double, sliding, bifold, double bifold or
+        pocket) and decides which of ``hinge``/``swing`` the drawn symbol
+        reads.
     """
 
     id: str
@@ -24,6 +25,6 @@ class Opening(BaseModel):
     segment_index: int = Field(ge=0)
     t: float
     width_in: float = Field(gt=0)
-    style: Literal["swing", "double", "sliding", "bifold", "pocket"] = "swing"
+    style: Literal["swing", "double", "sliding", "bifold", "double_bifold", "pocket"] = "swing"
     hinge: Literal["left", "right"] = "left"
     swing: Literal["in", "out"] = "in"

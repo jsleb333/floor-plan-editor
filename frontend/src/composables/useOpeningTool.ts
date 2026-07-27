@@ -2,7 +2,7 @@ import { computed, ref, shallowRef, watch } from 'vue'
 import type { ComputedRef, Ref, ShallowRef, WritableComputedRef } from 'vue'
 
 import type { DoorStyle, Opening, Point, Wall } from '@/types/plan'
-import { doorStyleControls, isDoorStyle } from '@/utils/doorStyles'
+import { doorStyleControls, doorStyleDefaultWidthIn, isDoorStyle } from '@/utils/doorStyles'
 import type { DoorStyleControls } from '@/utils/doorStyles'
 import { clampOpeningT, projectOntoWalls, sideOf, wallSegmentSpan } from '@/utils/geometry'
 import type { WallSegmentSpan } from '@/utils/geometry'
@@ -81,7 +81,10 @@ export interface UseOpeningToolReturn {
   preview: ComputedRef<Opening | null>
   /** Width the next opening is placed with, per kind (writable, spec E8). */
   widthIn: WritableComputedRef<number>
-  /** Leaf style of the next door — swing, double, sliding, bifold or pocket (spec S4). */
+  /**
+   * Leaf style of the next door — swing, double, sliding, bifold, double bifold
+   * or pocket (spec S4).
+   */
   style: Ref<DoorStyle>
   /** Hinge side of the next door; Tab cycles it while hovering (spec S4). */
   hinge: Ref<Hinge>
@@ -95,6 +98,7 @@ export interface UseOpeningToolReturn {
   /** Typed exact-width buffer, echoed in the status bar (specs S2/S5). */
   inputBuffer: Ref<string>
   setWidth: (widthIn: number) => void
+  /** Arms a door style, applying the width it implies when it has one (spec S4). */
   setStyle: (style: DoorStyle) => void
   setHinge: (hinge: Hinge) => void
   setSwing: (swing: Swing) => void
@@ -120,7 +124,8 @@ export interface UseOpeningToolReturn {
  * cycles the hinge, typed digits set the width exactly, and the options
  * persist as last-used per kind (§5.9 tier 1). The armed style decides which
  * side fields it reads (`doorStyleControls`), and the cursor/Tab gestures do
- * nothing for a field the style ignores rather than writing a dead value.
+ * nothing for a field the style ignores rather than writing a dead value; a
+ * style that implies a width (`doorStyleDefaultWidthIn`) applies it when armed.
  *
  * Headless by design: all inputs are injected and interaction arrives via
  * methods, so the machine is testable without a DOM.
@@ -164,6 +169,14 @@ export function useOpeningTool(options: UseOpeningToolOptions): UseOpeningToolRe
 
   function setStyle(value: DoorStyle): void {
     style.value = value
+    // A style that implies a width applies it on selection (spec S4): a double
+    // bifold is a 60" closet front, so its default is one click away instead of
+    // a second trip to the width field. Deliberate trade-off — picking the style
+    // is the later, more specific intent, so it overwrites a width typed just
+    // before it; retyping the width afterwards still wins, and the applied width
+    // becomes the last-used door width like any other (§5.9 tier 1).
+    const styleWidthIn = doorStyleDefaultWidthIn(value)
+    if (styleWidthIn !== null) doorWidthIn.value = styleWidthIn
   }
 
   function setHinge(value: Hinge): void {

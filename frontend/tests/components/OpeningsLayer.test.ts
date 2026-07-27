@@ -74,6 +74,20 @@ describe('OpeningsLayer', () => {
     expect(wrapper.find('path').attributes('d')).toBe('M 44 0 L 52 -8 L 60 0')
   })
 
+  it('renders a double bifold as two folded paths meeting at the opening centre', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      walls: [makeWall()],
+      openings: [makeOpening({ id: 'double-bifold-1', style: 'double_bifold', width_in: 60 })],
+    })
+
+    const wrapper = mount(OpeningsLayer, { props: { hairline: 0.5 } })
+    expect(wrapper.findAll('path').map((path) => path.attributes('d'))).toEqual([
+      'M 30 0 L 45 -15 L 60 0',
+      'M 90 0 L 75 -15 L 60 0',
+    ])
+  })
+
   it('renders glazing lines instead of a swing symbol for a window', () => {
     const store = useEditorStore()
     store.document = makeDocument({
@@ -87,7 +101,7 @@ describe('OpeningsLayer', () => {
     expect(wrapper.findAll('line')).toHaveLength(4)
   })
 
-  it.each(['swing', 'double', 'sliding', 'bifold', 'pocket'] as const)(
+  it.each(['swing', 'double', 'sliding', 'bifold', 'double_bifold', 'pocket'] as const)(
     'draws a %s door with exactly the paths the SVG export writes',
     (style: DoorStyle) => {
       const store = useEditorStore()

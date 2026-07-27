@@ -9,7 +9,10 @@ function documentWith(presetLists: Record<string, number[]>): Pick<PlanDocument,
 
 describe('resolve', () => {
   it('returns the built-in defaults when the document has no entry for the name', () => {
-    expect(resolve(PRESET_LIST_NAMES.doorWidth, documentWith({}))).toEqual([24, 28, 30, 32, 36])
+    // 48 and 60 are the closet widths the wide door styles are drawn at (spec S4).
+    expect(resolve(PRESET_LIST_NAMES.doorWidth, documentWith({}))).toEqual([
+      24, 28, 30, 32, 36, 48, 60,
+    ])
     expect(resolve(PRESET_LIST_NAMES.windowWidth, documentWith({}))).toEqual([24, 36, 48, 60, 72])
     expect(resolve(PRESET_LIST_NAMES.stairsWidth, documentWith({}))).toEqual([30, 36, 42, 48])
   })

@@ -257,7 +257,7 @@ describe('buildPlanSvg', () => {
     expect(svg).not.toContain('data-circuit="Circuit 1"')
   })
 
-  it.each(['swing', 'double', 'sliding', 'bifold', 'pocket'] as const)(
+  it.each(['swing', 'double', 'sliding', 'bifold', 'double_bifold', 'pocket'] as const)(
     'serialises a %s door from the shared doorFigure strokes',
     (style) => {
       const wall = makeWall()
@@ -294,7 +294,7 @@ describe('buildPlanSvg', () => {
 
     const swing = interruptionOf('swing')
     expect(swing).toHaveLength(3)
-    for (const style of ['double', 'sliding', 'bifold', 'pocket'] as const) {
+    for (const style of ['double', 'sliding', 'bifold', 'double_bifold', 'pocket'] as const) {
       expect(interruptionOf(style)).toEqual(swing)
     }
   })

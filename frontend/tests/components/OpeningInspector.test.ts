@@ -48,6 +48,23 @@ describe('OpeningInspector', () => {
     expect(double.find('[aria-label="Swing direction"]').exists()).toBe(true)
   })
 
+  it('restyles a placed door to a double bifold without touching its width', async () => {
+    const opening = makeOpening({ width_in: 60 })
+    const wrapper = mountInspector(opening)
+
+    await buttonByText(wrapper, 'Double bifold').trigger('click')
+
+    expect(wrapper.emitted('update-opening')).toEqual([[{ ...opening, style: 'double_bifold' }]])
+  })
+
+  it('offers only the fold side of a double bifold, both jambs being stacking points', () => {
+    const wrapper = mountInspector(makeOpening({ style: 'double_bifold', width_in: 60 }))
+
+    expect(wrapper.find('[aria-label="Hinge side"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Swing direction"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Fold side')
+  })
+
   it('offers no door controls at all for a window', () => {
     const wrapper = mountInspector(makeOpening({ kind: 'window' }))
 

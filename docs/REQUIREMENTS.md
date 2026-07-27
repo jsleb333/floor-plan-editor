@@ -281,7 +281,7 @@ follow their devices; only interior control points are absolute.
   Out of scope: constraints between non-adjacent walls, equality/symmetry
   constraints, or any general parametric solver.
 - **S4 Doors** — Placed onto a wall (snap to wall); properties: width (default
-  32"), **style**, hinge side, swing direction. Five styles cover both room
+  32"), **style**, hinge side, swing direction. Six styles cover both room
   and closet doors, each drawn per architectural convention and all
   *derived* from the host wall's reference line (§4.2):
 
@@ -291,21 +291,27 @@ follow their devices; only interior control points are absolute.
   | `double` | two half-width leaves hinged at opposite jambs, each arcing to the opening centre, both swinging the same way | swing |
   | `sliding` | two bypassing panels, one per half of the opening, on opposite faces within the wall thickness | hinge (which half slides on which face) |
   | `bifold` | a shallow V of two equal leaves from the stacking jamb to the opening centre | hinge (stack side), swing (fold side) |
+  | `double_bifold` | two such Vs, one stacked at each jamb, each spanning half the opening and folding the same way, meeting at the opening centre — the four-panel closet front | swing (fold side) |
   | `pocket` | the leaf on the wall's mid-thickness line, plus a dashed cavity running into the wall past the jamb | hinge (pocket side) |
 
   A style only ever *reads* `hinge`/`swing`; the fields are stored for all
   doors, and the UI shows exactly the ones the style reads, labelled for it
   ("Stack side", "Pocket side"). Everything is settable **before**
   placement: the tool's Inspector options (E8) offer the style buttons,
-  width presets (24/28/30/32/36" + custom, which grows the plan's list —
-  closet widths like 48"/60" land there) and the applicable side toggles,
-  all reflected live in the ghost preview. The two binary choices are also
+  width presets (24/28/30/32/36/48/60" + custom, which grows the plan's
+  list) and the applicable side toggles, all reflected live in the ghost
+  preview. The two binary choices are also
   on the cursor: the **swing side follows the side of the wall the cursor is
   on** (hover across the wall to flip it) and **Tab cycles the hinge side**
   while hovering — most doors are placed without touching the panel. For a
   style that ignores a field, the matching gesture simply does nothing.
   Options persist as last-used (§5.9 tier 1); after placement the door stays
-  selected for immediate tweaks, style included (E8).
+  selected for immediate tweaks, style included (E8). A style may also carry
+  **its own default width**, applied to the tool the moment the style is
+  armed — a `double_bifold` is a 60" closet front, not a 32" doorway. Arming
+  such a style deliberately overwrites a width typed just before it (picking
+  the style is the later, more specific intent); a width typed afterwards
+  wins again, and the applied width is remembered like any other.
 - **S5 Windows** — Placed onto a wall; property: width. Rendered with the
   conventional double-line symbol. Width is settable before placement in the
   tool's Inspector options (presets + custom, last-used remembered) and
@@ -677,7 +683,7 @@ Plan
                           # locked_segments: [int],  # indices of locked segments (S3b)
                           # junctions: [{vertex_idx | t: float, wall_id}]  # T-junction attachments
   openings: [Opening]     # door|window: id, attachment (§4.2), width_in,
-                          # style (swing|double|sliding|bifold|pocket, S4), hinge, swing
+                          # style (swing|double|sliding|bifold|double_bifold|pocket, S4), hinge, swing
   stairs: [Stairs]        # id, rect, direction
   labels: [Label]         # id, position, text, size
   dimensions: [Dimension] # id, p1, p2, offset

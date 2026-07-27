@@ -21,7 +21,8 @@ export const PRESET_VALUE_TOLERANCE_IN = 1e-9
 export const MAX_PRESET_LIST_SIZE = 10
 
 const BUILTIN_PRESETS_IN: Record<PresetListName, readonly number[]> = {
-  [PRESET_LIST_NAMES.doorWidth]: [24, 28, 30, 32, 36],
+  // 48 and 60 are the closet widths the wide styles are drawn at (spec S4).
+  [PRESET_LIST_NAMES.doorWidth]: [24, 28, 30, 32, 36, 48, 60],
   [PRESET_LIST_NAMES.windowWidth]: [24, 36, 48, 60, 72],
   [PRESET_LIST_NAMES.stairsWidth]: [30, 36, 42, 48],
 }
