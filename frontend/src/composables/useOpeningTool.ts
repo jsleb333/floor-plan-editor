@@ -10,8 +10,8 @@ import { parseFeetInches } from '@/utils/units'
 
 import { isBufferKey } from './useWallTool'
 
-/** Default door width (spec S4). */
-export const DEFAULT_DOOR_WIDTH_IN = 32
+/** Default door width (spec S4): the common Québec residential interior door. */
+export const DEFAULT_DOOR_WIDTH_IN = 30
 /** Default window width (spec S5). */
 export const DEFAULT_WINDOW_WIDTH_IN = 36
 /** Capture radius (screen px) for hovering a host wall. */
