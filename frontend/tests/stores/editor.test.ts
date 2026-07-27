@@ -1256,4 +1256,114 @@ describe('useEditorStore wall joints', () => {
     expect(restored.find((wall) => wall.id === 'south')?.vertices[0]).toEqual({ x: 100, y: 0 })
     expect(store.canUndo).toBe(false)
   })
+  it('attaches a wall dragged onto another one, in the same undo step', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      walls: [
+        makeWall({
+          id: 'host',
+          thickness_in: 12,
+          vertices: [
+            { x: 0, y: 0 },
+            { x: 0, y: 200 },
+          ],
+        }),
+        makeWall({
+          id: 'loose',
+          vertices: [
+            { x: 100, y: 100 },
+            { x: 200, y: 100 },
+          ],
+        }),
+      ],
+      joints: [],
+    })
+
+    // A drag: transaction open, one mutation per pointer move, then commit.
+    store.beginTransaction()
+    store.mutate({
+      type: 'updateWall',
+      wallId: 'loose',
+      wall: {
+        ...makeWall({ id: 'loose' }),
+        vertices: [
+          { x: 50, y: 100 },
+          { x: 200, y: 100 },
+        ],
+      },
+    })
+    store.mutate({
+      type: 'updateWall',
+      wallId: 'loose',
+      wall: {
+        ...makeWall({ id: 'loose' }),
+        vertices: [
+          { x: 6, y: 100 },
+          { x: 200, y: 100 },
+        ],
+      },
+    })
+    store.commitTransaction()
+
+    // Its end now sits on the host's surface, so the document says they are joined.
+    expect(store.document?.joints).toHaveLength(1)
+    expect(store.document?.joints[0].kind).toBe('tee')
+
+    store.undo()
+    expect(store.document?.joints).toEqual([])
+    expect(store.canUndo).toBe(false)
+  })
+
+  it('does not record walls a drag merely passed over', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      walls: [
+        makeWall({
+          id: 'host',
+          thickness_in: 12,
+          vertices: [
+            { x: 0, y: 0 },
+            { x: 0, y: 200 },
+          ],
+        }),
+        makeWall({
+          id: 'loose',
+          vertices: [
+            { x: 100, y: 100 },
+            { x: 200, y: 100 },
+          ],
+        }),
+      ],
+      joints: [],
+    })
+
+    store.beginTransaction()
+    // Passes through the host mid-drag...
+    store.mutate({
+      type: 'updateWall',
+      wallId: 'loose',
+      wall: {
+        ...makeWall({ id: 'loose' }),
+        vertices: [
+          { x: 6, y: 100 },
+          { x: 200, y: 100 },
+        ],
+      },
+    })
+    // ...and carries on past it.
+    store.mutate({
+      type: 'updateWall',
+      wallId: 'loose',
+      wall: {
+        ...makeWall({ id: 'loose' }),
+        vertices: [
+          { x: 400, y: 100 },
+          { x: 500, y: 100 },
+        ],
+      },
+    })
+    store.commitTransaction()
+
+    expect(store.document?.joints).toEqual([])
+  })
 })

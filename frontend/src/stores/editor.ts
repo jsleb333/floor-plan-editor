@@ -47,6 +47,8 @@ export type EditorCommand =
   | { type: 'setDisplayPrecision'; precisionIn: number | null }
   | { type: 'setPresetList'; name: PresetListName; valuesIn: number[] }
   | { type: 'addWall'; wall: Wall; joints?: Joint[]; index?: number }
+  | { type: 'addJoints'; joints: Joint[] }
+  | { type: 'removeJoints'; jointIds: string[] }
   | { type: 'updateWall'; wallId: string; wall: Wall }
   | { type: 'removeWall'; wallId: string }
   | { type: 'addOpening'; opening: Opening; index?: number }
@@ -147,6 +149,12 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
       }
     case 'updateWall':
       return { ...document, walls: replaceById(document.walls, command.wallId, command.wall) }
+    case 'addJoints':
+      return { ...document, joints: [...document.joints, ...command.joints] }
+    case 'removeJoints': {
+      const dropped = new Set(command.jointIds)
+      return { ...document, joints: document.joints.filter((joint) => !dropped.has(joint.id)) }
+    }
     case 'removeWall':
       // A joint naming a wall that is gone would resolve to nothing; dropping
       // them here keeps the graph a true description of the document.
@@ -251,6 +259,12 @@ function invertCommand(
       return null
     case 'addWall':
       return { type: 'removeWall', wallId: command.wall.id }
+    case 'addJoints':
+      return { type: 'removeJoints', jointIds: command.joints.map((joint) => joint.id) }
+    case 'removeJoints': {
+      const dropped = new Set(command.jointIds)
+      return { type: 'addJoints', joints: document.joints.filter((joint) => dropped.has(joint.id)) }
+    }
     case 'updateWall': {
       const previous = document.walls.find((wall) => wall.id === command.wallId)
       if (!previous) return undefined
@@ -728,12 +742,51 @@ export const useEditorStore = defineStore('editor', () => {
     transaction ??= { commands: [], inverses: [] }
   }
 
-  /** Closes the open transaction, pushing its mutations as ONE undo step. */
+  /**
+   * Closes the open transaction, pushing its mutations as ONE undo step.
+   *
+   * Relations are adopted here rather than per mutation: a drag emits a
+   * mutation per pointer move, and deriving connectivity from each of those
+   * would record every wall the dragged one brushed past on its way
+   * (`docs/WALL_NETWORK.md` §6). A gesture boundary is where the geometry means
+   * something.
+   */
   function commitTransaction(): void {
     if (!transaction) return
+    adoptNewRelations(wallsTouchedBy(transaction.commands))
     const entry = transaction
     transaction = null
     if (entry.commands.length > 0) pushEntry(entry)
+  }
+
+  /** Wall ids any command in the batch created or reshaped. */
+  function wallsTouchedBy(commands: readonly EditorCommand[]): string[] {
+    const ids = new Set<string>()
+    for (const command of commands) {
+      if (command.type === 'updateWall') ids.add(command.wallId)
+      else if (command.type === 'addWall') ids.add(command.wall.id)
+    }
+    return [...ids]
+  }
+
+  /**
+   * Records relations the edited geometry now implies but the document does not
+   * yet hold — a wall dragged onto another one becomes attached to it.
+   *
+   * Merge only: a relation the derivation no longer sees is left in place, since
+   * keeping connected walls connected is the point (spec S3) and the solver is
+   * what re-satisfies it. Ids are derived from the parties, so a relation the
+   * document already has is recognised rather than duplicated.
+   */
+  function adoptNewRelations(touchedWallIds: readonly string[]): void {
+    const current = document.value
+    if (!current || touchedWallIds.length === 0) return
+    const touched = new Set(touchedWallIds)
+    const known = new Set(current.joints.map((joint) => joint.id))
+    const added = deriveJoints(current.walls).filter(
+      (joint) => !known.has(joint.id) && wallIdsOf(joint).some((id) => touched.has(id)),
+    )
+    if (added.length > 0) applySingle({ type: 'addJoints', joints: added })
   }
 
   /** Reverts every mutation of the open transaction and discards it. */

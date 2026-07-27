@@ -1,6 +1,6 @@
 # Wall network — design
 
-Status: **phases 0–3c landed, 3d and 4 open** — the `network/` module, the canvas
+Status: **phases 0–3 landed, 4 open** — the `network/` module, the canvas
 and export drawing from it, and connectivity now stored on the document (schema
 v8). Supersedes the ad-hoc T-junction handling (`Wall.junctions` and
 `junctionTrim.ts`). Written against schema v7; lands as schema v8.
@@ -302,6 +302,16 @@ Two things the build taught us, recorded because they change later phases:
   spine-placed endpoint as the same T. Landings within tolerance of a segment's
   ends are left for the corner and flush passes, which is what keeps an
   unequal-thickness continuation from being mis-read as a T.
+- **Relation ids are derived from the parties, not random.** Three places create
+  relations — the wall tool, a drag, the coincidence pass — and with random ids
+  the same relation created twice would be two records. Deriving the id from the
+  parties makes duplication impossible by construction and makes re-deriving an
+  unchanged document a no-op.
+- **Relations are adopted at gesture boundaries, not per mutation.** A drag emits
+  a mutation per pointer move; deriving connectivity from each would record every
+  wall the dragged one brushed past. `commitTransaction` is where the geometry
+  means something. Merge only, never remove: keeping connected walls connected is
+  the point, and the solver is what re-satisfies a relation afterwards.
 - **Settle once, then verify beats counting passes.** The document proposed a
   two-pass cap for over-constrained loops. Satisfying each relation at most once
   already makes a cycle terminate; re-checking every relation afterwards is what
@@ -339,6 +349,14 @@ Two things the build taught us, recorded because they change later phases:
   to the butting wall and leaves a wedge at any non-perpendicular approach. The
   network clips both surfaces to the host's face LINE, so an angled T butts
   exactly (`networkGeometry.test.ts`, the 45° case).
+
+## 10a. Known gap: no way to break a relation
+
+Merging relations and never removing them means a wall dragged away from its
+neighbour is pulled back rather than detached, and nothing in the UI severs the
+link. The natural fix is Alt during a drag — Alt already means "suspend the
+constraints" everywhere else in the editor — dropping the relations at the
+dragged ends instead of maintaining them. Not built.
 
 ## 11. Designed-for edge cases
 

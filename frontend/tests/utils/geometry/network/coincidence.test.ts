@@ -102,7 +102,7 @@ describe('deriveJoints', () => {
 
     expect(deriveJoints([SHELL, partition])).toEqual([
       {
-        id: 'flush:shell:end|partition:start',
+        id: 'flush:partition:start|shell:end',
         kind: 'flush',
         a: { ref: { wall_id: 'shell', end: 'end' }, side: 'left' },
         b: { ref: { wall_id: 'partition', end: 'start' }, side: 'left' },
