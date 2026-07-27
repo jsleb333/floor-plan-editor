@@ -255,6 +255,7 @@ const snapping = useSnapping({
 
 const wallTool = useWallTool({
   snapping,
+  network: computed(() => editorStore.wallNetwork),
   presetsIn: thicknessPresetsIn,
   hasClosedLoop,
   onAutoPreset: (thicknessIn) =>

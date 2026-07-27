@@ -8,19 +8,29 @@ import {
   alignedClose,
   autoSquareClose,
   distance,
+  flushSpinePoint,
   scale,
+  sub,
+  surfaceAnchor,
   wallFacePolylines,
   wallOutline,
 } from '@/utils/geometry'
-import type { AlignmentGuide, WallFacePolylines, WallReference } from '@/utils/geometry'
+import type {
+  AlignmentGuide,
+  FlushPlacement,
+  ResolvedNetwork,
+  SurfaceAnchor,
+  WallFacePolylines,
+  WallReference,
+} from '@/utils/geometry'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
 import type {
   SnapChainContext,
-  SnapTarget,
   SnapGuide,
   SnapMarkerKind,
   SnapResult,
+  SnapTarget,
   UseSnappingReturn,
   WallSnapAttachment,
 } from './useSnapping'
@@ -74,6 +84,12 @@ export interface UseWallToolOptions {
   snapping: UseSnappingReturn
   /** Receives each finished wall; the caller dispatches the store command. */
   commit: (wall: Wall, joints: Joint[]) => void
+  /**
+   * The resolved network, for continuing an existing wall's surface flush
+   * (`docs/WALL_NETWORK.md` §6). Without it a surface-terminus snap still lands
+   * on the corner, it simply is not offset into a shared surface.
+   */
+  network?: Ref<ResolvedNetwork>
   /**
    * Plan-level thickness presets driving the smart defaults (spec S1d).
    * Preset convention (spec §5.9 tier 2): the list is ordered from outermost
@@ -135,7 +151,7 @@ export interface UseWallToolReturn {
  * DOM or a component tree.
  */
 export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
-  const { snapping, commit, onAutoPreset } = options
+  const { snapping, commit, onAutoPreset, network } = options
   const presetsIn = options.presetsIn ?? ref<readonly number[]>([])
   const hasClosedLoop = options.hasClosedLoop ?? ref(false)
 
@@ -158,7 +174,10 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
   const isDrawing = computed(() => vertices.value.length > 0)
 
   function chainContext(): SnapChainContext | null {
-    const chain = vertices.value
+    // The ALIGNED chain, so closing a loop targets where the first vertex really
+    // is: a flush start sits offset from the corner the user clicked, and
+    // closing onto the raw corner would leave a misclosure of that offset.
+    const chain = vertices.value.length >= 2 ? alignedChain(vertices.value, null) : vertices.value
     if (chain.length === 0) return null
     return { start: chain[0], last: chain[chain.length - 1], vertexCount: chain.length }
   }
@@ -177,7 +196,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     const last = chain.length > 0 ? chain[chain.length - 1] : null
     const segment = last && point ? { a: last, b: point } : null
 
-    let previewChain = point ? [...chain, point] : chain
+    let previewChain = alignedChain(chain, point)
     if (snap?.marker === 'close') {
       previewChain = [...closingChain(chain), chain[0]]
     }
@@ -342,19 +361,72 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     }
   }
 
+  /** The anchor of a captured surface terminus, when the target is one. */
+  function anchorFor(target: SnapTarget | null): SurfaceAnchor | null {
+    if (target?.kind !== 'surface-end') return null
+    const resolved = network?.value.walls.get(target.wallId)
+    return resolved ? surfaceAnchor(resolved, target.side, target.end) : null
+  }
+
+  /**
+   * The chain with any surface continuation applied: an end captured on a
+   * wall's surface terminus is offset perpendicular to that surface so the new
+   * wall's OWN surface continues it (`docs/WALL_NETWORK.md` §6).
+   *
+   * Derived rather than written back into `vertices`, so the offset re-solves
+   * whenever the direction, thickness or reference side changes, and the record
+   * of where the user actually clicked stays intact.
+   */
+  function alignedChain(chain: readonly Point[], pending: Point | null): Point[] {
+    const points = pending ? [...chain, pending] : [...chain]
+    if (points.length < 2) return points
+    const start = flushAt(startTarget, points[0], points[1])
+    if (start) points[0] = start.point
+    const end = flushAt(lastTarget, points[points.length - 1], points[points.length - 2])
+    if (end) points[points.length - 1] = end.point
+    return points
+  }
+
+  /** The flush placement for one captured end, given the neighbour it runs toward. */
+  function flushAt(
+    target: SnapTarget | null,
+    captured: Point,
+    neighbour: Point,
+  ): FlushPlacement | null {
+    const anchor = anchorFor(target)
+    if (!anchor) return null
+    return flushSpinePoint(anchor, sub(neighbour, captured), thicknessIn.value, reference.value)
+  }
+
   function commitWall(wallVertices: Point[], closed: boolean): void {
     const id = crypto.randomUUID()
+    const aligned = alignedChain(wallVertices, null)
     const joints: Joint[] = []
-    const startJoint = jointFor(id, 'start', startTarget, startAttachment)
+    const startJoint = jointFor(
+      id,
+      'start',
+      startTarget,
+      startAttachment,
+      wallVertices.length >= 2 ? flushAt(startTarget, wallVertices[0], wallVertices[1]) : null,
+    )
     if (startJoint) joints.push(startJoint)
     if (!closed) {
-      const endJoint = jointFor(id, 'end', lastTarget, lastAttachment)
+      const last = wallVertices.length - 1
+      const endJoint = jointFor(
+        id,
+        'end',
+        lastTarget,
+        lastAttachment,
+        wallVertices.length >= 2
+          ? flushAt(lastTarget, wallVertices[last], wallVertices[last - 1])
+          : null,
+      )
       if (endJoint) joints.push(endJoint)
     }
     commit(
       {
         id,
-        vertices: wallVertices.map((vertex) => ({ ...vertex })),
+        vertices: aligned.map((vertex) => ({ ...vertex })),
         thickness_in: thicknessIn.value,
         reference: reference.value,
         closed,
@@ -468,19 +540,28 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
  *
  * A captured wall END makes a corner — the two spines meet, so their faces
  * mitre. A captured SURFACE makes a T, with the endpoint already sitting on the
- * surface rather than reaching to the host's spine. A spine projection with no
- * surface target is still a T, from the pre-network snap path.
- *
- * `surface-end` is deliberately absent: continuing a wall flush needs the new
- * wall's own direction to know which of its surfaces is shared, and that is not
- * known until the next click.
+ * surface rather than reaching to the host's spine. A captured surface TERMINUS
+ * makes a shared surface, which is what lets a thinner wall continue a thicker
+ * one as a single wall; that one needs `placement`, since which of the new
+ * wall's surfaces is shared depends on the direction it runs. A spine
+ * projection with no surface target is still a T, from the pre-network path.
  */
 function jointFor(
   wallId: string,
   end: WallEnd,
   target: SnapTarget | null,
   attachment: WallSnapAttachment | null,
+  placement: FlushPlacement | null,
 ): Joint | null {
+  if (target?.kind === 'surface-end') {
+    if (!placement) return null
+    return {
+      id: crypto.randomUUID(),
+      kind: 'flush',
+      a: { ref: { wall_id: target.wallId, end: target.end }, side: target.side },
+      b: { ref: { wall_id: wallId, end }, side: placement.side },
+    }
+  }
   if (target?.kind === 'wall-end') {
     return {
       id: crypto.randomUUID(),
