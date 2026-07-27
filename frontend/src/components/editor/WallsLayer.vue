@@ -51,17 +51,7 @@ function serialize(polylines: readonly Point[][]): string {
     .join(' ')
 }
 
-/** The resolved wall network (`docs/WALL_NETWORK.md`), rebuilt on every document change. */
-function networkOf(walls: readonly Wall[]): ResolvedNetwork {
-  return resolveWallNetwork(walls, editorStore.document?.joints ?? [])
-}
-
-const network = computed<ResolvedNetwork>(() => {
-  // documentVersion is the store's explicit change signal for the shallowRef
-  // document — touching it keys this computed on every mutation.
-  void editorStore.documentVersion
-  return networkOf(editorStore.document?.walls ?? [])
-})
+const network = computed<ResolvedNetwork>(() => editorStore.wallNetwork)
 
 /** The network with the previewed wall substituted, so the ghost joins like the real thing. */
 const previewNetwork = computed<ResolvedNetwork | null>(() => {
@@ -71,7 +61,7 @@ const previewNetwork = computed<ResolvedNetwork | null>(() => {
   const walls = (editorStore.document?.walls ?? []).map((wall) =>
     wall.id === preview.id ? preview : wall,
   )
-  return networkOf(walls)
+  return resolveWallNetwork(walls, editorStore.document?.joints ?? [])
 })
 
 const wallPaths = computed<WallPath[]>(() => {

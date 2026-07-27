@@ -302,6 +302,15 @@ Two things the build taught us, recorded because they change later phases:
   spine-placed endpoint as the same T. Landings within tolerance of a segment's
   ends are left for the corner and flush passes, which is what keeps an
   unequal-thickness continuation from being mis-read as a T.
+- **Category priority had to give way to nearest-wins among point targets.** On a
+  12" wall the visible corner and the spine end sit 6" apart, so a fixed order
+  (end, then surface corner) made whichever lost unreachable — the original
+  defect wearing a new hat. Point targets still beat line targets outright per
+  S3a; among the points the nearest wins.
+- **The spine midpoint is still an invisible point target.** It outranks a
+  surface hit within the capture radius, half a thickness inside a thick wall's
+  body. Moving the midpoint affordance onto the two surfaces is the same
+  argument as the rest of this document and is not yet done.
 - **Connectivity can be derived until it is stored.** Phase 2 needed no schema
   change: the canvas and export call `deriveJoints(walls)` and resolve against
   that, so merged bodies work on today's documents. Phase 3 switches the source
