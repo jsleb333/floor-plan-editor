@@ -34,7 +34,7 @@ const DOOR_STYLE_CONTROLS: Record<DoorStyle, DoorStyleControls> = {
 
 /**
  * Width in inches a style is normally drawn at, for the styles that imply one
- * (spec S4): a four-panel `double_bifold` is a closet front, not a 32" doorway.
+ * (spec S4): a four-panel `double_bifold` is a closet front, not a 30" doorway.
  * A style absent from this map takes whatever width the tool is armed with.
  */
 const DOOR_STYLE_DEFAULT_WIDTH_IN: Partial<Record<DoorStyle, number>> = {

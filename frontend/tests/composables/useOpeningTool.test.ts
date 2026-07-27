@@ -166,7 +166,8 @@ describe('useOpeningTool', () => {
     const { tool, commit } = setup()
 
     tool.onClick({ x: 5, y: 1 })
-    expect(commit.mock.calls[0][0].t).toBe(16)
+    // Clamped to half the leaf width so the whole opening stays on the segment.
+    expect(commit.mock.calls[0][0].t).toBe(DEFAULT_DOOR_WIDTH_IN / 2)
   })
 
   it('does not commit when no wall is within reach', () => {

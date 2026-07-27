@@ -281,7 +281,8 @@ follow their devices; only interior control points are absolute.
   Out of scope: constraints between non-adjacent walls, equality/symmetry
   constraints, or any general parametric solver.
 - **S4 Doors** — Placed onto a wall (snap to wall); properties: width (default
-  32"), **style**, hinge side, swing direction. Six styles cover both room
+  30", the common Québec residential interior door), **style**, hinge side,
+  swing direction. Six styles cover both room
   and closet doors, each drawn per architectural convention and all
   *derived* from the host wall's reference line (§4.2):
 
@@ -308,7 +309,7 @@ follow their devices; only interior control points are absolute.
   Options persist as last-used (§5.9 tier 1); after placement the door stays
   selected for immediate tweaks, style included (E8). A style may also carry
   **its own default width**, applied to the tool the moment the style is
-  armed — a `double_bifold` is a 60" closet front, not a 32" doorway. Arming
+  armed — a `double_bifold` is a 60" closet front, not a 30" doorway. Arming
   such a style deliberately overwrites a width typed just before it (picking
   the style is the later, more specific intent); a width typed afterwards
   wins again, and the applied width is remembered like any other.
