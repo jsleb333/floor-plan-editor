@@ -355,6 +355,23 @@ Two things the build taught us, recorded because they change later phases:
   network clips both surfaces to the host's face LINE, so an angled T butts
   exactly (`networkGeometry.test.ts`, the 45° case).
 
+## 9a. What opening a pre-v8 plan does
+
+Deriving relations is not enough on its own. A v7 document stored a T endpoint on
+the HOST's spine — half a thickness past where the wall really ends — so opening
+one derives the relations AND solves once, which moves those endpoints onto the
+surfaces they belong on. The stored geometry becomes honest at that moment, which
+is the whole point: every parametric address on those walls (`Opening.t`,
+`DeviceAttachment.t`) is measured along the spine, and a spine that was 6" too
+long made all of them slightly wrong.
+
+Consequence worth stating plainly: opening a legacy plan moves stored wall
+endpoints by up to half a wall thickness, so an opening or device on an affected
+wall shifts by that much relative to the wall's end. On the demo plan that is 4
+endpoints of 9 walls. Acceptable here because the stored plans are development
+fixtures; a plan with real content would want its openings and devices
+recomputed in the same step.
+
 ## 10a. Known gap: no way to break a relation
 
 Merging relations and never removing them means a wall dragged away from its

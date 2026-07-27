@@ -4,6 +4,7 @@ import { lineIntersection } from '../lines'
 import { sub } from '../vec'
 import { endFrame, wallGeometry } from './endFrame'
 import type { EndFrame, WallGeometry } from './endFrame'
+import { violations } from './constraintSolver'
 import { emptyResolution, hostSpineSegment, resolveJoint } from './joinResolver'
 import type { EndResolution, JointGap, Resolution } from './joinResolver'
 import { mergeBoundaries } from './mergedBoundary'
@@ -65,7 +66,11 @@ export interface ResolvedNetwork {
   components: readonly (readonly string[])[]
   /** Wedges to patch where a join bevelled across two walls. */
   gaps: readonly JointGap[]
-  /** Flush joints whose surfaces are not collinear — the constraint solver's work list. */
+  /**
+   * Relations that do not hold for the stored geometry — the constraint solver's
+   * work list. One definition of "not satisfied" (`violations`), so the network
+   * and the solver can never disagree about what is true of the document.
+   */
   unsatisfiedJointIds: readonly string[]
   /** Joints naming a wall the document does not contain. */
   danglingJointIds: readonly string[]
@@ -107,7 +112,7 @@ export function resolveWallNetwork(
     faces: collectFaces(resolved),
     components: graph.components,
     gaps: resolution.gaps,
-    unsatisfiedJointIds: resolution.unsatisfiedJointIds,
+    unsatisfiedJointIds: violations(walls, joints),
     danglingJointIds: graph.danglingJointIds,
   }
 }

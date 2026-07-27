@@ -541,7 +541,18 @@ export const useEditorStore = defineStore('editor', () => {
    */
   function healJoints(loaded: PlanDocument): PlanDocument {
     if (loaded.joints.length > 0 || loaded.walls.length === 0) return loaded
-    return { ...loaded, joints: deriveJoints(loaded.walls) }
+    const joints = deriveJoints(loaded.walls)
+    // Derived relations are not enough on their own: a pre-v8 document stored T
+    // endpoints on the HOST's spine, half a thickness past where the wall really
+    // ends. Solving once makes the stored geometry honest, which is what every
+    // parametric address on those walls depends on.
+    const solution = solveConstraints(
+      loaded.walls,
+      joints,
+      loaded.walls.map((wall) => wall.id),
+    )
+    const walls = loaded.walls.map((wall) => solution.moved.get(wall.id) ?? wall)
+    return { ...loaded, walls, joints }
   }
 
   function adoptPlan(loaded: Plan): void {

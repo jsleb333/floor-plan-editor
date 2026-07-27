@@ -1366,4 +1366,36 @@ describe('useEditorStore wall joints', () => {
 
     expect(store.document?.joints).toEqual([])
   })
+  it('makes a pre-v8 document honest on open, not just connected', async () => {
+    // How v7 stored a T: the butting endpoint sat on the HOST's spine, 6" past
+    // where the wall really ends on a 12" wall.
+    const document = makeDocument({
+      walls: [
+        makeWall({
+          id: 'host',
+          thickness_in: 12,
+          vertices: [
+            { x: 0, y: 0 },
+            { x: 0, y: 200 },
+          ],
+        }),
+        makeWall({
+          id: 'partition',
+          vertices: [
+            { x: 0, y: 100 },
+            { x: 100, y: 100 },
+          ],
+        }),
+      ],
+      joints: [],
+    })
+    vi.mocked(getPlan).mockResolvedValue(makePlan({ document }))
+    const store = useEditorStore()
+
+    await store.loadPlan('plan-1')
+
+    const partition = store.document?.walls.find((wall) => wall.id === 'partition')
+    expect(partition?.vertices[0]).toEqual({ x: 6, y: 100 })
+    expect(store.document?.joints.map((joint) => joint.kind)).toEqual(['tee'])
+  })
 })
