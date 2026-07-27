@@ -1,6 +1,6 @@
 # Wall network — design
 
-Status: **phases 0–2 landed, 3 in progress** — the `network/` module, the canvas
+Status: **phases 0–3c landed, 3d and 4 open** — the `network/` module, the canvas
 and export drawing from it, and connectivity now stored on the document (schema
 v8). Supersedes the ad-hoc T-junction handling (`Wall.junctions` and
 `junctionTrim.ts`). Written against schema v7; lands as schema v8.
@@ -302,6 +302,17 @@ Two things the build taught us, recorded because they change later phases:
   spine-placed endpoint as the same T. Landings within tolerance of a segment's
   ends are left for the corner and flush passes, which is what keeps an
   unequal-thickness continuation from being mis-read as a T.
+- **Settle once, then verify beats counting passes.** The document proposed a
+  two-pass cap for over-constrained loops. Satisfying each relation at most once
+  already makes a cycle terminate; re-checking every relation afterwards is what
+  reports the ones still violated, and doubles as a standalone document check
+  (`violations`). No pass counter, and the report is about the geometry rather
+  than about how hard the solver tried.
+- **Surface orientation is not cosmetic.** `wallFaceOffsets` names left and
+  right relative to a wall's DRAWING direction, so a helper that returned a
+  wall's end segment pointing outward silently swapped the two surfaces. Caught
+  by the flush solver tests; worth remembering for anything else that takes a
+  segment from a wall end.
 - **A flush continuation needs no direction guess after all.** The document
   worried that the shared side cannot be known at the first click. True, but the
   spine OFFSET is perpendicular to the shared surface, so it is fixed by the

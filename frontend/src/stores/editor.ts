@@ -21,7 +21,13 @@ import type {
   Wire,
 } from '@/types/plan'
 import { pickNextCircuitColor } from '@/utils/circuits'
-import { deriveJoints, resolveWallNetwork, wallIdsOf, wallSegmentSpan } from '@/utils/geometry'
+import {
+  deriveJoints,
+  resolveWallNetwork,
+  solveConstraints,
+  wallIdsOf,
+  wallSegmentSpan,
+} from '@/utils/geometry'
 import type { ResolvedNetwork } from '@/utils/geometry'
 import type { PresetListName } from '@/utils/presetLists'
 import { DEFAULT_DISPLAY_PRECISION_IN } from '@/utils/units'
@@ -688,7 +694,33 @@ export const useEditorStore = defineStore('editor', () => {
         return
       }
     }
+    if (command.type === 'updateWall') {
+      // Reshaping a wall pulls its relations back into truth (spec S1b/S3a): the
+      // neighbours a corner, T or shared surface binds to it move to suit, in
+      // ONE undo step with the edit itself. The document stays the truth about
+      // where every wall is, so nothing downstream needs a correction pass
+      // (docs/WALL_NETWORK.md section 5).
+      const ownTransaction = transaction === null
+      if (ownTransaction) beginTransaction()
+      applySingle(command)
+      applyConstraints([command.wallId])
+      if (ownTransaction) commitTransaction()
+      return
+    }
     applySingle(command)
+  }
+
+  /**
+   * Restores the wall relations disturbed by an edit to `seedWallIds`, as
+   * further `updateWall` commands inside the caller's transaction.
+   */
+  function applyConstraints(seedWallIds: readonly string[]): void {
+    const current = document.value
+    if (!current) return
+    const solution = solveConstraints(current.walls, current.joints, seedWallIds)
+    for (const [wallId, wall] of solution.moved) {
+      applySingle({ type: 'updateWall', wallId, wall })
+    }
   }
 
   /** Starts coalescing mutations into a single undo step (no-op when one is open). */
