@@ -1200,4 +1200,60 @@ describe('useEditorStore wall joints', () => {
 
     expect(store.document?.joints).toEqual([tee])
   })
+  it('pulls a neighbour back into its relation and undoes both together', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      walls: [
+        makeWall({
+          id: 'east',
+          vertices: [
+            { x: 0, y: 0 },
+            { x: 100, y: 0 },
+          ],
+        }),
+        makeWall({
+          id: 'south',
+          vertices: [
+            { x: 100, y: 0 },
+            { x: 100, y: 100 },
+          ],
+        }),
+      ],
+      joints: [
+        {
+          id: 'j',
+          kind: 'corner',
+          ends: [
+            { wall_id: 'east', end: 'end' },
+            { wall_id: 'south', end: 'start' },
+          ],
+          rule: 'miter',
+        },
+      ],
+    })
+
+    store.mutate({
+      type: 'updateWall',
+      wallId: 'east',
+      wall: {
+        ...makeWall({ id: 'east' }),
+        vertices: [
+          { x: 0, y: 0 },
+          { x: 140, y: 20 },
+        ],
+      },
+    })
+
+    // The corner holds: 'south' followed without the caller asking.
+    const south = store.document?.walls.find((wall) => wall.id === 'south')
+    expect(south?.vertices[0]).toEqual({ x: 140, y: 20 })
+    expect(south?.vertices[1]).toEqual({ x: 100, y: 100 })
+
+    // And it is one undo step, not two.
+    store.undo()
+    const restored = store.document?.walls ?? []
+    expect(restored.find((wall) => wall.id === 'east')?.vertices[1]).toEqual({ x: 100, y: 0 })
+    expect(restored.find((wall) => wall.id === 'south')?.vertices[0]).toEqual({ x: 100, y: 0 })
+    expect(store.canUndo).toBe(false)
+  })
 })

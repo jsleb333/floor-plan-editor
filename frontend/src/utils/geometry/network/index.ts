@@ -7,6 +7,7 @@
  */
 
 export { COINCIDENCE_TOLERANCE_IN, deriveJoints } from './coincidence'
+export { solveConstraints, violations, type ConstraintSolution } from './constraintSolver'
 export {
   flushSpinePoint,
   sharedSide,
