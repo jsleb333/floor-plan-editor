@@ -8,6 +8,14 @@
 
 export { COINCIDENCE_TOLERANCE_IN, deriveJoints } from './coincidence'
 export {
+  flushSpinePoint,
+  sharedSide,
+  spineToSurface,
+  surfaceAnchor,
+  type FlushPlacement,
+  type SurfaceAnchor,
+} from './flushPlacement'
+export {
   capOf,
   endFrame,
   geometryInputOf,

@@ -302,6 +302,14 @@ Two things the build taught us, recorded because they change later phases:
   spine-placed endpoint as the same T. Landings within tolerance of a segment's
   ends are left for the corner and flush passes, which is what keeps an
   unequal-thickness continuation from being mis-read as a T.
+- **A flush continuation needs no direction guess after all.** The document
+  worried that the shared side cannot be known at the first click. True, but the
+  spine OFFSET is perpendicular to the shared surface, so it is fixed by the
+  host's surface normal alone — and the offset is what places the point. Only the
+  side LABEL in the record needs the direction, and that is settled by the
+  second click. The placement is derived from the clicked chain rather than
+  written back into it, so it re-solves live as the direction, thickness or
+  reference side changes.
 - **Category priority had to give way to nearest-wins among point targets.** On a
   12" wall the visible corner and the spine end sit 6" apart, so a fixed order
   (end, then surface corner) made whichever lost unreachable — the original

@@ -32,9 +32,10 @@ interface HarnessOverrides {
 /** Wall tool over an in-memory snap engine (pixelsPerInch 1 → threshold 10"). */
 function makeTool(overrides: HarnessOverrides = {}): Harness {
   const walls: Ref<readonly Wall[]> = ref(overrides.walls ?? [])
+  const network = ref(resolveWallNetwork(walls.value, []))
   const snapping = useSnapping({
     walls,
-    network: overrides.surfaces === true ? ref(resolveWallNetwork(walls.value, [])) : undefined,
+    network: overrides.surfaces === true ? network : undefined,
     pixelsPerInch: ref(1),
     settings: {
       grid: ref(overrides.grid ?? true),
@@ -47,6 +48,7 @@ function makeTool(overrides: HarnessOverrides = {}): Harness {
   const hasClosedLoop = ref(overrides.hasClosedLoop ?? false)
   const tool = useWallTool({
     snapping,
+    network,
     presetsIn: ref<readonly number[]>(overrides.presetsIn ?? []),
     hasClosedLoop,
     onAutoPreset: overrides.onAutoPreset,
@@ -658,6 +660,46 @@ describe('useWallTool relations', () => {
         host: { wall_id: 'shell', segment_index: 0 },
       },
     ])
+  })
+
+  it('continues a thicker wall as one wall, its surface flush with the shell', () => {
+    // The reported case: a 3.5" partition continuing a 12" shell. Aim at the
+    // shell's lower surface terminus (200, 6) and run east.
+    const { tool, committed, committedJoints } = makeTool({ walls: [SHELL], surfaces: true })
+    tool.onClick({ x: 201, y: 7 })
+    tool.onClick({ x: 320, y: 6 })
+    tool.handleKey('Enter')
+
+    // A 3.5" wall centred on its spine sits 1.75" from its own surface, so its
+    // spine lands there and its lower surface continues the shell's at y = 6.
+    expect(committed[0].vertices[0].x).toBeCloseTo(200)
+    expect(committed[0].vertices[0].y).toBeCloseTo(6 - 1.75)
+    expect(committedJoints[0]).toEqual([
+      {
+        id: expect.any(String),
+        kind: 'flush',
+        a: { ref: { wall_id: 'shell', end: 'end' }, side: 'right' },
+        b: { ref: { wall_id: committed[0].id, end: 'start' }, side: 'right' },
+      },
+    ])
+  })
+
+  it('shares the other surface when the continuation runs the other way', () => {
+    const { tool, committed, committedJoints } = makeTool({ walls: [SHELL], surfaces: true })
+    // The same surface, captured at the shell's other end and drawn WEST: the
+    // shared surface is now the new wall's left, and the spine still offsets
+    // toward the shell's body.
+    tool.onClick({ x: -1, y: 7 })
+    tool.onClick({ x: -100, y: 6 })
+    tool.handleKey('Enter')
+
+    expect(committed[0].vertices[0].y).toBeCloseTo(6 - 1.75)
+    const joint = committedJoints[0][0]
+    expect(joint.kind).toBe('flush')
+    if (joint.kind === 'flush') {
+      expect(joint.a.side).toBe('right')
+      expect(joint.b.side).toBe('left')
+    }
   })
 
   it('starting at a wall end records a corner naming both ends', () => {
