@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import type { DOMWrapper, VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -6,12 +7,19 @@ import WallsLayer from '@/components/editor/WallsLayer.vue'
 import { useEditorStore } from '@/stores/editor'
 import { makeDocument, makeWall } from '../helpers/planFactory'
 
+/** The wall body fills; the bevel-wedge patch path is nonzero-filled, so it drops out. */
+function fills(wrapper: VueWrapper): DOMWrapper<Element>[] {
+  return wrapper
+    .findAll('path.fill-wall')
+    .filter((path) => path.attributes('fill-rule') === 'evenodd')
+}
+
 describe('WallsLayer', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
   })
 
-  it('renders one path per wall, skipping degenerate walls', () => {
+  it('renders a fill and a stroke path per wall, skipping degenerate walls', () => {
     const store = useEditorStore()
     store.document = makeDocument({
       walls: [
@@ -29,7 +37,10 @@ describe('WallsLayer', () => {
     })
 
     const wrapper = mount(WallsLayer, { props: { hairline: 0.5 } })
-    expect(wrapper.findAll('path')).toHaveLength(2)
+    // The body is filled and the outline stroked separately, so abutting walls
+    // can drop the edges they share (docs/WALL_NETWORK.md §7).
+    expect(fills(wrapper)).toHaveLength(2)
+    expect(wrapper.findAll('path.stroke-wall-edge')).toHaveLength(2)
   })
 
   it('renders a closed loop as a single two-ring path with evenodd fill', () => {
@@ -50,11 +61,9 @@ describe('WallsLayer', () => {
     })
 
     const wrapper = mount(WallsLayer, { props: { hairline: 0.5 } })
-    const paths = wrapper.findAll('path')
-    expect(paths).toHaveLength(1)
-    const d = paths[0].attributes('d') ?? ''
-    expect(d.match(/M /g)).toHaveLength(2)
-    expect(paths[0].attributes('fill-rule')).toBe('evenodd')
+    const body = fills(wrapper)[0]
+    expect(body.attributes('d')?.match(/M /g)).toHaveLength(2)
+    expect(body.attributes('fill-rule')).toBe('evenodd')
   })
 
   it('renders nothing for an empty document', () => {
@@ -68,9 +77,10 @@ describe('WallsLayer', () => {
     store.select([{ kind: 'wall', id: 'a' }])
 
     const wrapper = mount(WallsLayer, { props: { hairline: 0.5 } })
-    const paths = wrapper.findAll('path')
-    expect(paths[0].classes()).toContain('stroke-accent-strong')
-    expect(paths[1].classes()).toContain('fill-wall')
+    // The highlight is drawn over the merged body, so both walls keep a fill and
+    // exactly the selected one carries the accent outline.
+    expect(fills(wrapper)).toHaveLength(2)
+    expect(wrapper.findAll('path.stroke-accent-strong')).toHaveLength(1)
   })
 
   it('strokes the face tints and direction markers on a selected wall only (spec S1a)', () => {

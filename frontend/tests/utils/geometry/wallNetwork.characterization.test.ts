@@ -15,10 +15,12 @@ import { expectPointClose } from './helpers'
  * produces a `Wall.junctions` record today (the wall tool writes one only for a
  * projection snap into a wall's middle), so nothing butts them together.
  *
- * These are `it.fails`: each body asserts the DESIRED geometry and currently
- * throws. When the network lands they start passing, which makes `it.fails`
- * itself fail — the tripwire that says "convert these to `it` and delete this
- * comment".
+ * These probe the PER-WALL pipeline deliberately, not the wall network: the
+ * network already resolves both cases (see `network/networkGeometry.test.ts`),
+ * but it can only do so because the stored geometry is wrong in a way it has to
+ * correct. When phase 3 stores endpoints honestly these two bodies start
+ * passing on their own, which makes `it.fails` itself fail — the tripwire that
+ * says "storage is honest now; convert these to `it`".
  */
 
 /** 12" exterior shell, vertical, spine on x = 0: surfaces at x = -6 and x = +6. */

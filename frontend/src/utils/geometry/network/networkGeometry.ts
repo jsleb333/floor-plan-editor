@@ -6,6 +6,7 @@ import { endFrame, wallGeometry } from './endFrame'
 import type { EndFrame, WallGeometry } from './endFrame'
 import { emptyResolution, hostSpineSegment, resolveJoint } from './joinResolver'
 import type { EndResolution, JointGap, Resolution } from './joinResolver'
+import { mergeBoundaries } from './mergedBoundary'
 import { buildWallGraph, endKey } from './wallGraph'
 import type { WallGraph } from './wallGraph'
 
@@ -44,6 +45,11 @@ export interface ResolvedWall {
   right: Point[]
   /** Closed rings for fill: one for a chain, two for a ring. */
   rings: Point[][]
+  /**
+   * The parts of the outline to STROKE: the rings minus every edge shared with a
+   * joined wall, so connected walls read as one body (`mergedBoundary.ts`).
+   */
+  strokes: Point[][]
   ends: { start: ResolvedEnd | null; end: ResolvedEnd | null }
 }
 
@@ -92,6 +98,8 @@ export function resolveWallNetwork(
     const wall = assembleWall(geometry, resolution, graph)
     if (wall) resolved.set(wall.wallId, wall)
   }
+  const strokes = mergeBoundaries(resolved, graph.components)
+  for (const wall of resolved.values()) wall.strokes = strokes.get(wall.wallId) ?? []
 
   return {
     walls: resolved,
@@ -163,7 +171,14 @@ function assembleWall(
     ? [faces.left.map(copy), faces.right.map(copy)]
     : [[...faces.left.map(copy), ...faces.right.map(copy).reverse()]]
 
-  return { wallId: geometry.wall.id, left: faces.left, right: faces.right, rings, ends }
+  return {
+    wallId: geometry.wall.id,
+    left: faces.left,
+    right: faces.right,
+    rings,
+    strokes: [],
+    ends,
+  }
 }
 
 /**

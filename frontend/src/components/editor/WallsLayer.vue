@@ -6,12 +6,14 @@ import { useLayersStore } from '@/stores/layers'
 import type { Point, Wall } from '@/types/plan'
 import {
   angleOf,
+  deriveJoints,
   normalize,
+  resolveWallNetwork,
   sub,
-  trimEndpointToHostFace,
   wallFacePolylines,
-  wallOutline,
+  geometryInputOf,
 } from '@/utils/geometry'
+import type { ResolvedNetwork } from '@/utils/geometry'
 import { polylineToPath, ringsToPath } from '@/utils/svgPath'
 
 /** Direction-arrow glyph pointing +x, tip at the origin; scaled by the hairline. */
@@ -35,88 +37,78 @@ const layersStore = useLayersStore()
 
 interface WallPath {
   id: string
-  d: string
-  selected: boolean
+  /** Body to fill; never stroked, so abutting bodies show no seam. */
+  fill: string
+  /** Only the outline edges no joined wall shares (`mergedBoundary.ts`). */
+  stroke: string
   /** Dimmed while a reference-side preview replaces this wall (spec S1a). */
   dimmed: boolean
 }
 
-/**
- * Per-wall outline cache (spec E5). A wall's rendered path depends only on the
- * wall object and the host walls its junctions reference; the store replaces
- * only mutated wall objects (identity preserved for the rest), so a mutation
- * elsewhere lets unchanged walls reuse their cached path instead of recomputing
- * every outline on every document change.
- */
-interface OutlineCacheEntry {
-  hosts: readonly (Wall | undefined)[]
-  d: string
-}
-
-const outlineCache = new WeakMap<Wall, OutlineCacheEntry>()
-
-function hostsMatch(a: readonly (Wall | undefined)[], b: readonly (Wall | undefined)[]): boolean {
-  if (a.length !== b.length) return false
-  return a.every((host, index) => host === b[index])
+function serialize(polylines: readonly Point[][]): string {
+  return polylines
+    .map((polyline) => polylineToPath(polyline))
+    .filter((path) => path !== '')
+    .join(' ')
 }
 
 /**
- * Render-time T-junction butting (spec S1b): endpoints carrying a junction
- * record are trimmed to the host wall's near face so the wall butts against
- * the host body instead of crossing it. The document keeps the endpoint on
- * the host's reference line.
+ * The resolved wall network (`docs/WALL_NETWORK.md`), rebuilt whenever the
+ * document changes. Connectivity is derived from geometry until it is stored on
+ * the document (phase 3), which is exactly what `deriveJoints` is for.
  */
-function renderVertices(wall: Wall, wallsById: ReadonlyMap<string, Wall>): Point[] {
-  let vertices: Point[] = wall.vertices.map((v) => ({ ...v }))
-  for (const junction of wall.junctions) {
-    const host = wallsById.get(junction.host_wall_id)
-    if (!host || host.id === wall.id) continue
-    vertices = trimEndpointToHostFace(vertices, junction.end, {
-      vertices: host.vertices,
-      thicknessIn: host.thickness_in,
-      reference: host.reference,
-      closed: host.closed,
-    })
-  }
-  return vertices
+function networkOf(walls: readonly Wall[]): ResolvedNetwork {
+  return resolveWallNetwork(walls, deriveJoints(walls))
 }
 
-function outlineFor(wall: Wall, wallsById: ReadonlyMap<string, Wall>): string {
-  const hosts = wall.junctions.map((junction) => wallsById.get(junction.host_wall_id))
-  const cached = outlineCache.get(wall)
-  if (cached && hostsMatch(cached.hosts, hosts)) return cached.d
-  const d = ringsToPath(
-    wallOutline({
-      vertices: renderVertices(wall, wallsById),
-      thicknessIn: wall.thickness_in,
-      reference: wall.reference,
-      closed: wall.closed,
-    }),
-  )
-  outlineCache.set(wall, { hosts, d })
-  return d
-}
-
-function wallsById(): ReadonlyMap<string, Wall> {
-  const walls = editorStore.document?.walls ?? []
-  return new Map(walls.map((wall) => [wall.id, wall]))
-}
-
-const wallPaths = computed<WallPath[]>(() => {
+const network = computed<ResolvedNetwork>(() => {
   // documentVersion is the store's explicit change signal for the shallowRef
   // document — touching it keys this computed on every mutation.
   void editorStore.documentVersion
-  const walls = editorStore.document?.walls ?? []
-  const byId = wallsById()
+  return networkOf(editorStore.document?.walls ?? [])
+})
+
+/** The network with the previewed wall substituted, so the ghost joins like the real thing. */
+const previewNetwork = computed<ResolvedNetwork | null>(() => {
+  const preview = props.previewWall
+  if (!preview) return null
+  void editorStore.documentVersion
+  const walls = (editorStore.document?.walls ?? []).map((wall) =>
+    wall.id === preview.id ? preview : wall,
+  )
+  return networkOf(walls)
+})
+
+const wallPaths = computed<WallPath[]>(() => {
+  const resolved = network.value
+  return (editorStore.document?.walls ?? [])
+    .map((wall) => {
+      const geometry = resolved.walls.get(wall.id)
+      return {
+        id: wall.id,
+        fill: geometry ? ringsToPath(geometry.rings) : '',
+        stroke: geometry ? serialize(geometry.strokes) : '',
+        dimmed: props.previewWall?.id === wall.id,
+      }
+    })
+    .filter((path) => path.fill !== '')
+})
+
+/** Bevel wedges between two walls, filled so an acute join has no notch. */
+const gapPath = computed<string>(() =>
+  ringsToPath(network.value.gaps.map((gap) => [...gap.points])),
+)
+
+/** Full outlines of the selected walls, drawn over the merged body as the highlight. */
+const selectedPaths = computed<{ id: string; d: string }[]>(() => {
+  const resolved = network.value
   const selectedIds = editorStore.selectedWallIds
-  return walls
-    .map((wall) => ({
-      id: wall.id,
-      d: outlineFor(wall, byId),
-      selected: selectedIds.has(wall.id),
-      dimmed: props.previewWall?.id === wall.id,
-    }))
-    .filter((path) => path.d !== '')
+  const paths: { id: string; d: string }[] = []
+  for (const id of selectedIds) {
+    const geometry = resolved.walls.get(id)
+    if (geometry) paths.push({ id, d: ringsToPath(geometry.rings) })
+  }
+  return paths
 })
 
 /**
@@ -133,17 +125,13 @@ interface FaceIdentity {
   arrow: { point: Point; angleDeg: number } | null
 }
 
-function identityFor(wall: Wall, byId: ReadonlyMap<string, Wall>): FaceIdentity | null {
-  const vertices = renderVertices(wall, byId)
-  const faces = wallFacePolylines({
-    vertices,
-    thicknessIn: wall.thickness_in,
-    reference: wall.reference,
-    closed: wall.closed,
-  })
+function identityFor(wall: Wall, resolved: ResolvedNetwork): FaceIdentity | null {
+  const geometry = resolved.walls.get(wall.id)
+  const faces = geometry ?? wallFacePolylines(geometryInputOf(wall))
   if (faces.left.length === 0) return null
-  const end = faces.closed ? vertices[0] : vertices[vertices.length - 1]
-  const previous = faces.closed ? vertices[vertices.length - 1] : vertices[vertices.length - 2]
+  const vertices = wall.vertices
+  const end = wall.closed ? vertices[0] : vertices[vertices.length - 1]
+  const previous = wall.closed ? vertices[vertices.length - 1] : vertices[vertices.length - 2]
   const direction = normalize(sub(end, previous))
   const arrow =
     direction.x === 0 && direction.y === 0
@@ -151,9 +139,9 @@ function identityFor(wall: Wall, byId: ReadonlyMap<string, Wall>): FaceIdentity 
       : { point: end, angleDeg: (angleOf(direction) * 180) / Math.PI }
   return {
     id: wall.id,
-    leftPath: polylineToPath(faces.left, faces.closed),
-    rightPath: polylineToPath(faces.right, faces.closed),
-    referencePath: polylineToPath(vertices, faces.closed),
+    leftPath: polylineToPath(faces.left, wall.closed),
+    rightPath: polylineToPath(faces.right, wall.closed),
+    referencePath: polylineToPath(vertices, wall.closed),
     start: vertices[0],
     arrow,
   }
@@ -166,14 +154,14 @@ function identityFor(wall: Wall, byId: ReadonlyMap<string, Wall>): FaceIdentity 
 const faceIdentities = computed<FaceIdentity[]>(() => {
   void editorStore.documentVersion
   const walls = editorStore.document?.walls ?? []
-  const byId = wallsById()
   const preview = props.previewWall ?? null
+  const resolved = previewNetwork.value ?? network.value
   const selectedIds = editorStore.selectedWallIds
   const identities: FaceIdentity[] = []
   for (const wall of walls) {
     if (!selectedIds.has(wall.id)) continue
     const source = preview?.id === wall.id ? preview : wall
-    const identity = identityFor(source, byId)
+    const identity = identityFor(source, resolved)
     if (identity) identities.push(identity)
   }
   return identities
@@ -182,16 +170,10 @@ const faceIdentities = computed<FaceIdentity[]>(() => {
 /** Ghost outline of the would-be geometry while a reference preview is live. */
 const ghostPath = computed<string>(() => {
   const preview = props.previewWall
-  if (!preview) return ''
-  void editorStore.documentVersion
-  return ringsToPath(
-    wallOutline({
-      vertices: renderVertices(preview, wallsById()),
-      thicknessIn: preview.thickness_in,
-      reference: preview.reference,
-      closed: preview.closed,
-    }),
-  )
+  const resolved = previewNetwork.value
+  if (!preview || !resolved) return ''
+  const geometry = resolved.walls.get(preview.id)
+  return geometry ? ringsToPath(geometry.rings) : ''
 })
 </script>
 
@@ -199,14 +181,31 @@ const ghostPath = computed<string>(() => {
   <g v-if="layersStore.structureVisible" aria-label="Walls">
     <path
       v-for="wall in wallPaths"
-      :key="wall.id"
-      :d="wall.d"
+      :key="`fill-${wall.id}`"
+      :d="wall.fill"
       fill-rule="evenodd"
-      :class="[
-        wall.selected ? 'fill-accent/30 stroke-accent-strong' : 'fill-wall stroke-wall-edge',
-        wall.dimmed ? 'opacity-40' : '',
-      ]"
-      :stroke-width="wall.selected ? 1.5 * hairline : hairline"
+      stroke="none"
+      :class="['fill-wall', wall.dimmed ? 'opacity-40' : '']"
+    />
+
+    <path v-if="gapPath" :d="gapPath" fill-rule="nonzero" stroke="none" class="fill-wall" />
+
+    <path
+      v-for="wall in wallPaths"
+      :key="`stroke-${wall.id}`"
+      :d="wall.stroke"
+      fill="none"
+      :class="['stroke-wall-edge', wall.dimmed ? 'opacity-40' : '']"
+      :stroke-width="hairline"
+    />
+
+    <path
+      v-for="selected in selectedPaths"
+      :key="`selected-${selected.id}`"
+      :d="selected.d"
+      fill-rule="evenodd"
+      class="fill-accent/30 stroke-accent-strong"
+      :stroke-width="1.5 * hairline"
     />
 
     <path

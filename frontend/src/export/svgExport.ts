@@ -31,14 +31,14 @@ import {
   stairsCenter,
   stairsCorners,
   stairsTreads,
-  trimEndpointToHostFace,
-  wallOutline,
+  deriveJoints,
+  resolveWallNetwork,
   windowSymbol,
   wireEndpoint,
   wirePathData,
 } from '@/utils/geometry'
-import type { Bounds } from '@/utils/geometry'
-import { doorStrokeToPath, ringsToPath } from '@/utils/svgPath'
+import type { Bounds, ResolvedNetwork } from '@/utils/geometry'
+import { doorStrokeToPath, polylineToPath, ringsToPath } from '@/utils/svgPath'
 import { formatFeetInches } from '@/utils/units'
 
 import {
@@ -130,41 +130,39 @@ function line(a: Point, b: Point, stroke: string, width: number): string {
   return `<line x1="${num(a.x)}" y1="${num(a.y)}" x2="${num(b.x)}" y2="${num(b.y)}" stroke="${stroke}" stroke-width="${width}" />`
 }
 
-/** Render-time T-junction butting, mirroring `WallsLayer.renderVertices` (spec S1b). */
-function renderWallVertices(wall: Wall, wallsById: ReadonlyMap<string, Wall>): Point[] {
-  let vertices: Point[] = wall.vertices.map((v) => ({ ...v }))
-  for (const junction of wall.junctions) {
-    const host = wallsById.get(junction.host_wall_id)
-    if (!host || host.id === wall.id) continue
-    vertices = trimEndpointToHostFace(vertices, junction.end, {
-      vertices: host.vertices,
-      thicknessIn: host.thickness_in,
-      reference: host.reference,
-      closed: host.closed,
-    })
-  }
-  return vertices
+/**
+ * The resolved wall network (`docs/WALL_NETWORK.md`) — the same geometry the
+ * canvas draws, so an export matches the editor exactly (spec §4.1).
+ * Connectivity is derived from geometry until the document stores it (phase 3).
+ */
+function wallNetworkOf(document: PlanDocument): ResolvedNetwork {
+  return resolveWallNetwork(document.walls, deriveJoints(document.walls))
 }
 
-function wallPathData(wall: Wall, wallsById: ReadonlyMap<string, Wall>): string {
-  return ringsToPath(
-    wallOutline({
-      vertices: renderWallVertices(wall, wallsById),
-      thicknessIn: wall.thickness_in,
-      reference: wall.reference,
-      closed: wall.closed,
-    }),
-  )
-}
-
-function renderWalls(walls: readonly Wall[], wallsById: ReadonlyMap<string, Wall>): string[] {
+/**
+ * Walls as a fill per body plus the outline edges no joined wall shares, so
+ * connected walls print as one body rather than overlapping shapes with seams.
+ */
+function renderWalls(walls: readonly Wall[], network: ResolvedNetwork): string[] {
   const out: string[] = []
   for (const wall of walls) {
-    const d = wallPathData(wall, wallsById)
-    if (d === '') continue
-    out.push(
-      `<path d="${d}" fill="${EXPORT_WALL_FILL}" fill-rule="evenodd" stroke="${EXPORT_WALL_EDGE}" stroke-width="${STRUCTURE_STROKE_IN}" />`,
-    )
+    const geometry = network.walls.get(wall.id)
+    const fill = geometry ? ringsToPath(geometry.rings) : ''
+    if (!geometry || fill === '') continue
+    out.push(`<path d="${fill}" fill="${EXPORT_WALL_FILL}" fill-rule="evenodd" stroke="none" />`)
+    const stroke = geometry.strokes
+      .map((polyline) => polylineToPath(polyline))
+      .filter((path) => path !== '')
+      .join(' ')
+    if (stroke !== '') {
+      out.push(
+        `<path d="${stroke}" fill="none" stroke="${EXPORT_WALL_EDGE}" stroke-width="${STRUCTURE_STROKE_IN}" />`,
+      )
+    }
+  }
+  const gaps = ringsToPath(network.gaps.map((gap) => [...gap.points]))
+  if (gaps !== '') {
+    out.push(`<path d="${gaps}" fill="${EXPORT_WALL_FILL}" stroke="none" />`)
   }
   return out
 }
@@ -340,24 +338,22 @@ function mergeBounds(target: Bounds | null, points: readonly Point[]): Bounds | 
   }
 }
 
+/** One named subgroup of the structure layer; empty groups are omitted. */
+function layer(id: string, parts: readonly string[]): string {
+  return parts.length === 0 ? '' : `<g id="${id}">${parts.join('')}</g>`
+}
+
 /** Content bounds of everything rendered, before the export margin (spec X2). */
 function contentBounds(
   document: PlanDocument,
   wallsById: ReadonlyMap<string, Wall>,
+  network: ResolvedNetwork,
   options: Required<Pick<SvgExportOptions, 'includeUnderlay' | 'includeAnnotations'>>,
   underlay: UnderlayPixelSize | null,
 ): Bounds | null {
   let bounds: Bounds | null = null
-  for (const wall of document.walls) {
-    bounds = mergeBounds(
-      bounds,
-      wallOutline({
-        vertices: renderWallVertices(wall, wallsById),
-        thicknessIn: wall.thickness_in,
-        reference: wall.reference,
-        closed: wall.closed,
-      }).flat(),
-    )
+  for (const geometry of network.walls.values()) {
+    bounds = mergeBounds(bounds, geometry.rings.flat())
   }
   for (const opening of document.openings) {
     const wall = wallsById.get(opening.wall_id)
@@ -424,6 +420,7 @@ export function planContentBounds(
   return contentBounds(
     document,
     wallsById,
+    wallNetworkOf(document),
     { includeUnderlay: underlaySize !== null, includeAnnotations: true },
     underlaySize,
   )
@@ -451,6 +448,7 @@ export function planViewBox(document: PlanDocument, options: SvgExportOptions = 
     contentBounds(
       document,
       wallsById,
+      wallNetworkOf(document),
       {
         includeUnderlay: options.includeUnderlay ?? false,
         includeAnnotations: options.includeAnnotations ?? true,
@@ -489,13 +487,18 @@ export function buildPlanSvg(document: PlanDocument, options: SvgExportOptions =
     )
   }
 
+  // Named subgroups so an exported file opens as legible layers in a vector
+  // editor, and so walls and openings stay separable (spec X2).
   const structure = [
-    ...document.stairs.flatMap(renderStairs),
-    ...renderWalls(document.walls, wallsById),
-    ...document.openings.flatMap((opening) => {
-      const wall = wallsById.get(opening.wall_id)
-      return wall ? renderOpening(opening, wall, background ?? EXPORT_CANVAS) : []
-    }),
+    layer('stairs', document.stairs.flatMap(renderStairs)),
+    layer('walls', renderWalls(document.walls, wallNetworkOf(document))),
+    layer(
+      'openings',
+      document.openings.flatMap((opening) => {
+        const wall = wallsById.get(opening.wall_id)
+        return wall ? renderOpening(opening, wall, background ?? EXPORT_CANVAS) : []
+      }),
+    ),
   ]
   groups.push(`<g id="structure">${structure.join('')}</g>`)
 

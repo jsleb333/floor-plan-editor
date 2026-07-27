@@ -1,7 +1,7 @@
 # Wall network — design
 
-Status: **phases 0–1 landed** (the pure `network/` module, no consumers wired
-yet). Supersedes the ad-hoc T-junction handling (`Wall.junctions` and
+Status: **phases 0–2 landed** — the `network/` module, and the canvas and export
+both drawing from it. Supersedes the ad-hoc T-junction handling (`Wall.junctions` and
 `junctionTrim.ts`). Written against schema v7; lands as schema v8.
 
 ## 1. The defect
@@ -207,12 +207,24 @@ dragged corner silently disconnects.
 
 ## 7. Rendering
 
-`WallsLayer.vue` and `svgExport.ts` both read `ResolvedNetwork.rings`, and
-`junctionTrim.ts` is deleted. Connected walls paint as **one fill path per
-connected component** rather than one per wall, so no wall's outline stroke can
-appear inside another's body — the seams in the reported screenshot cannot
-recur, at any thickness combination. Selection highlighting stays per-wall
-(stroke only, over the shared fill).
+`WallsLayer.vue` and `svgExport.ts` both read the resolved network, and
+`junctionTrim.ts` is deleted.
+
+Fill and stroke separate. Each wall's body is **filled** from its own rings and
+never stroked; the outline is a **second path carrying only the edges no joined
+wall shares** (`mergedBoundary.ts`). An edge is dropped when it coincides with a
+joined wall's edge — that is the line between two merged bodies — or when it lies
+strictly inside another wall's body. Both tests are exact line arithmetic.
+
+This replaces the union-by-component sketch this document originally carried.
+Unioning per component would have needed either polygon booleans or an
+`evenodd` path spanning several walls, where a chain overlapping a closed loop's
+band cancels to a hole. Trimming the stroke instead needs neither, and it fixes
+a case the union would not have: at a T, the host's own surface line has to
+BREAK across the partition's base, which is not something a shared fill does.
+
+Selection highlighting stays per-wall — the full outline, drawn over the merged
+body, so the user can still see where one wall ends.
 
 ## 8. Guides — what changes and why (S1e)
 
@@ -270,8 +282,8 @@ resolver stays frontend-only.
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----- |
 | 0     | This document; characterization tests pinning the current defect                                                                      | ½ day      | done  |
 | 1     | `network/`: graph, join resolver, resolved network, coincidence bootstrap — pure, fully unit-tested, no consumers                     | 1.5–2 days | done  |
-| 2     | Renderer + export read the network; per-component fill; delete `junctionTrim`                                                         | 1 day      | next  |
-| 3     | Authoring: surface/corner snap targets, joint records from both tools, constraint solver wired into edit commands; backend model + v8 | 1.5–2 days |       |
+| 2     | Renderer + export read the network; merged stroke boundaries; delete `junctionTrim`                                                   | 1 day      | done  |
+| 3     | Authoring: surface/corner snap targets, joint records from both tools, constraint solver wired into edit commands; backend model + v8 | 1.5–2 days | next  |
 | 4     | Guides/anchors from the network, S1e ranking, requirements amendment                                                                  | ½–1 day    |       |
 
 Each phase leaves the app working. Phase 2 is the first visible improvement;
@@ -287,6 +299,10 @@ Two things the build taught us, recorded because they change later phases:
   spine-placed endpoint as the same T. Landings within tolerance of a segment's
   ends are left for the corner and flush passes, which is what keeps an
   unequal-thickness continuation from being mis-read as a T.
+- **Connectivity can be derived until it is stored.** Phase 2 needed no schema
+  change: the canvas and export call `deriveJoints(walls)` and resolve against
+  that, so merged bodies work on today's documents. Phase 3 switches the source
+  to stored joints and keeps `deriveJoints` as the repair path.
 - **The tee clip is strictly better than `trimEndpointToHostFace`.** The old
   trim slides the spine along the wall's own direction, so its cap stays square
   to the butting wall and leaves a wedge at any non-perpendicular approach. The

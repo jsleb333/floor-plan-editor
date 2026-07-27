@@ -138,7 +138,6 @@ export {
   labelFontSizeIn,
   type DimensionLayout,
 } from './annotations'
-export { trimEndpointToHostFace } from './junctionTrim'
 export {
   parallelFaceGaps,
   type FaceGap,
