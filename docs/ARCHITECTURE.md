@@ -195,7 +195,7 @@ inches, y grows down (SVG space), angles in radians. Module map:
 | `closeLoop.ts` | `autoSquareClose` — solves the final corner of a loop as the intersection of two allowed directions (S1c) |
 | `chainEdit.ts` | `setSegmentLength` — exact-dimension edits that propagate through free segments and are blocked by locks, reporting `ok`/`blocked`/`misclosure` (S3b/S3c) |
 | `vertexDrag.ts` | Angle-preserving vertex drag candidates (S3) |
-| `openings.ts` | Parametric address → jambs, opening rect, window glazing; `doorFigure` dispatches the five door styles (S4) to strokes — polylines plus optional quarter arcs, one dashed for the pocket cavity — with `doorSymbol` still the swing leaf/arc primitive; `projectOntoWalls` for placement |
+| `openings.ts` | Parametric address → jambs, opening rect, window glazing; `doorFigure` dispatches the six door styles (S4) to strokes — polylines plus optional quarter arcs, one dashed for the pocket cavity — with `doorSymbol` still the swing leaf/arc primitive; `projectOntoWalls` for placement |
 | `devices.ts` | `deviceWorldPlacement` — attachment → world anchor/angle/bounds (+ true-size footprint rect and inscribed-glyph anchor); `deviceGlyphBox`; `deviceScreenScale` (min 14 px legibility clamp); wall-gap measurement for temp dimensions |
 | `stairs.ts`, `annotations.ts`, `tempDimensions.ts` | Stairs frame/treads/arrow; dimension-line layout; live face-to-face gap chips (S2a) |
 | `wires.ts` | `wireEndpoint` (device id → live world centre), `autoCurveControlPoints`, `wirePathData` (cubic Bézier, Catmull-Rom fallback), sampled hit-testing |
@@ -217,7 +217,7 @@ The wall render pipeline, in order (identical in canvas and export):
    and the door/window symbol on top. The interruption and jambs are
    style-independent; only the symbol changes with `Opening.style`, and both
    the canvas and the export serialize its strokes through the one
-   `doorStrokeToPath` (`utils/svgPath.ts`), so all five styles print exactly
+   `doorStrokeToPath` (`utils/svgPath.ts`), so all six styles print exactly
    as they draw.
 
 ### Canvas rendering

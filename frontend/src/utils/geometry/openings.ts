@@ -254,14 +254,36 @@ function slidingStrokes(wall: Wall, opening: Opening, frame: DoorFrame): DoorStr
 }
 
 /**
- * A folded pair of leaves: two equal segments from the stacking jamb (`hinge`)
- * to the opening midpoint, peaking a quarter of the width into the `swing` side
- * — the shallow V that reads as a bifold at any scale.
+ * One folded pair of leaves: two equal segments from the stacking jamb `stack`
+ * to `meet`, peaking half their run into `swingDir` — the shallow V that reads
+ * as a bifold at any scale. `runIn` is the `stack`-to-`meet` distance, passed in
+ * so it comes from the opening width rather than from the built points.
+ */
+function foldedPairStroke(stack: Point, meet: Point, swingDir: Point, runIn: number): DoorStroke {
+  const fold = add(lerp(stack, meet, 0.5), scale(swingDir, runIn / 2))
+  return panelStroke([stack, fold, meet])
+}
+
+/**
+ * A folded pair of leaves from the stacking jamb (`hinge`) to the opening
+ * midpoint, folding into the `swing` side.
  */
 function bifoldStrokes(opening: Opening, frame: DoorFrame): DoorStroke[] {
   const stack = opening.hinge === 'left' ? frame.jambs.start : frame.jambs.end
-  const fold = add(lerp(stack, frame.mid, 0.5), scale(frame.swingDir, frame.widthIn / 4))
-  return [panelStroke([stack, fold, frame.mid])]
+  return [foldedPairStroke(stack, frame.mid, frame.swingDir, frame.widthIn / 2)]
+}
+
+/**
+ * The four-panel closet front: one folded pair per jamb, each spanning half the
+ * opening and folding into the `swing` side, the two Vs meeting at the opening
+ * midpoint. Both jambs are stacking points, so `hinge` is unused.
+ */
+function doubleBifoldStrokes(frame: DoorFrame): DoorStroke[] {
+  const runIn = frame.widthIn / 2
+  return [
+    foldedPairStroke(frame.jambs.start, frame.mid, frame.swingDir, runIn),
+    foldedPairStroke(frame.jambs.end, frame.mid, frame.swingDir, runIn),
+  ]
 }
 
 /**
@@ -286,7 +308,7 @@ function pocketStrokes(opening: Opening, frame: DoorFrame): DoorStroke[] {
 }
 
 /**
- * Every stroke of a door's symbol, dispatched on its `style` (spec S4). All five
+ * Every stroke of a door's symbol, dispatched on its `style` (spec S4). All six
  * styles are DERIVED from the host wall's current reference line and drawn per
  * architectural convention:
  *
@@ -299,6 +321,9 @@ function pocketStrokes(opening: Opening, frame: DoorFrame): DoorStroke[] {
  *   faces, i.e. which way it slides open; `swing` is unused).
  * - `bifold`: a shallow V of two equal leaves from the `hinge` jamb (the stack
  *   side) to the opening midpoint, folding into the `swing` side.
+ * - `double_bifold`: two such Vs, one stacked at EACH jamb, each spanning half
+ *   the opening and folding into the `swing` side, meeting at the opening
+ *   midpoint — the four-panel closet front (`hinge` is unused).
  * - `pocket`: the leaf inside the wall band on its mid-thickness line, plus a
  *   dashed cavity beyond the `hinge` jamb (`swing` is unused).
  *
@@ -332,6 +357,8 @@ export function doorFigure(wall: Wall, opening: Opening): DoorFigure | null {
       return { style, strokes: slidingStrokes(wall, opening, frame) }
     case 'bifold':
       return { style, strokes: bifoldStrokes(opening, frame) }
+    case 'double_bifold':
+      return { style, strokes: doubleBifoldStrokes(frame) }
     case 'pocket':
       return { style, strokes: pocketStrokes(opening, frame) }
   }

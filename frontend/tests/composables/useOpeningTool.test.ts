@@ -213,6 +213,55 @@ describe('useOpeningTool', () => {
     expect(commit.mock.calls[0][0]).toMatchObject({ style: 'sliding', width_in: 60 })
   })
 
+  it('arms the double bifold at its 60" default width and remembers it as last-used', async () => {
+    const { tool, commit } = setup()
+    expect(tool.widthIn.value).toBe(DEFAULT_DOOR_WIDTH_IN)
+
+    tool.setStyle('double_bifold')
+    expect(tool.widthIn.value).toBe(60)
+
+    tool.setCursor(ABOVE_WALL)
+    expect(tool.preview.value).toMatchObject({ style: 'double_bifold', width_in: 60 })
+
+    tool.onClick(ABOVE_WALL)
+    expect(commit.mock.calls[0][0]).toMatchObject({ style: 'double_bifold', width_in: 60 })
+    await nextTick()
+    const restored = setup().tool
+    expect(restored.style.value).toBe('double_bifold')
+    expect(restored.widthIn.value).toBe(60)
+  })
+
+  it('lets a width typed after the style win over the style default', () => {
+    const { tool } = setup()
+    tool.setStyle('double_bifold')
+
+    tool.setCursor(ABOVE_WALL)
+    for (const key of ['4', '8']) tool.handleKey(key)
+    tool.handleKey('Enter')
+
+    expect(tool.widthIn.value).toBe(48)
+    expect(tool.preview.value?.width_in).toBe(48)
+  })
+
+  it('leaves the armed width alone for a style that implies none', () => {
+    const { tool } = setup()
+    tool.setWidth(30)
+
+    tool.setStyle('bifold')
+
+    expect(tool.widthIn.value).toBe(30)
+  })
+
+  it('keeps the window width out of reach of a door style default', async () => {
+    const { tool } = setup([makeWall()], 'window')
+
+    tool.setStyle('double_bifold')
+
+    expect(tool.widthIn.value).toBe(DEFAULT_WINDOW_WIDTH_IN)
+    await nextTick()
+    expect(setup().tool.widthIn.value).toBe(60)
+  })
+
   it('leaves the swing untouched by the cursor for a style that ignores it', async () => {
     const { tool, commit } = setup()
     tool.setSwing('in')
@@ -236,6 +285,9 @@ describe('useOpeningTool', () => {
     expect(tool.preview.value?.swing).toBe('out')
 
     tool.setStyle('bifold')
+    expect(tool.preview.value?.swing).toBe('out')
+
+    tool.setStyle('double_bifold')
     expect(tool.preview.value?.swing).toBe('out')
   })
 

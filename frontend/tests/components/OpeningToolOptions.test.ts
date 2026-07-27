@@ -1,8 +1,11 @@
 import { mount, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { computed, ref } from 'vue'
 
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
+import { useOpeningTool } from '@/composables/useOpeningTool'
 import type { DoorStyle } from '@/types/plan'
+import { makeWall } from '../helpers/planFactory'
 
 const DOOR_WIDTH_PRESETS_IN: readonly number[] = [24, 28, 30, 32, 36]
 const WINDOW_WIDTH_PRESETS_IN: readonly number[] = [24, 36, 48, 60, 72]
@@ -167,6 +170,33 @@ describe('OpeningToolOptions', () => {
 
     expect(wrapper.text()).toContain('Stack side')
     expect(wrapper.text()).toContain('Fold side')
+  })
+
+  it('offers only the fold side for a double bifold, both jambs being stacking points', () => {
+    const wrapper = mountOptions({ doorStyle: 'double_bifold' })
+
+    expect(buttonByText(wrapper, 'Double bifold').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.find('[aria-label="Hinge side"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Swing direction"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Fold side')
+  })
+
+  it('applies the double bifold default width through the tool when the style is selected', async () => {
+    // The panel only emits; the width the style implies is applied by the tool
+    // the emission is wired to (EditorPage), so drive the real one here.
+    const tool = useOpeningTool({
+      kind: computed(() => 'door'),
+      walls: ref([makeWall()]),
+      pixelsPerInch: ref(2),
+      commit: vi.fn(),
+    })
+    const wrapper = mountOptions({ doorStyle: tool.style.value, widthIn: tool.widthIn.value })
+
+    await buttonByText(wrapper, 'Double bifold').trigger('click')
+    for (const [style] of wrapper.emitted<[DoorStyle]>('set-style') ?? []) tool.setStyle(style)
+
+    expect(tool.style.value).toBe('double_bifold')
+    expect(tool.widthIn.value).toBe(60)
   })
 
   it('describes only the cursor gestures the armed style reads', () => {

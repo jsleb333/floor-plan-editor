@@ -13,7 +13,14 @@ import {
 import { doorStrokeToPath } from '@/utils/svgPath'
 import { makeOpening, makeWall } from '../../helpers/planFactory'
 
-const ALL_STYLES: readonly DoorStyle[] = ['swing', 'double', 'sliding', 'bifold', 'pocket']
+const ALL_STYLES: readonly DoorStyle[] = [
+  'swing',
+  'double',
+  'sliding',
+  'bifold',
+  'double_bifold',
+  'pocket',
+]
 
 const SQRT1_2 = Math.SQRT1_2
 
@@ -264,6 +271,68 @@ describe('doorFigure', () => {
     ])
   })
 
+  it('draws a 60" double bifold as one folded pair per jamb, meeting at the opening centre', () => {
+    const figure = doorFigure(wall, makeOpening({ t: 60, width_in: 60, style: 'double_bifold' }))
+
+    // Jambs at x=30/90, centre at x=60: two Vs of two 15" leaves each, folding
+    // 15" into the room (swing 'in' is up-screen on this east-running wall).
+    expect(figure?.style).toBe('double_bifold')
+    expect(figure?.strokes).toEqual([
+      {
+        points: [
+          { x: 30, y: 0 },
+          { x: 45, y: -15 },
+          { x: 60, y: 0 },
+        ],
+        arc: null,
+        dashed: false,
+      },
+      {
+        points: [
+          { x: 90, y: 0 },
+          { x: 75, y: -15 },
+          { x: 60, y: 0 },
+        ],
+        arc: null,
+        dashed: false,
+      },
+    ])
+  })
+
+  it('builds each half of a double bifold exactly like the single bifold V', () => {
+    const options = { t: 60, width_in: 60 } as const
+    const pair = doorFigure(wall, makeOpening({ ...options, style: 'double_bifold' }))
+    const stackedLeft = doorFigure(wall, makeOpening({ ...options, style: 'bifold' }))
+    const stackedRight = doorFigure(
+      wall,
+      makeOpening({ ...options, style: 'bifold', hinge: 'right' }),
+    )
+
+    expect(pair?.strokes[0]).toEqual(stackedLeft?.strokes[0])
+    expect(pair?.strokes[1]).toEqual(stackedRight?.strokes[0])
+  })
+
+  it('folds both pairs of a double bifold to the swing side and ignores the hinge side', () => {
+    const out = doorFigure(
+      wall,
+      makeOpening({ t: 60, width_in: 60, style: 'double_bifold', swing: 'out' }),
+    )
+    const hingedRight = doorFigure(
+      wall,
+      makeOpening({ t: 60, width_in: 60, style: 'double_bifold', hinge: 'right' }),
+    )
+    const hingedLeft = doorFigure(
+      wall,
+      makeOpening({ t: 60, width_in: 60, style: 'double_bifold' }),
+    )
+
+    expect(out?.strokes.map((stroke) => stroke.points[1])).toEqual([
+      { x: 45, y: 15 },
+      { x: 75, y: 15 },
+    ])
+    expect(hingedRight).toEqual(hingedLeft)
+  })
+
   it('draws a pocket door inside the wall with a dashed cavity beyond the hinge jamb', () => {
     const figure = doorFigure(wall, makeOpening({ t: 60, width_in: 32, style: 'pocket' }))
 
@@ -337,6 +406,20 @@ describe('doorFigure', () => {
       { x: 10, y: 84 },
       { x: 18, y: 92 },
       { x: 10, y: 100 },
+    ])
+
+    const pair = doorFigure(vertical, makeOpening({ t: 100, width_in: 60, style: 'double_bifold' }))
+    expect(pair?.strokes.map((stroke) => stroke.points)).toEqual([
+      [
+        { x: 10, y: 70 },
+        { x: 25, y: 85 },
+        { x: 10, y: 100 },
+      ],
+      [
+        { x: 10, y: 130 },
+        { x: 25, y: 115 },
+        { x: 10, y: 100 },
+      ],
     ])
   })
 
