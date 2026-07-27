@@ -5,6 +5,7 @@ import { EPSILON, cross, distance, dot, sub } from '../vec'
 import { wallFaceOffsets } from '../wallOutline'
 import { capOf, endFrame, wallGeometry } from './endFrame'
 import type { EndFrame, WallGeometry } from './endFrame'
+import { cornerJointId, flushJointId, teeJointId } from './jointIdentity'
 import { endKey } from './wallGraph'
 
 /** Default coincidence tolerance: an eighth of an inch, the editor's display precision. */
@@ -71,7 +72,7 @@ function collectCorners(
     if (group.length < 2) continue
     const ends = group.map(refOf)
     for (const frame of group) claimed.add(endKey(frame.wallId, frame.end))
-    into.push({ id: cornerId(ends), kind: 'corner', ends, rule: 'miter' })
+    into.push({ id: cornerJointId(ends), kind: 'corner', ends, rule: 'miter' })
   }
 }
 
@@ -128,12 +129,9 @@ function collectTees(
     if (!best) continue
 
     claimed.add(key)
-    into.push({
-      id: `tee:${key}>${best.wallId}#${best.segmentIndex}`,
-      kind: 'tee',
-      end: refOf(frame),
-      host: { wall_id: best.wallId, segment_index: best.segmentIndex },
-    })
+    const end = refOf(frame)
+    const host = { wall_id: best.wallId, segment_index: best.segmentIndex }
+    into.push({ id: teeJointId(end, host), kind: 'tee', end, host })
   }
 }
 
@@ -167,7 +165,7 @@ function collectFlush(
       claimed.add(endKey(a.wallId, a.end))
       claimed.add(endKey(b.wallId, b.end))
       into.push({
-        id: `flush:${endKey(a.wallId, a.end)}|${endKey(b.wallId, b.end)}`,
+        id: flushJointId(refOf(a), refOf(b)),
         kind: 'flush',
         a: { ref: refOf(a), side: shared.a },
         b: { ref: refOf(b), side: shared.b },
@@ -193,12 +191,4 @@ function sharedSides(
 
 function refOf(frame: EndFrame): WallEndRef {
   return { wall_id: frame.wallId, end: frame.end }
-}
-
-/** Sorted so the id does not depend on wall order in the document. */
-function cornerId(ends: readonly WallEndRef[]): string {
-  return `corner:${ends
-    .map((ref) => endKey(ref.wall_id, ref.end))
-    .sort()
-    .join('|')}`
 }

@@ -7,11 +7,14 @@ import {
   add,
   alignedClose,
   autoSquareClose,
+  cornerJointId,
   distance,
+  flushJointId,
   flushSpinePoint,
   scale,
   sub,
   surfaceAnchor,
+  teeJointId,
   wallFacePolylines,
   wallOutline,
 } from '@/utils/geometry'
@@ -555,31 +558,26 @@ function jointFor(
 ): Joint | null {
   if (target?.kind === 'surface-end') {
     if (!placement) return null
+    const host = { wall_id: target.wallId, end: target.end }
+    const own = { wall_id: wallId, end }
     return {
-      id: crypto.randomUUID(),
+      id: flushJointId(host, own),
       kind: 'flush',
-      a: { ref: { wall_id: target.wallId, end: target.end }, side: target.side },
-      b: { ref: { wall_id: wallId, end }, side: placement.side },
+      a: { ref: host, side: target.side },
+      b: { ref: own, side: placement.side },
     }
   }
   if (target?.kind === 'wall-end') {
-    return {
-      id: crypto.randomUUID(),
-      kind: 'corner',
-      ends: [
-        { wall_id: target.wallId, end: target.end },
-        { wall_id: wallId, end },
-      ],
-      rule: 'miter',
-    }
+    const ends = [
+      { wall_id: target.wallId, end: target.end },
+      { wall_id: wallId, end },
+    ]
+    return { id: cornerJointId(ends), kind: 'corner', ends, rule: 'miter' }
   }
   if (target?.kind === 'surface') {
-    return {
-      id: crypto.randomUUID(),
-      kind: 'tee',
-      end: { wall_id: wallId, end },
-      host: { wall_id: target.wallId, segment_index: target.segmentIndex },
-    }
+    const own = { wall_id: wallId, end }
+    const host = { wall_id: target.wallId, segment_index: target.segmentIndex }
+    return { id: teeJointId(own, host), kind: 'tee', end: own, host }
   }
   if (attachment) return teeJoint(wallId, end, attachment)
   return null
@@ -593,10 +591,7 @@ function jointFor(
  * truth that can disagree.
  */
 function teeJoint(wallId: string, end: WallEnd, attachment: WallSnapAttachment): TeeJoint {
-  return {
-    id: crypto.randomUUID(),
-    kind: 'tee',
-    end: { wall_id: wallId, end },
-    host: { wall_id: attachment.wallId, segment_index: attachment.segmentIndex },
-  }
+  const own = { wall_id: wallId, end }
+  const host = { wall_id: attachment.wallId, segment_index: attachment.segmentIndex }
+  return { id: teeJointId(own, host), kind: 'tee', end: own, host }
 }
