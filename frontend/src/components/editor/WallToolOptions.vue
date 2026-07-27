@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import WallColorControl from '@/components/editor/WallColorControl.vue'
 import WallReferenceControl from '@/components/editor/WallReferenceControl.vue'
 import type { WallReference } from '@/utils/geometry'
 import { formatInches, parseFeetInches } from '@/utils/units'
+import { defaultWallColor, wallRoleOf } from '@/utils/wallColors'
 
 const THICKNESS_TOLERANCE_IN = 1e-9
 
@@ -11,11 +13,14 @@ const props = defineProps<{
   presetsIn: readonly number[]
   thicknessIn: number
   reference: WallReference
+  /** Colour the next wall is drawn with; null follows its role (spec S1f). */
+  color: string | null
 }>()
 
 const emit = defineEmits<{
   'set-thickness': [thicknessIn: number]
   'set-reference': [reference: WallReference]
+  'set-color': [color: string | null]
 }>()
 
 const customText = ref('')
@@ -26,6 +31,9 @@ function isSelected(presetIn: number): boolean {
 }
 
 const isCustomThickness = computed(() => !props.presetsIn.some((preset) => isSelected(preset)))
+
+const role = computed(() => wallRoleOf(props.thicknessIn, props.presetsIn))
+const roleDefaultColor = computed(() => defaultWallColor(props.thicknessIn, props.presetsIn))
 
 function presetRole(index: number): string {
   return index === 0 ? 'exterior' : 'interior'
@@ -86,6 +94,16 @@ function applyCustom(): void {
           Enter a length like 5 1/2" or 0'6
         </span>
       </label>
+    </div>
+
+    <div>
+      <h3 class="text-ink mb-2 text-xs font-semibold">Colour</h3>
+      <WallColorControl
+        :color="color"
+        :default-color="roleDefaultColor"
+        :default-label="role"
+        @set-color="emit('set-color', $event)"
+      />
     </div>
 
     <div>

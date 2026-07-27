@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import WallsLayer from '@/components/editor/WallsLayer.vue'
 import { useEditorStore } from '@/stores/editor'
+import { EXTERIOR_WALL_COLOR, INTERIOR_WALL_COLOR } from '@/utils/wallColors'
 import { makeDocument, makeWall } from '../helpers/planFactory'
 
 describe('WallsLayer', () => {
@@ -70,7 +71,31 @@ describe('WallsLayer', () => {
     const wrapper = mount(WallsLayer, { props: { hairline: 0.5 } })
     const paths = wrapper.findAll('path')
     expect(paths[0].classes()).toContain('stroke-accent-strong')
-    expect(paths[1].classes()).toContain('fill-wall')
+    expect(paths[0].attributes('fill')).toBeUndefined()
+    expect(paths[1].attributes('fill')).toBe(INTERIOR_WALL_COLOR)
+  })
+
+  it('paints each wall its role colour: black for the shell, grey for a partition (spec S1f)', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      walls: [makeWall({ id: 'shell', thickness_in: 12 }), makeWall({ id: 'partition' })],
+    })
+
+    const wrapper = mount(WallsLayer, { props: { hairline: 0.5 } })
+    const paths = wrapper.findAll('path')
+    expect(paths[0].attributes('fill')).toBe(EXTERIOR_WALL_COLOR)
+    expect(paths[0].attributes('stroke')).toBe(EXTERIOR_WALL_COLOR)
+    expect(paths[1].attributes('fill')).toBe(INTERIOR_WALL_COLOR)
+  })
+
+  it('paints a wall carrying a colour override with it, whatever its thickness (spec S1f)', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      walls: [makeWall({ id: 'shell', thickness_in: 12, color: '#b91c1c' })],
+    })
+
+    const wrapper = mount(WallsLayer, { props: { hairline: 0.5 } })
+    expect(wrapper.find('path').attributes('fill')).toBe('#b91c1c')
   })
 
   it('strokes the face tints and direction markers on a selected wall only (spec S1a)', () => {

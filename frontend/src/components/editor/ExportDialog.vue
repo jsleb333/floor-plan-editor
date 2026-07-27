@@ -4,6 +4,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { Circuit, PlanDocument } from '@/types/plan'
 import { downloadBlob } from '@/export/download'
+import {
+  EXPORT_LANGUAGES,
+  EXPORT_LANGUAGE_LABELS,
+  preferredExportLanguage,
+} from '@/export/exportLocale'
+import type { ExportLanguage } from '@/export/exportLocale'
 import { exportPlanJson } from '@/export/jsonExport'
 import { PIXELS_PER_FOOT_PRESETS, renderPlanPng } from '@/export/pngExport'
 import { buildPlanSvg, embedUnderlay, slugify } from '@/export/svgExport'
@@ -31,6 +37,8 @@ const FORMATS: readonly ExportFormat[] = ['svg', 'png', 'json']
 const format = ref<ExportFormat>('svg')
 const includeUnderlay = ref(false)
 const includeAnnotations = ref(true)
+const includeLegend = ref(true)
+const legendLanguage = ref<ExportLanguage>(preferredExportLanguage(navigator.languages ?? []))
 const pixelsPerFoot = ref(24)
 const transparentBackground = ref(false)
 const selectedCircuitIds = ref<Set<string>>(new Set(props.visibleCircuitIds))
@@ -70,6 +78,8 @@ function sharedSvgOptions(underlay: UnderlayEmbed | null): SvgExportOptions {
     includeAnnotations: includeAnnotations.value,
     circuitIds: circuitIdsOption(),
     underlay,
+    includeLegend: includeLegend.value,
+    legendLanguage: legendLanguage.value,
   }
 }
 
@@ -180,6 +190,36 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true))
               <input v-model="includeAnnotations" type="checkbox" class="accent-accent" />
               Include dimensions &amp; labels
             </label>
+
+            <div>
+              <label class="flex items-center gap-2 text-sm">
+                <input v-model="includeLegend" type="checkbox" class="accent-accent" />
+                Include legend
+              </label>
+              <div
+                v-if="includeLegend"
+                class="mt-1.5 ml-6 flex gap-2"
+                role="radiogroup"
+                aria-label="Legend language"
+              >
+                <button
+                  v-for="language in EXPORT_LANGUAGES"
+                  :key="language"
+                  type="button"
+                  role="radio"
+                  :aria-checked="legendLanguage === language"
+                  class="rounded-md border px-2.5 py-1 text-xs transition-colors"
+                  :class="
+                    legendLanguage === language
+                      ? 'border-accent bg-accent-soft text-accent'
+                      : 'border-line text-ink-muted hover:text-ink'
+                  "
+                  @click="legendLanguage = language"
+                >
+                  {{ EXPORT_LANGUAGE_LABELS[language] }}
+                </button>
+              </div>
+            </div>
 
             <label
               class="flex items-center gap-2 text-sm"

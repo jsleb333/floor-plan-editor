@@ -6,6 +6,7 @@ import { useLayersStore } from '@/stores/layers'
 import type { Opening, Point, Wall } from '@/types/plan'
 import { DOOR_DASH_IN, doorFigure, openingWorldRect, windowSymbol } from '@/utils/geometry'
 import { doorStrokeToPath } from '@/utils/svgPath'
+import { wallColor } from '@/utils/wallColors'
 
 const props = defineProps<{
   /** World-unit stroke width rendering as ~1px on screen. */
@@ -27,6 +28,8 @@ interface OpeningView {
   doorPaths: { d: string; dashed: boolean }[]
   /** Window glazing lines (empty for doors). */
   glazing: { a: Point; b: Point }[]
+  /** Colour of the host wall, which the opening symbol reads in (spec S1f). */
+  color: string
   selected: boolean
   preview: boolean
 }
@@ -40,6 +43,7 @@ function pointsAttribute(points: readonly Point[]): string {
 function buildView(
   opening: Opening,
   wall: Wall,
+  presetsIn: readonly number[],
   selected: boolean,
   isPreview: boolean,
 ): OpeningView | null {
@@ -61,6 +65,7 @@ function buildView(
       dashed: stroke.dashed,
     })),
     glazing: opening.kind === 'window' ? (windowSymbol(wall, opening) ?? []) : [],
+    color: wallColor(wall, presetsIn),
     selected,
     preview: isPreview,
   }
@@ -71,6 +76,7 @@ const openingViews = computed<OpeningView[]>(() => {
   const doc = editorStore.document
   if (!doc) return []
   const wallsById = new Map(doc.walls.map((wall) => [wall.id, wall]))
+  const presetsIn = doc.thickness_presets_in
   const views: OpeningView[] = []
   for (const opening of doc.openings) {
     const wall = wallsById.get(opening.wall_id)
@@ -78,6 +84,7 @@ const openingViews = computed<OpeningView[]>(() => {
     const view = buildView(
       opening,
       wall,
+      presetsIn,
       editorStore.isSelected({ kind: 'opening', id: opening.id }),
       false,
     )
@@ -86,7 +93,7 @@ const openingViews = computed<OpeningView[]>(() => {
   if (props.preview) {
     const wall = wallsById.get(props.preview.wall_id)
     if (wall) {
-      const view = buildView(props.preview, wall, false, true)
+      const view = buildView(props.preview, wall, presetsIn, false, true)
       if (view) views.push(view)
     }
   }
@@ -95,7 +102,12 @@ const openingViews = computed<OpeningView[]>(() => {
 
 function symbolClass(view: OpeningView): string {
   if (view.preview) return 'stroke-accent'
-  return view.selected ? 'stroke-accent-strong' : 'stroke-wall-edge'
+  return view.selected ? 'stroke-accent-strong' : ''
+}
+
+/** Openings read in their host wall's colour, unless accented (spec S1f). */
+function symbolStroke(view: OpeningView): string | undefined {
+  return view.preview || view.selected ? undefined : view.color
 }
 </script>
 
@@ -114,6 +126,7 @@ function symbolClass(view: OpeningView): string {
         :y1="jamb.a.y"
         :x2="jamb.b.x"
         :y2="jamb.b.y"
+        :stroke="symbolStroke(view)"
         :class="symbolClass(view)"
         :stroke-width="(view.selected ? 1.5 : 1) * hairline"
       />
@@ -122,6 +135,7 @@ function symbolClass(view: OpeningView): string {
         :key="`leaf-${index}`"
         :d="leaf.d"
         fill="none"
+        :stroke="symbolStroke(view)"
         :class="symbolClass(view)"
         :stroke-width="(view.selected ? 1.5 : 1) * hairline"
         :stroke-dasharray="leaf.dashed ? DOOR_DASH_ARRAY : undefined"
@@ -133,6 +147,7 @@ function symbolClass(view: OpeningView): string {
         :y1="pane.a.y"
         :x2="pane.b.x"
         :y2="pane.b.y"
+        :stroke="symbolStroke(view)"
         :class="symbolClass(view)"
         :stroke-width="(view.selected ? 1.5 : 1) * hairline"
       />

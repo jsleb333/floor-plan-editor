@@ -38,6 +38,7 @@ class PlanMigrator:
             4: self._migrate_v4_to_v5,
             5: self._migrate_v5_to_v6,
             6: self._migrate_v6_to_v7,
+            7: self._migrate_v7_to_v8,
         }
 
     def migrate(self, raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -162,4 +163,26 @@ class PlanMigrator:
         """
         document.setdefault("display_precision_in", None)
         document["schema_version"] = 7
+        return document
+
+    @staticmethod
+    def _migrate_v7_to_v8(document: dict[str, Any]) -> dict[str, Any]:
+        """Add the v8 per-wall colour override (spec S1f).
+
+        Args:
+            document: A schema v7 document dict.
+
+        Returns:
+            The same dict brought to schema version 8, with every wall left
+            without an explicit colour — each keeps taking the role default
+            derived from the plan's thickness presets. Wall dicts are copied
+            rather than edited in place, so the caller's pre-migration backup
+            stays pristine.
+        """
+        walls = document.get("walls")
+        if isinstance(walls, list):
+            document["walls"] = [
+                {"color": None, **wall} if isinstance(wall, dict) else wall for wall in walls
+            ]
+        document["schema_version"] = 8
         return document

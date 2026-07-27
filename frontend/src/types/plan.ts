@@ -24,6 +24,8 @@ export interface WallEndAttachment {
 /**
  * A wall chain stored as its reference polyline: vertices plus thickness and
  * the side the thickness is applied on. The rendered outline is derived, never stored.
+ * `color` (`#rrggbb`) overrides the drawn wall body; `null` takes the role
+ * default derived from the plan's thickness presets (spec S1f).
  */
 export interface Wall {
   id: string
@@ -33,6 +35,7 @@ export interface Wall {
   closed: boolean
   locked_segments: number[]
   junctions: WallEndAttachment[]
+  color: string | null
 }
 
 /**
@@ -204,8 +207,9 @@ export interface Underlay {
 
 /**
  * The versioned plan document — everything the editor persists via autosave.
- * Schema version 7: adds the per-plan `display_precision_in` override (spec
- * §5.9 tier 2) on top of the v6 persisted `active_tool` (spec P4/E9), the v5
+ * Schema version 8: adds the per-wall `color` override (spec S1f) on top of
+ * the v7 per-plan `display_precision_in` override (spec
+ * §5.9 tier 2), the v6 persisted `active_tool` (spec P4/E9), the v5
  * electrical layout — colour-coded `circuits`, the `wires` connecting
  * devices into them (spec §5.6) and the documentary switch `control_links`
  * (spec D6) — the v4 devices and catalog defaults, structure collections,

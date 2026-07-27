@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from backend.constants import HEX_COLOR_PATTERN
 from backend.models.point import Point
 from backend.models.wall_end_attachment import WallEndAttachment
 
@@ -18,6 +19,9 @@ class Wall(BaseModel):
         derived and never persisted. ``locked_segments`` holds indices of
         segments immune to edits (spec S3b) and ``junctions`` records
         T-junction endpoint attachments onto other walls (spec S3a).
+        ``color`` is the per-wall override of the drawn wall body (spec S1f);
+        ``None`` means the wall takes the role default the frontend derives
+        from the plan's thickness presets (black exterior, grey interior).
     """
 
     id: str
@@ -27,3 +31,4 @@ class Wall(BaseModel):
     closed: bool = False
     locked_segments: list[int] = Field(default_factory=list)
     junctions: list[WallEndAttachment] = Field(default_factory=list)
+    color: str | None = Field(default=None, pattern=HEX_COLOR_PATTERN)

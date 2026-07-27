@@ -1,6 +1,5 @@
 import { assetUrl } from '@/api/assets'
 import { DEVICE_PICTOGRAMS } from '@/devices/pictograms'
-import type { PictogramShape } from '@/devices/pictograms'
 import type {
   Circuit,
   Device,
@@ -40,7 +39,12 @@ import {
 import type { Bounds } from '@/utils/geometry'
 import { doorStrokeToPath, ringsToPath } from '@/utils/svgPath'
 import { formatFeetInches } from '@/utils/units'
+import { wallColor } from '@/utils/wallColors'
 
+import type { ExportLanguage } from './exportLocale'
+import { legendSize, planLegend, renderLegend } from './legend'
+import type { LegendSection, LegendSize } from './legend'
+import { escapeXml, num, renderPictogramShape } from './svgPrimitives'
 import {
   ANNOTATION_STROKE_IN,
   ANNOTATION_TEXT_IN,
@@ -49,8 +53,6 @@ import {
   EXPORT_INK,
   EXPORT_INK_MUTED,
   EXPORT_MARGIN_IN,
-  EXPORT_WALL_EDGE,
-  EXPORT_WALL_FILL,
   STRUCTURE_STROKE_IN,
   TEXT_HALO_STROKE_IN,
   WIRE_STROKE_IN,
@@ -96,21 +98,10 @@ export interface SvgExportOptions {
   background?: string | null
   /** The resolved underlay bytes/size (see `embedUnderlay`); needed with `includeUnderlay`. */
   underlay?: UnderlayEmbed | null
-}
-
-const COORD_DECIMALS = 4
-
-function num(value: number): number {
-  return Number(value.toFixed(COORD_DECIMALS))
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
+  /** Draw the legend panel beside the plan (spec X5). Defaults to false. */
+  includeLegend?: boolean
+  /** Language of the legend's own words (spec X5); English when omitted. */
+  legendLanguage?: ExportLanguage
 }
 
 /** Kebab-case slug of a circuit name for a stable, id-safe group id (spec X2). */
@@ -157,26 +148,35 @@ function wallPathData(wall: Wall, wallsById: ReadonlyMap<string, Wall>): string 
   )
 }
 
-function renderWalls(walls: readonly Wall[], wallsById: ReadonlyMap<string, Wall>): string[] {
+/**
+ * Serialises every wall in its own colour — override or role default, the same
+ * `wallColor` rule the canvas applies (spec S1f) — body and outline alike.
+ */
+function renderWalls(
+  walls: readonly Wall[],
+  wallsById: ReadonlyMap<string, Wall>,
+  presetsIn: readonly number[],
+): string[] {
   const out: string[] = []
   for (const wall of walls) {
     const d = wallPathData(wall, wallsById)
     if (d === '') continue
+    const color = wallColor(wall, presetsIn)
     out.push(
-      `<path d="${d}" fill="${EXPORT_WALL_FILL}" fill-rule="evenodd" stroke="${EXPORT_WALL_EDGE}" stroke-width="${STRUCTURE_STROKE_IN}" />`,
+      `<path d="${d}" fill="${color}" fill-rule="evenodd" stroke="${color}" stroke-width="${STRUCTURE_STROKE_IN}" />`,
     )
   }
   return out
 }
 
-function renderOpening(opening: Opening, wall: Wall, background: string): string[] {
+function renderOpening(opening: Opening, wall: Wall, background: string, color: string): string[] {
   const inflated = openingWorldRect(wall, opening, STRUCTURE_STROKE_IN)
   const exact = openingWorldRect(wall, opening)
   if (!inflated || !exact) return []
   const out: string[] = [
     `<polygon points="${pointsAttr(inflated)}" fill="${background}" stroke="none" />`,
-    line(exact[0], exact[3], EXPORT_WALL_EDGE, STRUCTURE_STROKE_IN),
-    line(exact[1], exact[2], EXPORT_WALL_EDGE, STRUCTURE_STROKE_IN),
+    line(exact[0], exact[3], color, STRUCTURE_STROKE_IN),
+    line(exact[1], exact[2], color, STRUCTURE_STROKE_IN),
   ]
   if (opening.kind === 'door') {
     // Every door style is serialised from the same strokes the canvas draws,
@@ -184,12 +184,12 @@ function renderOpening(opening: Opening, wall: Wall, background: string): string
     for (const stroke of doorFigure(wall, opening)?.strokes ?? []) {
       const dash = stroke.dashed ? ` stroke-dasharray="${DOOR_DASH_IN.join(' ')}"` : ''
       out.push(
-        `<path d="${doorStrokeToPath(stroke, num)}" fill="none" stroke="${EXPORT_WALL_EDGE}" stroke-width="${STRUCTURE_STROKE_IN}"${dash} />`,
+        `<path d="${doorStrokeToPath(stroke, num)}" fill="none" stroke="${color}" stroke-width="${STRUCTURE_STROKE_IN}"${dash} />`,
       )
     }
   } else {
     for (const pane of windowSymbol(wall, opening) ?? []) {
-      out.push(line(pane.a, pane.b, EXPORT_WALL_EDGE, STRUCTURE_STROKE_IN))
+      out.push(line(pane.a, pane.b, color, STRUCTURE_STROKE_IN))
     }
   }
   return out
@@ -215,27 +215,6 @@ function renderStairs(stairs: Stairs): string[] {
     `<text x="${num(centre.x)}" y="${num(centre.y)}" font-size="${ANNOTATION_TEXT_IN}" text-anchor="middle" dominant-baseline="central" fill="${EXPORT_INK_MUTED}" font-family="sans-serif">${escapeXml(stairs.direction)}</text>`,
   )
   return out
-}
-
-/** Renders one pictogram shape, in the symbol's 12x12 coordinate box. */
-function renderPictogramShape(shape: PictogramShape, color: string): string {
-  const stroke = `stroke="${color}" stroke-width="${DEVICE_STROKE_IN}" stroke-linecap="round" stroke-linejoin="round"`
-  switch (shape.kind) {
-    case 'circle':
-      return `<circle cx="${shape.cx}" cy="${shape.cy}" r="${shape.r}" fill="${shape.fill ? color : 'none'}" ${stroke} />`
-    case 'line':
-      return `<line x1="${shape.x1}" y1="${shape.y1}" x2="${shape.x2}" y2="${shape.y2}" ${stroke} />`
-    case 'polyline': {
-      const pts = shape.closed ? [...shape.points, shape.points[0]] : shape.points
-      return `<polyline points="${pts.map(([x, y]) => `${x},${y}`).join(' ')}" fill="none" ${stroke} />`
-    }
-    case 'path':
-      return `<path d="${shape.d}" fill="none" ${stroke} />`
-    case 'rect':
-      return `<rect x="${shape.x}" y="${shape.y}" width="${shape.w}" height="${shape.h}" fill="${shape.fill ? color : 'none'}" ${stroke} />`
-    case 'text':
-      return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.size}" fill="${color}" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${escapeXml(shape.text)}</text>`
-  }
 }
 
 /**
@@ -440,10 +419,27 @@ export interface PlanViewBox {
   height: number
 }
 
+/** The legend an export would carry, with the size it reserves (spec X5). */
+interface LegendPlan {
+  sections: LegendSection[]
+  size: LegendSize
+  language: ExportLanguage
+}
+
+/** The legend of an export, or null when it is switched off or has nothing to say. */
+function legendPlanOf(document: PlanDocument, options: SvgExportOptions): LegendPlan | null {
+  if (!(options.includeLegend ?? false)) return null
+  const language = options.legendLanguage ?? 'en'
+  const sections = planLegend(document, { language, circuitIds: options.circuitIds })
+  const size = legendSize(sections, language)
+  return size ? { sections, size, language } : null
+}
+
 /**
  * The real-inch viewBox `buildPlanSvg` would emit for a document (spec X2):
- * the bounds of every included element plus the export margin. Pure; shared
- * with PNG export so raster size is computed from the same geometry.
+ * the bounds of every included element plus the export margin, widened by the
+ * legend column when one is drawn (spec X5). Pure; shared with PNG export so
+ * raster size is computed from the same geometry.
  */
 export function planViewBox(document: PlanDocument, options: SvgExportOptions = {}): PlanViewBox {
   const wallsById = new Map(document.walls.map((wall) => [wall.id, wall]))
@@ -457,18 +453,27 @@ export function planViewBox(document: PlanDocument, options: SvgExportOptions = 
       },
       options.underlay ?? null,
     ) ?? EMPTY_BOUNDS
+  // The legend sits in its own column right of the content, one margin clear of
+  // it and one clear of the sheet edge, and can make the sheet taller than the
+  // plan on its own.
+  const legend = legendPlanOf(document, options)
+  const legendColumnIn = legend ? legend.size.widthIn + EXPORT_MARGIN_IN : 0
+  const contentHeightIn = raw.maxY - raw.minY + 2 * EXPORT_MARGIN_IN
+  const legendHeightIn = legend ? legend.size.heightIn + 2 * EXPORT_MARGIN_IN : 0
   return {
     minX: raw.minX - EXPORT_MARGIN_IN,
     minY: raw.minY - EXPORT_MARGIN_IN,
-    width: Math.max(1, raw.maxX - raw.minX + 2 * EXPORT_MARGIN_IN),
-    height: Math.max(1, raw.maxY - raw.minY + 2 * EXPORT_MARGIN_IN),
+    width: Math.max(1, raw.maxX - raw.minX + 2 * EXPORT_MARGIN_IN + legendColumnIn),
+    height: Math.max(1, contentHeightIn, legendHeightIn),
   }
 }
 
 /**
  * Serialises a plan document to a standalone, real-inch SVG string (spec X2).
  * Pure: no network, no DOM. Include the underlay only by resolving it first
- * with `embedUnderlay` and passing it via `options.underlay`.
+ * with `embedUnderlay` and passing it via `options.underlay`. With
+ * `includeLegend`, a legend panel of the plan's circuits, devices and wall
+ * colours is drawn in its own column to the right (spec X5).
  */
 export function buildPlanSvg(document: PlanDocument, options: SvgExportOptions = {}): string {
   const includeUnderlay = options.includeUnderlay ?? false
@@ -489,12 +494,15 @@ export function buildPlanSvg(document: PlanDocument, options: SvgExportOptions =
     )
   }
 
+  const presetsIn = document.thickness_presets_in
   const structure = [
     ...document.stairs.flatMap(renderStairs),
-    ...renderWalls(document.walls, wallsById),
+    ...renderWalls(document.walls, wallsById, presetsIn),
     ...document.openings.flatMap((opening) => {
       const wall = wallsById.get(opening.wall_id)
-      return wall ? renderOpening(opening, wall, background ?? EXPORT_CANVAS) : []
+      return wall
+        ? renderOpening(opening, wall, background ?? EXPORT_CANVAS, wallColor(wall, presetsIn))
+        : []
     }),
   ]
   groups.push(`<g id="structure">${structure.join('')}</g>`)
@@ -529,6 +537,20 @@ export function buildPlanSvg(document: PlanDocument, options: SvgExportOptions =
       ),
     ]
     groups.push(`<g id="annotations">${annotations.join('')}</g>`)
+  }
+
+  // Last, so the panel is opaque over anything that reached its column.
+  const legend = legendPlanOf(document, options)
+  if (legend) {
+    groups.push(
+      renderLegend(
+        legend.sections,
+        legend.size,
+        legend.language,
+        minX + width - EXPORT_MARGIN_IN - legend.size.widthIn,
+        minY + EXPORT_MARGIN_IN,
+      ),
+    )
   }
 
   const backgroundRect =

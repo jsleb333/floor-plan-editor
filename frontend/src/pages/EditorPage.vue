@@ -263,6 +263,7 @@ const {
   inputBuffer: wallInputBuffer,
   reference: wallReference,
   thicknessIn: wallThicknessIn,
+  color: wallColorOverride,
   isDrawing: wallDrawing,
 } = wallTool
 
@@ -1137,6 +1138,7 @@ onBeforeUnmount(() => {
         :wall-thickness-presets-in="thicknessPresetsIn"
         :wall-thickness-in="wallThicknessIn"
         :wall-reference="wallReference"
+        :wall-color="wallColorOverride"
         :opening-width-in="openingWidthIn"
         :opening-width-presets-in="openingWidthPresetsIn"
         :opening-style="openingStyle"
@@ -1169,6 +1171,7 @@ onBeforeUnmount(() => {
         @set-display-precision="handleSetDisplayPrecision"
         @set-wall-thickness="wallTool.setThickness($event)"
         @set-wall-reference="wallTool.setReference($event)"
+        @set-wall-color="wallTool.setColor($event)"
         @set-opening-width="openingTool.setWidth($event)"
         @set-opening-style="openingTool.setStyle($event)"
         @set-opening-hinge="openingTool.setHinge($event)"

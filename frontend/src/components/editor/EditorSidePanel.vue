@@ -141,6 +141,8 @@ const props = defineProps<{
   wallThicknessPresetsIn: readonly number[]
   wallThicknessIn: number
   wallReference: WallReference
+  /** Colour the wall tool gives the next wall; null follows its role (spec S1f). */
+  wallColor: string | null
   /** Live door/window tool options while those tools are armed (specs S4/S5/E8). */
   openingWidthIn: number
   /** Width presets for the current door/window kind, resolved from the document (spec §5.9 tier 2). */
@@ -193,6 +195,7 @@ const emit = defineEmits<{
   'set-display-precision': [precisionIn: number]
   'set-wall-thickness': [thicknessIn: number]
   'set-wall-reference': [reference: WallReference]
+  'set-wall-color': [color: string | null]
   'set-opening-width': [widthIn: number]
   'set-opening-style': [style: DoorStyle]
   'set-opening-hinge': [hinge: 'left' | 'right']
@@ -445,8 +448,10 @@ const activePlaceholder = computed(
           :presets-in="wallThicknessPresetsIn"
           :thickness-in="wallThicknessIn"
           :reference="wallReference"
+          :color="wallColor"
           @set-thickness="emit('set-wall-thickness', $event)"
           @set-reference="emit('set-wall-reference', $event)"
+          @set-color="emit('set-wall-color', $event)"
         />
         <template v-else-if="showOpeningOptions">
           <OpeningToolOptions

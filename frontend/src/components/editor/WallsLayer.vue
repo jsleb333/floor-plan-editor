@@ -13,6 +13,7 @@ import {
   wallOutline,
 } from '@/utils/geometry'
 import { polylineToPath, ringsToPath } from '@/utils/svgPath'
+import { wallColor } from '@/utils/wallColors'
 
 /** Direction-arrow glyph pointing +x, tip at the origin; scaled by the hairline. */
 const ARROW_PATH = 'M 0 0 L -8 3.5 L -8 -3.5 Z'
@@ -36,6 +37,8 @@ const layersStore = useLayersStore()
 interface WallPath {
   id: string
   d: string
+  /** The wall's own colour: its override, else its role default (spec S1f). */
+  color: string
   selected: boolean
   /** Dimmed while a reference-side preview replaces this wall (spec S1a). */
   dimmed: boolean
@@ -107,12 +110,14 @@ const wallPaths = computed<WallPath[]>(() => {
   // document — touching it keys this computed on every mutation.
   void editorStore.documentVersion
   const walls = editorStore.document?.walls ?? []
+  const presetsIn = editorStore.document?.thickness_presets_in ?? []
   const byId = wallsById()
   const selectedIds = editorStore.selectedWallIds
   return walls
     .map((wall) => ({
       id: wall.id,
       d: outlineFor(wall, byId),
+      color: wallColor(wall, presetsIn),
       selected: selectedIds.has(wall.id),
       dimmed: props.previewWall?.id === wall.id,
     }))
@@ -202,8 +207,10 @@ const ghostPath = computed<string>(() => {
       :key="wall.id"
       :d="wall.d"
       fill-rule="evenodd"
+      :fill="wall.selected ? undefined : wall.color"
+      :stroke="wall.selected ? undefined : wall.color"
       :class="[
-        wall.selected ? 'fill-accent/30 stroke-accent-strong' : 'fill-wall stroke-wall-edge',
+        wall.selected ? 'fill-accent/30 stroke-accent-strong' : '',
         wall.dimmed ? 'opacity-40' : '',
       ]"
       :stroke-width="wall.selected ? 1.5 * hairline : hairline"

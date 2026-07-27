@@ -21,9 +21,10 @@ class PlanDocument(BaseModel):
     """The versioned JSON document holding everything a plan contains.
 
     Role:
-        Unit of persistence and autosave. Schema version 7 carries the
+        Unit of persistence and autosave. Schema version 8 carries the
         viewport, the optional tracing underlay, the structure element
-        collections (walls, openings, stairs, labels, dimensions), the
+        collections (walls with their optional colour override — spec S1f —,
+        openings, stairs, labels, dimensions), the
         electrical devices with their plan-level default loads
         (``catalog_defaults``, keyed by device type value, spec section 5.9
         tier 2; empty means pure catalog defaults), the plan-level wall

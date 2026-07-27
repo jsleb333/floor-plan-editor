@@ -32,6 +32,7 @@ function baseProps() {
     wallThicknessPresetsIn: [12, 4.5, 3.5],
     wallThicknessIn: 3.5,
     wallReference: 'center' as const,
+    wallColor: null,
     openingWidthIn: 32,
     openingWidthPresetsIn: [24, 28, 30, 32, 36],
     openingStyle: 'swing' as const,
