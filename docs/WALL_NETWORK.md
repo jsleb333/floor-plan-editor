@@ -1,8 +1,8 @@
 # Wall network — design
 
-Status: **proposal**. Supersedes the ad-hoc T-junction handling
-(`Wall.junctions` and `junctionTrim.ts`). Written against schema v7; lands as
-schema v8.
+Status: **phases 0–1 landed** (the pure `network/` module, no consumers wired
+yet). Supersedes the ad-hoc T-junction handling (`Wall.junctions` and
+`junctionTrim.ts`). Written against schema v7; lands as schema v8.
 
 ## 1. The defect
 
@@ -266,16 +266,32 @@ resolver stays frontend-only.
 
 ## 10. Phasing
 
-| Phase | Work                                                                                                                                  | Est.       |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 0     | This document; characterization tests pinning the current defect                                                                      | ½ day      |
-| 1     | `network/`: graph, join resolver, resolved network, coincidence bootstrap — pure, fully unit-tested, no consumers                     | 1.5–2 days |
-| 2     | Renderer + export read the network; per-component fill; delete `junctionTrim`                                                         | 1 day      |
-| 3     | Authoring: surface/corner snap targets, joint records from both tools, constraint solver wired into edit commands; backend model + v8 | 1.5–2 days |
-| 4     | Guides/anchors from the network, S1e ranking, requirements amendment                                                                  | ½–1 day    |
+| Phase | Work                                                                                                                                  | Est.       | State |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----- |
+| 0     | This document; characterization tests pinning the current defect                                                                      | ½ day      | done  |
+| 1     | `network/`: graph, join resolver, resolved network, coincidence bootstrap — pure, fully unit-tested, no consumers                     | 1.5–2 days | done  |
+| 2     | Renderer + export read the network; per-component fill; delete `junctionTrim`                                                         | 1 day      | next  |
+| 3     | Authoring: surface/corner snap targets, joint records from both tools, constraint solver wired into edit commands; backend model + v8 | 1.5–2 days |       |
+| 4     | Guides/anchors from the network, S1e ranking, requirements amendment                                                                  | ½–1 day    |       |
 
 Each phase leaves the app working. Phase 2 is the first visible improvement;
 phase 3 is where the reported screenshot becomes correct by construction.
+
+### Phase 1 notes
+
+Two things the build taught us, recorded because they change later phases:
+
+- **Coincidence detection must test the body, not the spine.** An honestly
+  stored T endpoint sits on the host's SURFACE, half a thickness from its spine,
+  so `collectTees` matches against the host's band and accepts a legacy
+  spine-placed endpoint as the same T. Landings within tolerance of a segment's
+  ends are left for the corner and flush passes, which is what keeps an
+  unequal-thickness continuation from being mis-read as a T.
+- **The tee clip is strictly better than `trimEndpointToHostFace`.** The old
+  trim slides the spine along the wall's own direction, so its cap stays square
+  to the butting wall and leaves a wedge at any non-perpendicular approach. The
+  network clips both surfaces to the host's face LINE, so an angled T butts
+  exactly (`networkGeometry.test.ts`, the 45° case).
 
 ## 11. Designed-for edge cases
 

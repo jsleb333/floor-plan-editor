@@ -35,6 +35,69 @@ export interface Wall {
   junctions: WallEndAttachment[]
 }
 
+/** Which end of a wall chain a joint attaches to. */
+export type WallEnd = 'start' | 'end'
+
+/** One of a wall's two surfaces, named relative to its drawing direction. */
+export type WallSide = 'left' | 'right'
+
+/** One wall end participating in a joint. */
+export interface WallEndRef {
+  wall_id: string
+  end: WallEnd
+}
+
+/** A wall body a joint passes through, identified by the segment it crosses. */
+export interface WallBodyRef {
+  wall_id: string
+  segment_index: number
+}
+
+/** One party of a flush relation: a wall end or body, and which of its surfaces is shared. */
+export interface FlushParty {
+  ref: WallEndRef | WallBodyRef
+  side: WallSide
+}
+
+/**
+ * Wall ends whose spines meet at one point (2 or more). Faces resolve pairwise
+ * in angular order, so this covers L-corners, three-way meetings and a chain
+ * split across separate walls alike. `rule` 'square' suppresses the mitre.
+ */
+export interface CornerJoint {
+  id: string
+  kind: 'corner'
+  ends: WallEndRef[]
+  rule: 'miter' | 'square'
+}
+
+/** One wall end abutting another wall's body. The host's own geometry is unaffected. */
+export interface TeeJoint {
+  id: string
+  kind: 'tee'
+  end: WallEndRef
+  host: WallBodyRef
+}
+
+/**
+ * A declaration that two surfaces are ONE surface (`docs/WALL_NETWORK.md` §4).
+ * The parties' spines are parallel and offset by half the thickness
+ * difference, which is what makes walls of unequal thickness read as one body.
+ */
+export interface FlushJoint {
+  id: string
+  kind: 'flush'
+  a: FlushParty
+  b: FlushParty
+}
+
+/**
+ * A stored relation between walls (`docs/WALL_NETWORK.md` §3). `corner` and
+ * `tee` are topology — they assert coincidence, which the constraint solver
+ * maintains. `flush` is the only kind that may offset a spine.
+ */
+export type Joint = CornerJoint | TeeJoint | FlushJoint
+
 /**
  * The leaf configuration of a door (spec S4). Mirrors the backend `Opening.style`
  * union; it decides which of `hinge`/`swing` the drawn symbol reads.
