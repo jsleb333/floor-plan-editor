@@ -11,19 +11,10 @@ export interface Viewport {
 }
 
 /**
- * A T-junction record: one endpoint of a wall lives on another wall.
- * `t` is the distance in inches along the host segment's reference line from its start vertex.
- */
-export interface WallEndAttachment {
-  end: 'start' | 'end'
-  host_wall_id: string
-  segment_index: number
-  t: number
-}
-
-/**
  * A wall chain stored as its reference polyline: vertices plus thickness and
- * the side the thickness is applied on. The rendered outline is derived, never stored.
+ * the side the thickness is applied on. The rendered outline is derived, never
+ * stored, and connectivity to other walls lives in `PlanDocument.joints` rather
+ * than here, so a relation is symmetric and one place owns it.
  */
 export interface Wall {
   id: string
@@ -32,7 +23,6 @@ export interface Wall {
   reference: 'center' | 'left' | 'right'
   closed: boolean
   locked_segments: number[]
-  junctions: WallEndAttachment[]
 }
 
 /** Which end of a wall chain a joint attaches to. */
@@ -267,8 +257,9 @@ export interface Underlay {
 
 /**
  * The versioned plan document — everything the editor persists via autosave.
- * Schema version 7: adds the per-plan `display_precision_in` override (spec
- * §5.9 tier 2) on top of the v6 persisted `active_tool` (spec P4/E9), the v5
+ * Schema version 8: moves wall connectivity off the walls into `joints`
+ * (`docs/WALL_NETWORK.md`), on top of the v7 per-plan `display_precision_in`
+ * override (spec §5.9 tier 2), the v6 persisted `active_tool` (spec P4/E9), the v5
  * electrical layout — colour-coded `circuits`, the `wires` connecting
  * devices into them (spec §5.6) and the documentary switch `control_links`
  * (spec D6) — the v4 devices and catalog defaults, structure collections,
@@ -281,6 +272,12 @@ export interface PlanDocument {
   viewport: Viewport
   underlay: Underlay | null
   walls: Wall[]
+  /**
+   * How the walls connect (`docs/WALL_NETWORK.md`). Empty on a plan that has
+   * walls means "not derived yet" — the editor rebuilds it from geometry on
+   * open, which is also how a v7 document arrives.
+   */
+  joints: Joint[]
   openings: Opening[]
   stairs: Stairs[]
   labels: Label[]

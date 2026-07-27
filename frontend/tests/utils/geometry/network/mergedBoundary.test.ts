@@ -14,7 +14,8 @@ function hasEdge(strokes: readonly Point[][], a: Point, b: Point): boolean {
     run.some(
       (point, index) =>
         index + 1 < run.length &&
-        ((same(point, a) && same(run[index + 1], b)) || (same(point, b) && same(run[index + 1], a))),
+        ((same(point, a) && same(run[index + 1], b)) ||
+          (same(point, b) && same(run[index + 1], a))),
     ),
   )
 }

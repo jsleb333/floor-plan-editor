@@ -1,4 +1,4 @@
-import type { Point, Wall } from '@/types/plan'
+import type { Joint, Point, Wall } from '@/types/plan'
 
 import { ALIGNMENT_LINE_DIRECTIONS } from './angles'
 import { lineIntersection } from './lines'
@@ -43,16 +43,20 @@ interface GuideCandidate {
  * Collects the alignment anchors within `captureIn` of the cursor (spec S1e).
  *
  * Every wall reference-line vertex is an anchor: chain ends and interior
- * corners are 'endpoint' anchors, while a chain end recorded as attached to a
- * host wall is a 'junction' anchor. T-junction attachment points always
- * coincide with the attached chain's end vertex, so the vertices are the
- * complete anchor set — no host-side lookup is needed.
+ * corners are 'endpoint' anchors, while a chain end named by a joint is a
+ * 'junction' anchor.
+ *
+ * Phase 4 of `docs/WALL_NETWORK.md` replaces this with the network's own anchor
+ * set, which also offers the visible face corners; until then this keeps the
+ * S1e behaviour intact against the relocated connectivity.
  */
 export function collectAlignmentAnchors(
   walls: readonly Wall[],
+  joints: readonly Joint[],
   cursor: Point,
   captureIn: number,
 ): AlignmentAnchor[] {
+  const jointed = jointedEnds(joints)
   const anchors: AlignmentAnchor[] = []
   for (const wall of walls) {
     const lastIndex = wall.vertices.length - 1
@@ -60,11 +64,31 @@ export function collectAlignmentAnchors(
       const vertex = wall.vertices[i]
       if (distance(cursor, vertex) > captureIn) continue
       const end = i === 0 ? 'start' : i === lastIndex ? 'end' : null
-      const attached = end !== null && wall.junctions.some((junction) => junction.end === end)
+      const attached = end !== null && jointed.has(`${wall.id}:${end}`)
       anchors.push({ point: vertex, kind: attached ? 'junction' : 'endpoint' })
     }
   }
   return anchors
+}
+
+/** The `wallId:end` keys of every wall end any joint names. */
+function jointedEnds(joints: readonly Joint[]): Set<string> {
+  const keys = new Set<string>()
+  const add = (wallId: string, end: 'start' | 'end'): void => {
+    keys.add(`${wallId}:${end}`)
+  }
+  for (const joint of joints) {
+    if (joint.kind === 'corner') {
+      for (const ref of joint.ends) add(ref.wall_id, ref.end)
+    } else if (joint.kind === 'tee') {
+      add(joint.end.wall_id, joint.end.end)
+    } else {
+      for (const party of [joint.a, joint.b]) {
+        if ('end' in party.ref) add(party.ref.wall_id, party.ref.end)
+      }
+    }
+  }
+  return keys
 }
 
 /**

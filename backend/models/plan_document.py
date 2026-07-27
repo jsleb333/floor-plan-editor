@@ -7,6 +7,7 @@ from backend.models.circuit import Circuit
 from backend.models.control_link import ControlLink
 from backend.models.device import Device
 from backend.models.dimension import Dimension
+from backend.models.joint import Joint
 from backend.models.label import Label
 from backend.models.opening import Opening
 from backend.models.point import Point
@@ -21,7 +22,7 @@ class PlanDocument(BaseModel):
     """The versioned JSON document holding everything a plan contains.
 
     Role:
-        Unit of persistence and autosave. Schema version 7 carries the
+        Unit of persistence and autosave. Schema version 8 carries the
         viewport, the optional tracing underlay, the structure element
         collections (walls, openings, stairs, labels, dimensions), the
         electrical devices with their plan-level default loads
@@ -38,7 +39,10 @@ class PlanDocument(BaseModel):
         lists never require a schema change), the electrical
         layout — the colour-coded ``circuits``, the ``wires`` connecting
         devices into them (spec section 5.6) and the documentary switch
-        ``control_links`` (spec D6) — and the ``active_tool`` last armed in
+        ``control_links`` (spec D6), the wall ``joints`` recording how walls
+        connect (spec S1b/S3a, new in v8; an empty list on a plan that has
+        walls means "connectivity not derived yet" and the editor rebuilds it
+        from geometry) — and the ``active_tool`` last armed in
         the editor, so a session restores where it left off (spec P4/E9;
         the frontend owns the valid tool ids and falls back to Select on
         unknown values). Older documents are migrated forward on read by
@@ -53,6 +57,7 @@ class PlanDocument(BaseModel):
     )
     underlay: Underlay | None = None
     walls: list[Wall] = Field(default_factory=list)
+    joints: list[Joint] = Field(default_factory=list)
     openings: list[Opening] = Field(default_factory=list)
     stairs: list[Stairs] = Field(default_factory=list)
     labels: list[Label] = Field(default_factory=list)

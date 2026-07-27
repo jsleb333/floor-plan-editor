@@ -1,7 +1,7 @@
 import { computed, shallowRef, ref } from 'vue'
 import type { ComputedRef, Ref, ShallowRef } from 'vue'
 
-import type { Point, Wall, WallEndAttachment } from '@/types/plan'
+import type { Joint, Point, TeeJoint, Wall, WallEnd } from '@/types/plan'
 import {
   EPSILON,
   add,
@@ -72,7 +72,7 @@ export interface UseWallToolOptions {
   /** Shared snap engine; also provides the snap settings and threshold. */
   snapping: UseSnappingReturn
   /** Receives each finished wall; the caller dispatches the store command. */
-  commit: (wall: Wall) => void
+  commit: (wall: Wall, joints: Joint[]) => void
   /**
    * Plan-level thickness presets driving the smart defaults (spec S1d).
    * Preset convention (spec §5.9 tier 2): the list is ordered from outermost
@@ -330,18 +330,21 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
   }
 
   function commitWall(wallVertices: Point[], closed: boolean): void {
-    const junctions: WallEndAttachment[] = []
-    if (startAttachment) junctions.push(toJunction('start', startAttachment))
-    if (!closed && lastAttachment) junctions.push(toJunction('end', lastAttachment))
-    commit({
-      id: crypto.randomUUID(),
-      vertices: wallVertices.map((vertex) => ({ ...vertex })),
-      thickness_in: thicknessIn.value,
-      reference: reference.value,
-      closed,
-      locked_segments: [],
-      junctions,
-    })
+    const id = crypto.randomUUID()
+    const joints: Joint[] = []
+    if (startAttachment) joints.push(teeJoint(id, 'start', startAttachment))
+    if (!closed && lastAttachment) joints.push(teeJoint(id, 'end', lastAttachment))
+    commit(
+      {
+        id,
+        vertices: wallVertices.map((vertex) => ({ ...vertex })),
+        thickness_in: thicknessIn.value,
+        reference: reference.value,
+        closed,
+        locked_segments: [],
+      },
+      joints,
+    )
     reset()
     if (closed) autoSelectInteriorPreset()
   }
@@ -441,11 +444,18 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
   }
 }
 
-function toJunction(end: 'start' | 'end', attachment: WallSnapAttachment): WallEndAttachment {
+/**
+ * The T relation for a projection snap (`docs/WALL_NETWORK.md` §3).
+ *
+ * Only the host SEGMENT is recorded, not how far along it: the position is the
+ * endpoint's own coordinates, and storing it twice would be a second source of
+ * truth that can disagree.
+ */
+function teeJoint(wallId: string, end: WallEnd, attachment: WallSnapAttachment): TeeJoint {
   return {
-    end,
-    host_wall_id: attachment.wallId,
-    segment_index: attachment.segmentIndex,
-    t: attachment.tIn,
+    id: crypto.randomUUID(),
+    kind: 'tee',
+    end: { wall_id: wallId, end },
+    host: { wall_id: attachment.wallId, segment_index: attachment.segmentIndex },
   }
 }

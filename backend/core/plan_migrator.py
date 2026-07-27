@@ -38,6 +38,7 @@ class PlanMigrator:
             4: self._migrate_v4_to_v5,
             5: self._migrate_v5_to_v6,
             6: self._migrate_v6_to_v7,
+            7: self._migrate_v7_to_v8,
         }
 
     def migrate(self, raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -162,4 +163,32 @@ class PlanMigrator:
         """
         document.setdefault("display_precision_in", None)
         document["schema_version"] = 7
+        return document
+
+    @staticmethod
+    def _migrate_v7_to_v8(document: dict[str, Any]) -> dict[str, Any]:
+        """Move wall connectivity off the walls and into ``joints`` (spec S1b/S3a).
+
+        The old per-wall ``junctions`` list could only express "my endpoint sits
+        on that wall", one-way and T-only. It is dropped rather than translated:
+        connectivity is derivable from geometry, so the editor rebuilds the full
+        relation set — corners and shared surfaces included — on first open and
+        stores that. Translating the old records would have carried the T-only
+        limitation forward.
+
+        Args:
+            document: A schema v7 document dict.
+
+        Returns:
+            The same dict brought to schema version 8, with an empty ``joints``
+            list and no ``junctions`` key on any wall.
+        """
+        document["walls"] = [
+            {key: value for key, value in wall.items() if key != "junctions"}
+            if isinstance(wall, dict)
+            else wall
+            for wall in document.get("walls", [])
+        ]
+        document.setdefault("joints", [])
+        document["schema_version"] = 8
         return document
