@@ -105,13 +105,15 @@ function buildView(device: Device, selected: boolean, isPreview: boolean): Devic
   if (!placement) return null
   const dimmed = isDimmed(device, isPreview)
   // The footprint rectangle is real geometry and stays at true size; only the
-  // glyph inscribed in it takes the min-screen-size clamp (spec D4).
+  // glyph inscribed in it takes the min-screen-size clamp (spec D4). The
+  // trailing translate applies the baseline offset INSIDE that scale, so it
+  // tracks the clamp instead of sinking into the wall as `scale` grows.
   const scale = deviceScreenScale(props.pixelsPerInch)
-  const { glyphPosition, angleDeg } = placement
+  const { glyphAnchor, glyphOffsetIn, angleDeg } = placement
   return {
     id: device.id,
     href: `#${pictogramSymbolId(device.type)}`,
-    transform: `translate(${glyphPosition.x} ${glyphPosition.y}) rotate(${angleDeg}) scale(${scale})`,
+    transform: `translate(${glyphAnchor.x} ${glyphAnchor.y}) rotate(${angleDeg}) scale(${scale}) translate(0 ${-glyphOffsetIn})`,
     footprint: placement.footprintRect?.map((point) => `${point.x},${point.y}`).join(' ') ?? null,
     selected,
     preview: isPreview,

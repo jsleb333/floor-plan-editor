@@ -118,9 +118,31 @@ describe('buildPlanSvg', () => {
     const svg = buildPlanSvg(document)
     const points = placement.footprintRect.map((p) => `${p.x},${p.y}`).join(' ')
     expect(svg).toContain(`<polygon points="${points}"`)
-    // The glyph draws at the rectangle's centre, exactly as on the canvas.
+    // The glyph draws at the rectangle's centre, exactly as on the canvas —
+    // a footprint device's glyph offset is always 0.
+    expect(placement.glyphOffsetIn).toBe(0)
     expect(svg).toContain(
-      `translate(${placement.glyphPosition.x} ${placement.glyphPosition.y}) rotate(0)`,
+      `translate(${placement.glyphAnchor.x} ${placement.glyphAnchor.y}) rotate(0)`,
+    )
+  })
+
+  it("composes a symbolic device's glyph anchor and baseline offset exactly like the canvas (spec D1/D4)", () => {
+    const document = makeDocument({ walls: [makeWall()], devices: [makeDevice({ id: 'd1' })] })
+    const placement = deviceWorldPlacement(document.devices[0], document.walls)
+    if (!placement) throw new Error('expected a placement')
+
+    // The default outlet's circle used to reach into the wall (it had no
+    // baseline shift at all); it now carries a real offset, applied inside
+    // the transform exactly like `DevicesLayer.vue` — the export is fixed at
+    // scale 1, but composes the same `translate/rotate/scale/translate` chain.
+    expect(placement.glyphOffsetIn).toBeCloseTo(3.6, 9)
+    const svg = buildPlanSvg(document)
+    // The export rounds coordinates to 4 decimals, so a pure `9.6 - 6` float
+    // (3.5999999999999996) prints as the clean 3.6 it should be.
+    const offsetIn = Number((-placement.glyphOffsetIn).toFixed(4))
+    expect(svg).toContain(
+      `<g transform="translate(${placement.glyphAnchor.x} ${placement.glyphAnchor.y}) ` +
+        `rotate(${placement.angleDeg}) scale(1) translate(0 ${offsetIn}) translate(-6 -6)">`,
     )
   })
 

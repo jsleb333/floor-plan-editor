@@ -14,7 +14,7 @@ import { useLayersStore } from '@/stores/layers'
 import type { Circuit, DeviceType, PlanDocument } from '@/types/plan'
 import { circuitsByDevice } from '@/utils/circuitMembership'
 import { validatePlan } from '@/utils/circuits'
-import { deviceWorldPlacement } from '@/utils/geometry'
+import { deviceScreenScale, deviceWorldPlacement } from '@/utils/geometry'
 import { makeCircuit, makeDevice, makeDocument, makeWall, makeWire } from '../helpers/planFactory'
 
 /**
@@ -87,7 +87,10 @@ describe('DevicesLayer', () => {
 
     const wrapper = mountLayer()
     expect(wrapper.find('polygon').attributes('points')).toBe('-11,-11 11,-11 11,11 -11,11')
-    expect(wrapper.find('use').attributes('transform')).toBe('translate(0 0) rotate(0) scale(1)')
+    // A footprint device's glyph offset is always 0 — the trailing translate is a no-op.
+    expect(wrapper.find('use').attributes('transform')).toBe(
+      'translate(0 0) rotate(0) scale(1) translate(0 0)',
+    )
   })
 
   it('D4: zooming out shrinks the footprint rectangle but clamps only the glyph', () => {
@@ -108,6 +111,58 @@ describe('DevicesLayer', () => {
     expect(wrapper.find('polygon').attributes('points')).toBe('-11,-11 11,-11 11,11 -11,11')
     // The glyph counter-scales to stay legible (14 px floor over a 6 px box).
     expect(wrapper.find('use').attributes('transform')).toContain(`scale(${14 / 6})`)
+  })
+
+  it("D4: keeps a wall symbol's baseline on the face at every zoom, not sinking into the wall as the glyph grows", () => {
+    const store = useEditorStore()
+    const wall = makeWall({ id: 'wall-1', thickness_in: 3.5 })
+    store.document = makeDocument({
+      walls: [wall],
+      devices: [
+        makeDevice({
+          id: 'sw',
+          type: 'switch',
+          attachment: { wall_id: 'wall-1', segment_index: 0, t: 60, side: 'left' },
+        }),
+      ],
+    })
+    const placement = deviceWorldPlacement(store.document.devices[0], [wall])
+    if (!placement) throw new Error('expected a placement')
+
+    // At the default zoom the glyph is already legible (scale 1); at ppi 0.5
+    // it hits the D4 floor (scale 14/6 ≈ 2.33) — the bug this fixes let the
+    // offset sit OUTSIDE that scale, sinking the stem into the wall as it grew.
+    for (const [pixelsPerInch, expectedScale] of [
+      [2, 1],
+      [0.5, deviceScreenScale(0.5)],
+    ] as const) {
+      const wrapper = mountLayer({}, pixelsPerInch)
+      expect(requireGlyph(wrapper, 'switch').attributes('transform')).toBe(
+        `translate(${placement.glyphAnchor.x} ${placement.glyphAnchor.y}) rotate(${placement.angleDeg}) ` +
+          `scale(${expectedScale}) translate(0 ${-placement.glyphOffsetIn})`,
+      )
+    }
+  })
+
+  it('agrees with the SVG export on the glyph anchor and offset for a symbolic device (spec D1/D4)', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({ walls: [makeWall()], devices: [makeDevice({ id: 'd1' })] })
+    const placement = deviceWorldPlacement(store.document.devices[0], store.document.walls)
+    if (!placement) throw new Error('expected a placement')
+
+    const wrapper = mountLayer()
+    expect(wrapper.find('use').attributes('transform')).toBe(
+      `translate(${placement.glyphAnchor.x} ${placement.glyphAnchor.y}) rotate(${placement.angleDeg}) scale(1) translate(0 ${-placement.glyphOffsetIn})`,
+    )
+    const svg = buildPlanSvg(store.document)
+    // The export never takes the D4 clamp (its scale is fixed at 1), but the
+    // same anchor and offset compose the same `<g>` transform, just rounded to
+    // 4 decimals (the export's coordinate convention) with the extra
+    // recentring translate raw shapes need.
+    const offsetIn = Number((-placement.glyphOffsetIn).toFixed(4))
+    expect(svg).toContain(
+      `translate(${placement.glyphAnchor.x} ${placement.glyphAnchor.y}) rotate(${placement.angleDeg}) scale(1) translate(0 ${offsetIn}) translate(-6 -6)`,
+    )
   })
 
   it('hides all devices when the devices layer is toggled off', async () => {
