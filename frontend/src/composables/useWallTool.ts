@@ -92,6 +92,8 @@ export interface UseWallToolOptions {
 export interface UseWallToolReturn {
   thicknessIn: Ref<number>
   reference: Ref<WallReference>
+  /** Colour override applied to the next wall; null takes the role default (spec S1f). */
+  color: Ref<string | null>
   inputBuffer: Ref<string>
   isDrawing: ComputedRef<boolean>
   preview: ComputedRef<WallToolPreview | null>
@@ -99,6 +101,7 @@ export interface UseWallToolReturn {
   setAlt: (held: boolean) => void
   setThickness: (thicknessIn: number) => void
   setReference: (reference: WallReference) => void
+  setColor: (color: string | null) => void
   cycleReference: () => void
   onClick: (world: Point) => void
   onDoubleClick: () => void
@@ -127,7 +130,9 @@ export interface UseWallToolReturn {
  * side, typed lengths for exact input, a close-loop affordance with
  * aligned-close correction and auto-square corner insertion, and the smart
  * thickness flow — exterior preset on an empty plan, interior default once a
- * loop exists or closes, always overridden by an explicit pick.
+ * loop exists or closes, always overridden by an explicit pick. Committed
+ * walls carry the tool's colour override, `null` by default so each wall takes
+ * the role colour its thickness implies (spec S1f).
  *
  * Headless by design: all inputs are injected (snap engine, commit callback)
  * and interaction arrives via methods, so the machine is testable without a
@@ -140,6 +145,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
 
   const thicknessIn = ref(DEFAULT_WALL_THICKNESS_IN)
   const reference = ref<WallReference>('center')
+  const color = ref<string | null>(null)
   const inputBuffer = ref('')
   const vertices: ShallowRef<Point[]> = shallowRef([])
   const cursor: ShallowRef<Point | null> = shallowRef(null)
@@ -255,6 +261,11 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     reference.value = value
   }
 
+  /** Colour for the next wall; null hands it back to the role default (spec S1f). */
+  function setColor(value: string | null): void {
+    color.value = value
+  }
+
   function cycleReference(): void {
     const index = REFERENCE_CYCLE.indexOf(reference.value)
     reference.value = REFERENCE_CYCLE[(index + 1) % REFERENCE_CYCLE.length]
@@ -341,6 +352,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
       closed,
       locked_segments: [],
       junctions,
+      color: color.value,
     })
     reset()
     if (closed) autoSelectInteriorPreset()
@@ -424,6 +436,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
   return {
     thicknessIn,
     reference,
+    color,
     inputBuffer,
     isDrawing,
     preview,
@@ -431,6 +444,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     setAlt,
     setThickness,
     setReference,
+    setColor,
     cycleReference,
     onClick,
     onDoubleClick,

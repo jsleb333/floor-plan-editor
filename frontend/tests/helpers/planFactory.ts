@@ -26,6 +26,7 @@ export function makeWall(overrides: Partial<Wall> = {}): Wall {
     closed: false,
     locked_segments: [],
     junctions: [],
+    color: null,
     ...overrides,
   }
 }

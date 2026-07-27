@@ -601,3 +601,33 @@ describe('useWallTool ids', () => {
     expect(committed[0].id).not.toBe(committed[1].id)
   })
 })
+
+describe('useWallTool colour (spec S1f)', () => {
+  it('commits walls without a colour by default, so each takes its role default', () => {
+    const { tool, committed } = makeTool()
+
+    tool.onClick({ x: 0, y: 0 })
+    tool.onClick({ x: 120, y: 0 })
+    tool.handleKey('Enter')
+
+    expect(committed[0].color).toBeNull()
+  })
+
+  it('gives every wall drawn after a pick that colour, until it is cleared', () => {
+    const { tool, committed } = makeTool()
+
+    tool.setColor('#b91c1c')
+    tool.onClick({ x: 0, y: 0 })
+    tool.onClick({ x: 120, y: 0 })
+    tool.handleKey('Enter')
+    tool.onClick({ x: 0, y: 60 })
+    tool.onClick({ x: 120, y: 60 })
+    tool.handleKey('Enter')
+    tool.setColor(null)
+    tool.onClick({ x: 0, y: 120 })
+    tool.onClick({ x: 120, y: 120 })
+    tool.handleKey('Enter')
+
+    expect(committed.map((wall) => wall.color)).toEqual(['#b91c1c', '#b91c1c', null])
+  })
+})

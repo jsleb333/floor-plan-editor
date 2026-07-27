@@ -7,7 +7,9 @@
  * the export path shares — and uses fixed world-inch stroke widths (the editor
  * scales strokes to ~1px per screen pixel; a file is viewed at real scale).
  *
- * Keep these values in sync with the `@theme` block in `src/style.css`.
+ * Keep these values in sync with the `@theme` block in `src/style.css`. Wall
+ * colours are NOT here: they belong to the document (spec S1f) and resolve
+ * through `utils/wallColors`, the same rule the canvas uses.
  */
 
 /** Editor `--color-canvas`: the drawing background. */
@@ -18,10 +20,10 @@ export const EXPORT_SURFACE = '#ffffff'
 export const EXPORT_INK = '#1e293b'
 /** Editor `--color-ink-muted`: stairs and dimension lines. */
 export const EXPORT_INK_MUTED = '#64748b'
-/** Editor `--color-wall`: filled wall body. */
-export const EXPORT_WALL_FILL = '#334155'
-/** Editor `--color-wall-edge`: wall outline and opening symbols. */
-export const EXPORT_WALL_EDGE = '#1e293b'
+/** Panel fill behind the exported legend (spec X5). */
+export const EXPORT_LEGEND_FILL = '#ffffff'
+/** Editor `--color-line`: legend panel border and rules (spec X5). */
+export const EXPORT_LINE = '#e2e8f0'
 
 /** Wall outline / opening symbol stroke in world inches. */
 export const STRUCTURE_STROKE_IN = 0.75

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import WallInspector from '@/components/editor/WallInspector.vue'
 import type { Wall } from '@/types/plan'
+import { EXTERIOR_WALL_COLOR } from '@/utils/wallColors'
 import { makeWall } from '../helpers/planFactory'
 
 function mountInspector(wall: Wall = makeWall()): VueWrapper {
@@ -133,5 +134,46 @@ describe('WallInspector reference side (spec S1a)', () => {
     wrapper.unmount()
 
     expect(lastEmitted<Wall | null>(wrapper, 'preview-wall')).toBeNull()
+  })
+})
+
+describe('WallInspector colour (spec S1f)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('picking a swatch emits ONE update-wall with only the colour changed', async () => {
+    const wall = makeWall()
+    const wrapper = mountInspector(wall)
+
+    await wrapper.get(`button[aria-label="Wall colour ${EXTERIOR_WALL_COLOR}"]`).trigger('click')
+
+    expect(wrapper.emitted('update-wall')).toHaveLength(1)
+    const updated = lastEmitted<Wall>(wrapper, 'update-wall')
+    expect(updated.color).toBe(EXTERIOR_WALL_COLOR)
+    expect(updated.thickness_in).toBe(wall.thickness_in)
+    expect(updated.vertices).toEqual(wall.vertices)
+  })
+
+  it('"Default" hands the wall back to its role colour', async () => {
+    const wrapper = mountInspector(makeWall({ color: '#b91c1c' }))
+
+    await buttonByText(wrapper, 'Default').trigger('click')
+
+    expect(lastEmitted<Wall>(wrapper, 'update-wall').color).toBeNull()
+  })
+
+  it('re-picking the colour the wall already carries emits nothing', async () => {
+    const wrapper = mountInspector(makeWall())
+
+    await buttonByText(wrapper, 'Default').trigger('click')
+
+    expect(wrapper.emitted('update-wall')).toBeUndefined()
+  })
+
+  it('names the role whose default the wall follows, per its thickness', () => {
+    expect(mountInspector(makeWall()).get('[aria-label="Wall colour"]').text()).toContain('Default')
+    expect(mountInspector(makeWall({ thickness_in: 12 })).text()).toContain('exterior')
+    expect(mountInspector(makeWall()).text()).toContain('interior')
   })
 })

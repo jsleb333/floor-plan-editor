@@ -2,12 +2,14 @@
 import { ArrowLeftRight, Lock, LockOpen, Trash2 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
+import WallColorControl from '@/components/editor/WallColorControl.vue'
 import WallReferenceControl from '@/components/editor/WallReferenceControl.vue'
 import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
 import type { Wall } from '@/types/plan'
 import { distance, segmentCountOf, setSegmentLength } from '@/utils/geometry'
 import type { WallReference } from '@/utils/geometry'
 import { formatFeetInches, parseFeetInches } from '@/utils/units'
+import { defaultWallColor, wallRoleOf } from '@/utils/wallColors'
 
 const THICKNESS_TOLERANCE_IN = 1e-9
 const EIGHTHS_PER_INCH = 8
@@ -105,6 +107,16 @@ function setNotice(next: Notice): void {
       notice.value = null
     }, NOTICE_TIMEOUT_MS)
   }
+}
+
+const role = computed(() => wallRoleOf(props.wall.thickness_in, props.thicknessPresetsIn))
+const roleDefaultColor = computed(() =>
+  defaultWallColor(props.wall.thickness_in, props.thicknessPresetsIn),
+)
+
+function setColor(color: string | null): void {
+  if (color === props.wall.color) return
+  emit('update-wall', { ...props.wall, color })
 }
 
 function setThickness(thicknessIn: number): void {
@@ -301,6 +313,16 @@ onBeforeUnmount(() => emitPreview(null))
           @blur="applyCustomThickness"
         />
       </label>
+    </div>
+
+    <div>
+      <h4 class="text-ink mb-2 font-semibold">Colour</h4>
+      <WallColorControl
+        :color="wall.color"
+        :default-color="roleDefaultColor"
+        :default-label="role"
+        @set-color="setColor"
+      />
     </div>
 
     <div>

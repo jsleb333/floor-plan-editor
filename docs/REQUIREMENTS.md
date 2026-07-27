@@ -222,6 +222,20 @@ follow their devices; only interior control points are absolute.
   chain-start guides (S1c) outrank everything while closing a loop. Alt
   suspends these guides like every other snap. The same guides serve the
   stairs and dimension tools.
+- **S1f Wall colours** — A wall draws in one colour, body and outline alike
+  (the poché of a paper plan). By default the colour comes from the wall's
+  **role**, read off the plan's thickness presets (§5.9 tier 2, whose first
+  entry is the exterior preset): a wall at least as thick as that preset is
+  the building shell and draws **black**; anything thinner is a partition and
+  draws **grey**. Because the default is derived, changing a wall's thickness
+  — or the plan's presets — recolours it. Any wall can be given an explicit
+  colour instead, from a swatch row (the two role defaults, two intermediate
+  greys, and red/blue for the new-work and demolition conventions of a
+  renovation plan) or a free colour picker; an explicit pick wins over the
+  role default until it is cleared with **Default**. The same control sits in
+  the wall tool's options, where it colours the next wall drawn, and in the
+  Inspector for an existing wall. Openings read in their host wall's colour,
+  and the export prints exactly what the canvas draws.
 - **S2 Exact input** — While drawing a wall segment, the user can type a length
   (`12'6`, `9'0 1/8`) to place the next vertex at exactly that distance along
   the current (snapped) direction, measured on the reference line (see S1a).
@@ -524,7 +538,19 @@ floor to the storey below. They carry no load on this plan — their load overri
 - **X3 PNG** — Raster export with selectable resolution/scale and optional
   transparent background.
 - **X4** — Export dialog offers: layers to include, with/without underlay,
-  with/without dimension annotations.
+  with/without dimension annotations, with/without the legend and its
+  language.
+- **X5 Legend** — SVG and PNG exports carry a **legend** panel (its own
+  `#legend` group, in a column right of the plan, growing the sheet rather
+  than covering it). It is derived from the sheet itself, so it can never
+  advertise a symbol the plan does not carry: the circuits included in this
+  export with their colour and rating (breaker/voltage, or the kind for a
+  data/low-voltage pseudo-circuit), the device types actually placed with
+  their pictogram and count, and the wall colours actually drawn with their
+  role. Available in **English** and **Québec French** — the editor's own
+  words are translated (device names come from the catalog's French legend
+  column, §5.4), user text (circuit names, room labels) never is. The dialog
+  preselects French for a French browser.
 
 ### 5.9 Settings and user-settable properties
 
@@ -553,7 +579,7 @@ tool's options is added as a one-click preset for the rest of the plan.
 
 | Element | Settable properties |
 |---|---|
-| Wall | thickness (preset or custom), reference side, per-segment locks |
+| Wall | thickness (preset or custom), reference side, colour (role default or explicit), per-segment locks |
 | Door | width, hinge side, swing direction |
 | Window | width |
 | Stairs | width, length, rotation, direction (up/down) |
@@ -681,6 +707,7 @@ Plan
   underlay: Underlay | null
   walls: [Wall]           # each: id, vertices [Point] (reference line),
                           # thickness_in, reference: center|left|right,
+                          # color: str | null,  # #rrggbb override; null = role default (S1f)
                           # locked_segments: [int],  # indices of locked segments (S3b)
                           # junctions: [{vertex_idx | t: float, wall_id}]  # T-junction attachments
   openings: [Opening]     # door|window: id, attachment (§4.2), width_in,
