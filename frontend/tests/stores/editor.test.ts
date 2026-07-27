@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/client'
 import { getPlan, savePlanDocument, updatePlanMetadata } from '@/api/plans'
 import { useEditorStore } from '@/stores/editor'
+import type { Joint } from '@/types/plan'
 import { CIRCUIT_PALETTE } from '@/utils/circuits'
 import {
   makeCircuit,
@@ -1094,5 +1095,109 @@ describe('useEditorStore circuit / wire / control-link commands', () => {
     store.toggleIsolatedCircuit('c')
     expect(store.isolatedCircuitId).toBeNull()
     expect(store.activeCircuitId).toBe('c')
+  })
+})
+
+describe('useEditorStore wall joints', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('adds a wall and its relations in one command, so one undo removes both', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({ walls: [makeWall({ id: 'host' })] })
+    const partition = makeWall({ id: 'partition' })
+    const tee: Joint = {
+      id: 'j',
+      kind: 'tee',
+      end: { wall_id: 'partition', end: 'start' },
+      host: { wall_id: 'host', segment_index: 0 },
+    }
+
+    store.mutate({ type: 'addWall', wall: partition, joints: [tee] })
+    expect(store.document?.joints).toEqual([tee])
+
+    store.undo()
+    expect(store.document?.walls.map((wall) => wall.id)).toEqual(['host'])
+    expect(store.document?.joints).toEqual([])
+  })
+
+  it('drops the relations of a removed wall and restores them on undo', () => {
+    const store = useEditorStore()
+    const tee: Joint = {
+      id: 'j',
+      kind: 'tee',
+      end: { wall_id: 'partition', end: 'start' },
+      host: { wall_id: 'host', segment_index: 0 },
+    }
+    const unrelated: Joint = {
+      id: 'other',
+      kind: 'corner',
+      ends: [
+        { wall_id: 'host', end: 'end' },
+        { wall_id: 'third', end: 'start' },
+      ],
+      rule: 'miter',
+    }
+    store.document = makeDocument({
+      walls: [makeWall({ id: 'host' }), makeWall({ id: 'partition' }), makeWall({ id: 'third' })],
+      joints: [tee, unrelated],
+    })
+
+    store.mutate({ type: 'removeWall', wallId: 'partition' })
+    // A relation naming a wall that is gone would resolve to nothing.
+    expect(store.document?.joints).toEqual([unrelated])
+
+    store.undo()
+    expect(store.document?.joints).toEqual([unrelated, tee])
+    expect(store.document?.walls.map((wall) => wall.id)).toEqual(['host', 'partition', 'third'])
+  })
+
+  it('derives connectivity when a loaded plan has walls but no relations', async () => {
+    // What a v7 document looks like after migration: the walls survive, the
+    // connectivity does not, so the editor rebuilds it from geometry on open.
+    const document = makeDocument({
+      walls: [
+        makeWall({
+          id: 'east',
+          vertices: [
+            { x: 0, y: 0 },
+            { x: 100, y: 0 },
+          ],
+        }),
+        makeWall({
+          id: 'south',
+          vertices: [
+            { x: 100, y: 0 },
+            { x: 100, y: 100 },
+          ],
+        }),
+      ],
+      joints: [],
+    })
+    vi.mocked(getPlan).mockResolvedValue(makePlan({ document }))
+    const store = useEditorStore()
+
+    await store.loadPlan('plan-1')
+
+    expect(store.document?.joints).toHaveLength(1)
+    expect(store.document?.joints[0].kind).toBe('corner')
+  })
+
+  it('leaves stored connectivity alone on open', async () => {
+    const tee: Joint = {
+      id: 'j',
+      kind: 'tee',
+      end: { wall_id: 'partition', end: 'start' },
+      host: { wall_id: 'host', segment_index: 0 },
+    }
+    const document = makeDocument({ walls: [makeWall({ id: 'host' })], joints: [tee] })
+    vi.mocked(getPlan).mockResolvedValue(makePlan({ document }))
+    const store = useEditorStore()
+
+    await store.loadPlan('plan-1')
+
+    expect(store.document?.joints).toEqual([tee])
   })
 })

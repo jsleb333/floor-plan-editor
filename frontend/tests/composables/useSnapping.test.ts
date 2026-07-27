@@ -4,7 +4,7 @@ import type { Ref } from 'vue'
 
 import { useSnapping } from '@/composables/useSnapping'
 import type { SnapChainContext, UseSnappingReturn } from '@/composables/useSnapping'
-import type { Wall } from '@/types/plan'
+import type { Joint, Wall } from '@/types/plan'
 import { makeWall } from '../helpers/planFactory'
 
 interface SnappingOverrides {
@@ -15,10 +15,15 @@ interface SnappingOverrides {
 }
 
 /** Snap engine over the given walls; pixelsPerInch defaults to 1 (threshold = 10"). */
-function makeSnapping(walls: Wall[] = [], overrides: SnappingOverrides = {}): UseSnappingReturn {
+function makeSnapping(
+  walls: Wall[] = [],
+  overrides: SnappingOverrides = {},
+  joints: Joint[] = [],
+): UseSnappingReturn {
   const wallsRef: Ref<readonly Wall[]> = ref(walls)
   return useSnapping({
     walls: wallsRef,
+    joints: ref<readonly Joint[]>(joints),
     pixelsPerInch: ref(overrides.pixelsPerInch ?? 1),
     settings: {
       grid: ref(overrides.grid ?? true),
@@ -26,6 +31,14 @@ function makeSnapping(walls: Wall[] = [], overrides: SnappingOverrides = {}): Us
       walls: ref(overrides.walls ?? true),
     },
   })
+}
+
+/** The 'attached' wall's end sits on 'host', which is what makes it a junction anchor. */
+const ATTACHED_TEE: Joint = {
+  id: 'tee-attached',
+  kind: 'tee',
+  end: { wall_id: 'attached', end: 'end' },
+  host: { wall_id: 'host', segment_index: 0 },
 }
 
 function chain(start: [number, number], last: [number, number], count: number): SnapChainContext {
@@ -343,9 +356,8 @@ describe('useSnapping alignment guides (S1e)', () => {
         { x: 80, y: -40 },
         { x: 0, y: 50 },
       ],
-      junctions: [{ end: 'end', host_wall_id: 'host', segment_index: 0, t: 50 }],
     })
-    const snapping = makeSnapping([host, attached])
+    const snapping = makeSnapping([host, attached], {}, [ATTACHED_TEE])
     const result = snapping.resolve({ x: 2, y: -20 }, null, false)
     expect(result.point).toEqual({ x: 0, y: -20 })
     expect(result.alignmentGuides).toHaveLength(1)
@@ -367,7 +379,6 @@ describe('useSnapping alignment guides (S1e)', () => {
         { x: 80, y: -40 },
         { x: 0, y: 50 },
       ],
-      junctions: [{ end: 'end', host_wall_id: 'host', segment_index: 0, t: 50 }],
     })
     const far = makeWall({
       id: 'far',
@@ -376,7 +387,7 @@ describe('useSnapping alignment guides (S1e)', () => {
         { x: 6, y: -150 },
       ],
     })
-    const snapping = makeSnapping([host, attached, far])
+    const snapping = makeSnapping([host, attached, far], {}, [ATTACHED_TEE])
     // The junction's line (x=0) is 2" away, the endpoint's line (x=6) is 4" away.
     const result = snapping.resolve({ x: 2, y: -20 }, null, false)
     expect(result.point).toEqual({ x: 6, y: -20 })

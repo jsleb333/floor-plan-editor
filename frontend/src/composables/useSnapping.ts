@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 
-import type { Point, Wall } from '@/types/plan'
+import type { Joint, Point, Wall } from '@/types/plan'
 import {
   EPSILON,
   add,
@@ -35,6 +35,8 @@ const MIN_ALIGN_VERTICES = 2
 const NO_ALIGNMENT_GUIDES: readonly AlignmentGuide[] = []
 /** Shared empty anchor list for resolutions with the S1e guides inactive. */
 const NO_ANCHORS: readonly AlignmentAnchor[] = []
+/** Shared empty joint list, for callers that snap without connectivity context. */
+const NO_JOINTS: readonly Joint[] = []
 
 /** Identifier of one snap toggle (status bar buttons). */
 export type SnapToggleId = keyof SnapSettings
@@ -98,6 +100,8 @@ export interface AlignmentGuidesView {
 export interface UseSnappingOptions {
   /** Existing walls to snap against (the pending chain is never included). */
   walls: Ref<readonly Wall[]>
+  /** How those walls connect, for classifying the S1e junction anchors. */
+  joints?: Ref<readonly Joint[]>
   /** Current screen pixels per world inch, to convert the pixel threshold to inches. */
   pixelsPerInch: Ref<number>
   settings: SnapSettings
@@ -141,7 +145,7 @@ interface WallSnapCandidate {
  * headlessly testable and reusable by the Phase C editing tools.
  */
 export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
-  const { walls, pixelsPerInch, settings } = options
+  const { walls, joints, pixelsPerInch, settings } = options
   const anchorGuidesEnabled = options.anchorGuides ?? true
 
   function thresholdIn(): number {
@@ -191,7 +195,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
     }
 
     const anchors = anchorsActive
-      ? collectAlignmentAnchors(walls.value, cursor, anchorCaptureIn())
+      ? collectAlignmentAnchors(walls.value, joints?.value ?? NO_JOINTS, cursor, anchorCaptureIn())
       : NO_ANCHORS
 
     if (chain && angleActive) {

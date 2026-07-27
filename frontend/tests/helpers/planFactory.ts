@@ -25,7 +25,6 @@ export function makeWall(overrides: Partial<Wall> = {}): Wall {
     reference: 'center',
     closed: false,
     locked_segments: [],
-    junctions: [],
     ...overrides,
   }
 }
@@ -156,6 +155,7 @@ export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocumen
     viewport: { center: { x: 0, y: 0 }, zoom: 1 },
     underlay: null,
     walls: [],
+    joints: [],
     openings: [],
     stairs: [],
     labels: [],

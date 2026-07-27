@@ -31,7 +31,6 @@ import {
   stairsCenter,
   stairsCorners,
   stairsTreads,
-  deriveJoints,
   resolveWallNetwork,
   windowSymbol,
   wireEndpoint,
@@ -133,10 +132,9 @@ function line(a: Point, b: Point, stroke: string, width: number): string {
 /**
  * The resolved wall network (`docs/WALL_NETWORK.md`) — the same geometry the
  * canvas draws, so an export matches the editor exactly (spec §4.1).
- * Connectivity is derived from geometry until the document stores it (phase 3).
  */
 function wallNetworkOf(document: PlanDocument): ResolvedNetwork {
-  return resolveWallNetwork(document.walls, deriveJoints(document.walls))
+  return resolveWallNetwork(document.walls, document.joints)
 }
 
 /**

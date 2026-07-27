@@ -40,7 +40,6 @@ describe('WallInspector reference side (spec S1a)', () => {
     expect(updated.reference).toBe('left')
     expect(updated.vertices).toEqual(wall.vertices)
     expect(updated.thickness_in).toBe(wall.thickness_in)
-    expect(updated.junctions).toEqual(wall.junctions)
     expect(updated.locked_segments).toEqual(wall.locked_segments)
   })
 

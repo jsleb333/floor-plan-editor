@@ -6,7 +6,6 @@ import { useLayersStore } from '@/stores/layers'
 import type { Point, Wall } from '@/types/plan'
 import {
   angleOf,
-  deriveJoints,
   normalize,
   resolveWallNetwork,
   sub,
@@ -52,13 +51,9 @@ function serialize(polylines: readonly Point[][]): string {
     .join(' ')
 }
 
-/**
- * The resolved wall network (`docs/WALL_NETWORK.md`), rebuilt whenever the
- * document changes. Connectivity is derived from geometry until it is stored on
- * the document (phase 3), which is exactly what `deriveJoints` is for.
- */
+/** The resolved wall network (`docs/WALL_NETWORK.md`), rebuilt on every document change. */
 function networkOf(walls: readonly Wall[]): ResolvedNetwork {
-  return resolveWallNetwork(walls, deriveJoints(walls))
+  return resolveWallNetwork(walls, editorStore.document?.joints ?? [])
 }
 
 const network = computed<ResolvedNetwork>(() => {

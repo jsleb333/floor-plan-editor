@@ -170,7 +170,7 @@ describe('WallsLayer', () => {
     expect(Math.max(...yValues)).toBe(0)
   })
 
-  it('trims a T-junction endpoint to the host face at render time', () => {
+  it('butts a T-junction endpoint against the host surface at render time', () => {
     const store = useEditorStore()
     store.document = makeDocument({
       walls: [
@@ -188,13 +188,20 @@ describe('WallsLayer', () => {
             { x: 50, y: 40 },
             { x: 50, y: 0 },
           ],
-          junctions: [{ end: 'end', host_wall_id: 'host', segment_index: 0, t: 50 }],
         }),
+      ],
+      joints: [
+        {
+          id: 'j',
+          kind: 'tee',
+          end: { wall_id: 'butting', end: 'end' },
+          host: { wall_id: 'host', segment_index: 0 },
+        },
       ],
     })
 
     const wrapper = mount(WallsLayer, { props: { hairline: 0.5 } })
-    const buttingD = wrapper.findAll('path')[1].attributes('d') ?? ''
+    const buttingD = fills(wrapper)[1].attributes('d') ?? ''
     const coordinates = buttingD.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? []
     const yValues = coordinates.filter((_, index) => index % 2 === 1)
     // The stored endpoint sits on the host reference line (y=0); the rendered

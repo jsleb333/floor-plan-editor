@@ -5,7 +5,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from backend.models.point import Point
-from backend.models.wall_end_attachment import WallEndAttachment
 
 
 class Wall(BaseModel):
@@ -16,8 +15,9 @@ class Wall(BaseModel):
         reference-line vertices plus thickness and the side the thickness is
         applied on. The rendered outline (offset faces, mitres, caps) is
         derived and never persisted. ``locked_segments`` holds indices of
-        segments immune to edits (spec S3b) and ``junctions`` records
-        T-junction endpoint attachments onto other walls (spec S3a).
+        segments immune to edits (spec S3b). Connectivity to other walls is
+        NOT stored here: it lives in ``PlanDocument.joints`` so a relation is
+        symmetric and one place owns it (see ``docs/WALL_NETWORK.md``).
     """
 
     id: str
@@ -26,4 +26,3 @@ class Wall(BaseModel):
     reference: Literal["center", "left", "right"] = "center"
     closed: bool = False
     locked_segments: list[int] = Field(default_factory=list)
-    junctions: list[WallEndAttachment] = Field(default_factory=list)

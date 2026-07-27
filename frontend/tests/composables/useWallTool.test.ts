@@ -5,12 +5,14 @@ import type { Ref } from 'vue'
 import { useSnapping } from '@/composables/useSnapping'
 import { useWallTool } from '@/composables/useWallTool'
 import type { UseWallToolReturn } from '@/composables/useWallTool'
-import type { Wall } from '@/types/plan'
+import type { Joint, Wall } from '@/types/plan'
 import { makeWall } from '../helpers/planFactory'
 
 interface Harness {
   tool: UseWallToolReturn
   committed: Wall[]
+  /** Joints emitted alongside each committed wall, in commit order. */
+  committedJoints: Joint[][]
   hasClosedLoop: Ref<boolean>
 }
 
@@ -37,15 +39,19 @@ function makeTool(overrides: HarnessOverrides = {}): Harness {
     },
   })
   const committed: Wall[] = []
+  const committedJoints: Joint[][] = []
   const hasClosedLoop = ref(overrides.hasClosedLoop ?? false)
   const tool = useWallTool({
     snapping,
     presetsIn: ref<readonly number[]>(overrides.presetsIn ?? []),
     hasClosedLoop,
     onAutoPreset: overrides.onAutoPreset,
-    commit: (wall) => committed.push(wall),
+    commit: (wall, joints) => {
+      committed.push(wall)
+      committedJoints.push(joints)
+    },
   })
-  return { tool, committed, hasClosedLoop }
+  return { tool, committed, committedJoints, hasClosedLoop }
 }
 
 /** Draws and closes a rectangle-ish loop via the close-loop affordance. */
@@ -269,14 +275,21 @@ describe('useWallTool drawing', () => {
         { x: 0, y: 240 },
       ],
     })
-    const { tool, committed } = makeTool({ walls: [host] })
+    const { tool, committed, committedJoints } = makeTool({ walls: [host] })
     tool.onClick({ x: 2, y: 100 })
     tool.onClick({ x: 150, y: 100 })
     tool.handleKey('Enter')
 
     expect(committed[0].vertices[0]).toEqual({ x: 0, y: 100 })
-    expect(committed[0].junctions).toEqual([
-      { end: 'start', host_wall_id: 'host', segment_index: 0, t: 100 },
+    // Only the host segment is recorded: where along it is the endpoint's own
+    // position, and storing that twice invites the two to disagree.
+    expect(committedJoints[0]).toEqual([
+      {
+        id: expect.any(String),
+        kind: 'tee',
+        end: { wall_id: committed[0].id, end: 'start' },
+        host: { wall_id: 'host', segment_index: 0 },
+      },
     ])
   })
 
@@ -288,7 +301,7 @@ describe('useWallTool drawing', () => {
         { x: 0, y: 240 },
       ],
     })
-    const { tool, committed } = makeTool({ walls: [host] })
+    const { tool, committed, committedJoints } = makeTool({ walls: [host] })
     tool.onClick({ x: 60, y: 60 })
     tool.onClick({ x: 2, y: 60 })
 
@@ -296,8 +309,13 @@ describe('useWallTool drawing', () => {
     expect(committed).toHaveLength(1)
     expect(committed[0].closed).toBe(false)
     expect(committed[0].vertices[1]).toEqual({ x: 0, y: 60 })
-    expect(committed[0].junctions).toEqual([
-      { end: 'end', host_wall_id: 'host', segment_index: 0, t: 60 },
+    expect(committedJoints[0]).toEqual([
+      {
+        id: expect.any(String),
+        kind: 'tee',
+        end: { wall_id: committed[0].id, end: 'end' },
+        host: { wall_id: 'host', segment_index: 0 },
+      },
     ])
     expect(tool.isDrawing.value).toBe(false)
   })
@@ -343,7 +361,7 @@ describe('useWallTool drawing', () => {
         { x: 0, y: 240 },
       ],
     })
-    const { tool, committed } = makeTool({ walls: [host] })
+    const { tool, committed, committedJoints } = makeTool({ walls: [host] })
     tool.onClick({ x: 60, y: 60 })
     // Cursor drifts 3" off the horizontal while reaching for the host wall:
     // the segment must stay horizontal instead of following the cursor.
@@ -351,8 +369,13 @@ describe('useWallTool drawing', () => {
 
     expect(committed[0].vertices[1].x).toBeCloseTo(0)
     expect(committed[0].vertices[1].y).toBeCloseTo(60)
-    expect(committed[0].junctions).toEqual([
-      { end: 'end', host_wall_id: 'host', segment_index: 0, t: 60 },
+    expect(committedJoints[0]).toEqual([
+      {
+        id: expect.any(String),
+        kind: 'tee',
+        end: { wall_id: committed[0].id, end: 'end' },
+        host: { wall_id: 'host', segment_index: 0 },
+      },
     ])
   })
 

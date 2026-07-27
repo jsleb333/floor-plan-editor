@@ -1,7 +1,8 @@
 # Wall network — design
 
-Status: **phases 0–2 landed** — the `network/` module, and the canvas and export
-both drawing from it. Supersedes the ad-hoc T-junction handling (`Wall.junctions` and
+Status: **phases 0–2 landed, 3 in progress** — the `network/` module, the canvas
+and export drawing from it, and connectivity now stored on the document (schema
+v8). Supersedes the ad-hoc T-junction handling (`Wall.junctions` and
 `junctionTrim.ts`). Written against schema v7; lands as schema v8.
 
 ## 1. The defect
@@ -278,13 +279,15 @@ resolver stays frontend-only.
 
 ## 10. Phasing
 
-| Phase | Work                                                                                                                                  | Est.       | State |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----- |
-| 0     | This document; characterization tests pinning the current defect                                                                      | ½ day      | done  |
-| 1     | `network/`: graph, join resolver, resolved network, coincidence bootstrap — pure, fully unit-tested, no consumers                     | 1.5–2 days | done  |
-| 2     | Renderer + export read the network; merged stroke boundaries; delete `junctionTrim`                                                   | 1 day      | done  |
-| 3     | Authoring: surface/corner snap targets, joint records from both tools, constraint solver wired into edit commands; backend model + v8 | 1.5–2 days | next  |
-| 4     | Guides/anchors from the network, S1e ranking, requirements amendment                                                                  | ½–1 day    |       |
+| Phase | Work                                                                                                              | Est.       | State |
+| ----- | ----------------------------------------------------------------------------------------------------------------- | ---------- | ----- |
+| 0     | This document; characterization tests pinning the current defect                                                  | ½ day      | done  |
+| 1     | `network/`: graph, join resolver, resolved network, coincidence bootstrap — pure, fully unit-tested, no consumers | 1.5–2 days | done  |
+| 2     | Renderer + export read the network; merged stroke boundaries; delete `junctionTrim`                               | 1 day      | done  |
+| 3a    | `PlanDocument.joints` + backend model + v8 migration; the wall tool records tees; heal-on-open                    | ½ day      | done  |
+| 3b    | Authoring: surface and corner snap targets, honest endpoints, corner and flush records                            | 1 day      | next  |
+| 3c    | Constraint solver wired into the edit commands; select-tool drags maintain relations                              | ½–1 day    |       |
+| 4     | Guides/anchors from the network, S1e ranking, requirements amendment                                              | ½–1 day    |       |
 
 Each phase leaves the app working. Phase 2 is the first visible improvement;
 phase 3 is where the reported screenshot becomes correct by construction.

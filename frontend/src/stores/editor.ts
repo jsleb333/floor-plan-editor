@@ -9,6 +9,7 @@ import type {
   ControlLink,
   Device,
   Dimension,
+  Joint,
   Label,
   Opening,
   Plan,
@@ -20,7 +21,7 @@ import type {
   Wire,
 } from '@/types/plan'
 import { pickNextCircuitColor } from '@/utils/circuits'
-import { wallSegmentSpan } from '@/utils/geometry'
+import { deriveJoints, wallIdsOf, wallSegmentSpan } from '@/utils/geometry'
 import type { PresetListName } from '@/utils/presetLists'
 import { DEFAULT_DISPLAY_PRECISION_IN } from '@/utils/units'
 
@@ -38,7 +39,7 @@ export type EditorCommand =
   | { type: 'setThicknessPresets'; presetsIn: number[] }
   | { type: 'setDisplayPrecision'; precisionIn: number | null }
   | { type: 'setPresetList'; name: PresetListName; valuesIn: number[] }
-  | { type: 'addWall'; wall: Wall; index?: number }
+  | { type: 'addWall'; wall: Wall; joints?: Joint[]; index?: number }
   | { type: 'updateWall'; wallId: string; wall: Wall }
   | { type: 'removeWall'; wallId: string }
   | { type: 'addOpening'; opening: Opening; index?: number }
@@ -132,11 +133,21 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
         preset_lists: { ...document.preset_lists, [command.name]: [...command.valuesIn] },
       }
     case 'addWall':
-      return { ...document, walls: insertAt(document.walls, command.wall, command.index) }
+      return {
+        ...document,
+        walls: insertAt(document.walls, command.wall, command.index),
+        joints: [...document.joints, ...(command.joints ?? [])],
+      }
     case 'updateWall':
       return { ...document, walls: replaceById(document.walls, command.wallId, command.wall) }
     case 'removeWall':
-      return { ...document, walls: removeById(document.walls, command.wallId) }
+      // A joint naming a wall that is gone would resolve to nothing; dropping
+      // them here keeps the graph a true description of the document.
+      return {
+        ...document,
+        walls: removeById(document.walls, command.wallId),
+        joints: document.joints.filter((joint) => !wallIdsOf(joint).includes(command.wallId)),
+      }
     case 'addOpening':
       return { ...document, openings: insertAt(document.openings, command.opening, command.index) }
     case 'updateOpening':
@@ -241,7 +252,12 @@ function invertCommand(
     case 'removeWall': {
       const index = document.walls.findIndex((wall) => wall.id === command.wallId)
       if (index === -1) return undefined
-      return { type: 'addWall', wall: document.walls[index], index }
+      return {
+        type: 'addWall',
+        wall: document.walls[index],
+        joints: document.joints.filter((joint) => wallIdsOf(joint).includes(command.wallId)),
+        index,
+      }
     }
     case 'addOpening':
       return { type: 'removeOpening', openingId: command.opening.id }
@@ -486,9 +502,20 @@ export const useEditorStore = defineStore('editor', () => {
     () => document.value?.display_precision_in ?? DEFAULT_DISPLAY_PRECISION_IN,
   )
 
+  /**
+   * Rebuilds wall connectivity when a document arrives without it — a v7 plan
+   * migrated forward, an imported file, or anything hand-edited. Derived from
+   * geometry, so it is a repair rather than a guess, and it runs outside the
+   * history: nothing the user did is being undone (`docs/WALL_NETWORK.md` §9).
+   */
+  function healJoints(loaded: PlanDocument): PlanDocument {
+    if (loaded.joints.length > 0 || loaded.walls.length === 0) return loaded
+    return { ...loaded, joints: deriveJoints(loaded.walls) }
+  }
+
   function adoptPlan(loaded: Plan): void {
     plan.value = loaded
-    document.value = loaded.document
+    document.value = healJoints(loaded.document)
     documentVersion.value += 1
     revision.value = loaded.revision
     undoStack = []

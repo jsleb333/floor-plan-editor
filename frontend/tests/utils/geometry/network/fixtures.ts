@@ -16,7 +16,6 @@ export function wall(
     reference,
     closed,
     locked_segments: [],
-    junctions: [],
   }
 }
 
