@@ -1,20 +1,26 @@
-import type { Joint, Point, Wall } from '@/types/plan'
+import type { Point } from '@/types/plan'
 
 import { ALIGNMENT_LINE_DIRECTIONS } from './angles'
 import { lineIntersection } from './lines'
+import type { NetworkAnchor, NetworkAnchorKind } from './network'
 import { EPSILON, add, cross, distance, length, perpendicular, scale, sub } from './vec'
 
-/** Ranking of anchor kinds: endpoint anchors outrank junction anchors (spec S1e). */
-const KIND_RANK: Record<AlignmentAnchorKind, number> = { endpoint: 0, junction: 1 }
-
-/** How an S1e anchor relates to its wall: a free end or corner, or a T-junction attachment. */
-export type AlignmentAnchorKind = 'endpoint' | 'junction'
-
-/** A reference-line vertex that alignment guides may be projected through (spec S1e). */
-export interface AlignmentAnchor {
-  point: Point
-  kind: AlignmentAnchorKind
+/**
+ * Ranking of anchor kinds (spec S1e): the surface corners a user can SEE outrank
+ * the spine ends they cannot, which outrank a T's centre. Aligning to what is on
+ * screen is the whole point of a guide.
+ */
+const KIND_RANK: Record<AlignmentAnchorKind, number> = {
+  'face-corner': 0,
+  'spine-end': 1,
+  joint: 2,
 }
+
+/** How an S1e anchor relates to the wall network (`docs/WALL_NETWORK.md` §8). */
+export type AlignmentAnchorKind = NetworkAnchorKind
+
+/** A point that alignment guides may be projected through (spec S1e). */
+export type AlignmentAnchor = NetworkAnchor
 
 /** One engaged alignment guide: the 0/45/90/135° line through `anchor` the point snapped onto. */
 export interface AlignmentGuide {
@@ -40,55 +46,19 @@ interface GuideCandidate {
 }
 
 /**
- * Collects the alignment anchors within `captureIn` of the cursor (spec S1e).
+ * The network anchors within `captureIn` of the cursor (spec S1e).
  *
- * Every wall reference-line vertex is an anchor: chain ends and interior
- * corners are 'endpoint' anchors, while a chain end named by a joint is a
- * 'junction' anchor.
- *
- * Phase 4 of `docs/WALL_NETWORK.md` replaces this with the network's own anchor
- * set, which also offers the visible face corners; until then this keeps the
- * S1e behaviour intact against the relocated connectivity.
+ * The set comes from the resolved network, so a guide is guaranteed to pass
+ * through a corner that is actually drawn — previously the anchors were spine
+ * vertices, which on a 12" wall sit 6" from the visible corner, and users were
+ * aligning to a point they could not see (`docs/WALL_NETWORK.md` §8).
  */
 export function collectAlignmentAnchors(
-  walls: readonly Wall[],
-  joints: readonly Joint[],
+  anchors: readonly NetworkAnchor[],
   cursor: Point,
   captureIn: number,
 ): AlignmentAnchor[] {
-  const jointed = jointedEnds(joints)
-  const anchors: AlignmentAnchor[] = []
-  for (const wall of walls) {
-    const lastIndex = wall.vertices.length - 1
-    for (let i = 0; i <= lastIndex; i++) {
-      const vertex = wall.vertices[i]
-      if (distance(cursor, vertex) > captureIn) continue
-      const end = i === 0 ? 'start' : i === lastIndex ? 'end' : null
-      const attached = end !== null && jointed.has(`${wall.id}:${end}`)
-      anchors.push({ point: vertex, kind: attached ? 'junction' : 'endpoint' })
-    }
-  }
-  return anchors
-}
-
-/** The `wallId:end` keys of every wall end any joint names. */
-function jointedEnds(joints: readonly Joint[]): Set<string> {
-  const keys = new Set<string>()
-  const add = (wallId: string, end: 'start' | 'end'): void => {
-    keys.add(`${wallId}:${end}`)
-  }
-  for (const joint of joints) {
-    if (joint.kind === 'corner') {
-      for (const ref of joint.ends) add(ref.wall_id, ref.end)
-    } else if (joint.kind === 'tee') {
-      add(joint.end.wall_id, joint.end.end)
-    } else {
-      for (const party of [joint.a, joint.b]) {
-        if ('end' in party.ref) add(party.ref.wall_id, party.ref.end)
-      }
-    }
-  }
-  return keys
+  return anchors.filter((anchor) => distance(cursor, anchor.point) <= captureIn)
 }
 
 /**
@@ -97,11 +67,11 @@ function jointedEnds(joints: readonly Joint[]): Set<string> {
  *
  * Every alignment line through an anchor passing within `toleranceIn` of the
  * cursor is a candidate; collinear candidates collapse onto their best anchor
- * (endpoint kind first, then the nearest — "nearest anchors win"). When two
+ * (most visible kind first, then the nearest — "nearest anchors win"). When two
  * candidates from distinct anchors cross within `toleranceIn` of the cursor,
  * the point snaps to the crossing and both guides are returned (intersections
  * outrank single lines). Otherwise the cursor projects onto the single best
- * candidate: endpoint anchors outrank junction anchors, then the line needing
+ * candidate: the most visible anchor kind wins, then the line needing
  * the smallest move wins. Returns `null` when no line is in reach.
  */
 export function anchorAlignFree(
@@ -136,7 +106,7 @@ export function anchorAlignFree(
  * Mirrors `alignOnRay` (S1c) over the whole anchor set: each anchor line is
  * intersected with the ray `rayOrigin + t * rayDir`, and crossings strictly
  * ahead of the origin whose slide from `alongIn` stays within `toleranceIn`
- * compete — endpoint anchors outrank junction anchors, then the smallest
+ * compete — the most visible anchor kind wins, then the smallest
  * slide wins, then the nearest anchor. Intersection snapping does not apply
  * here: the ray already pins the point to one line, so a crossing IS the
  * intersection with it. Returns `null` when no line is in reach.
@@ -228,7 +198,7 @@ function bestCrossing(
   return { point: best.point, guides: [toGuide(best.a), toGuide(best.b)] }
 }
 
-/** Candidate order: endpoint before junction, smallest move, nearest anchor. */
+/** Candidate order: most visible kind, then smallest move, then nearest anchor. */
 function compareCandidates(a: GuideCandidate, b: GuideCandidate): number {
   return (
     KIND_RANK[a.anchor.kind] - KIND_RANK[b.anchor.kind] ||
