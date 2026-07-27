@@ -21,18 +21,48 @@ export const DEVICE_MIN_SCREEN_PX = 14
 
 /** A device's world placement, plus its true-size footprint rectangle when it has one. */
 export interface DevicePlacement {
-  /** Wire/attachment anchor: on the host face for attached devices, else `position`. */
+  /**
+   * Wire/attachment anchor: on the host face for attached devices, else
+   * `position`. Evaluated at scale 1 and never moves as the user zooms — wire
+   * endpoints must track the wall, not the D4 legibility clamp.
+   */
   position: Point
   /** Pictogram rotation in degrees (SVG clockwise from +x). */
   angleDeg: number
   /** Host face for attached devices, else `null`. */
   side: 'left' | 'right' | null
-  /** Hit polygon: the nominal box for symbols, the footprint rectangle otherwise. */
+  /**
+   * Hit polygon: the nominal box for symbols, the footprint rectangle
+   * otherwise. Built at scale 1, like `position` — it does NOT track the D4
+   * legibility clamp `glyphOffsetIn`/`glyphAnchor` apply to the drawn glyph.
+   * That is a pre-existing limitation of hit-testing, out of scope here.
+   */
   bounds: Point[]
   /** Oriented true-size rectangle corners for a footprint device, else `null`. */
   footprintRect: Point[] | null
-  /** Where the pictogram glyph draws: the rectangle's centre, else `position`. */
-  glyphPosition: Point
+  /**
+   * World point a renderer anchors the glyph transform to. A renderer composes
+   * it with `glyphOffsetIn`, `angleDeg` and the current D4 legibility scale
+   * `s` (`deviceScreenScale`) as:
+   *
+   *   translate(glyphAnchor) rotate(angleDeg) scale(s) translate(0 -glyphOffsetIn)
+   *
+   * Local −y points out of the wall (see `pictograms.ts`), so that trailing
+   * translate shifts the symbol's own local frame toward the room by
+   * `glyphOffsetIn` BEFORE `scale(s)` is applied — meaning the shift grows
+   * with `s`, keeping the pictogram's baseline ink glued to `glyphAnchor` at
+   * every zoom instead of sinking back into the wall as the glyph grows.
+   */
+  glyphAnchor: Point
+  /**
+   * Symbol-local inches the glyph's frame shifts by inside the D4 scale — see
+   * `glyphAnchor`. Zero for a footprint device (`glyphAnchor` is the rectangle
+   * centre) and for a positioned free/ceiling device (`glyphAnchor` is
+   * `position`); only a symbolic ATTACHED device carries a non-zero offset,
+   * and there `glyphAnchor` is the bare wall face point — `position` before
+   * that offset is baked in.
+   */
+  glyphOffsetIn: number
 }
 
 /** Below this the two segment directions count as parallel (no crossing). */
@@ -82,15 +112,17 @@ function boxCorners(centre: Point, hx: number, hy: number, ex: Point, ey: Point)
 /**
  * World placement of a device (spec §4.2, D1).
  *
- * Attached devices sit ON the chosen face of the host wall at `t`: the anchor
+ * Attached devices sit ON the chosen face of the host wall at `t`: `position`
  * is the reference point offset to that face, and the pictogram is rotated so
  * the wall runs along its local x while its "room" side points away from the
  * wall body (a `right`-side device is flipped 180°). For a SYMBOLIC device
- * (one whose catalog row has no footprint) the anchor is then nudged outward,
- * along the face normal, by the device type's pictogram baseline
- * (`pictogramBaselineY`, spec-drawn per symbol) so the symbol's own baseline
- * ink — not the box centre — touches the face; a type with no baseline
- * recorded is unaffected, and its `bounds` are the nominal box.
+ * (one whose catalog row has no footprint), the device type's pictogram
+ * baseline (`pictogramBaselineY`, derived from the symbol's own shapes) also
+ * becomes `glyphOffsetIn` — the local shift, applied INSIDE the D4 scale by
+ * the renderer, that nudges the symbol outward so its baseline ink, not the
+ * box centre, touches the face; `glyphAnchor` is the bare face point that
+ * shift is relative to. `position` itself still bakes the shift in (at scale
+ * 1) since it is the anchor other geometry (wires, hit-testing) reads.
  *
  * A FOOTPRINT device (spec D2 — one with a real size, e.g. a baseboard heater
  * or a water heater) instead resolves to an oriented rectangle at TRUE world
@@ -102,9 +134,9 @@ function boxCorners(centre: Point, hx: number, hy: number, ex: Point, ey: Point)
  * D4 interaction: the footprint rectangle is real geometry, so it draws at true
  * size and NEVER takes the minimum-screen-size counter-scale — a 22" water
  * heater is meant to shrink as you zoom out. Only the pictogram glyph inscribed
- * in it stays legible, drawn at `glyphPosition` (the rectangle's centre) under
- * the usual `deviceScreenScale` clamp. Symbolic devices are unaffected: their
- * `glyphPosition` is just `position`.
+ * in it stays legible, drawn at `glyphAnchor` (the rectangle's centre, with a
+ * zero `glyphOffsetIn`) under the usual `deviceScreenScale` clamp. A positioned
+ * free/ceiling device is likewise unshifted: its `glyphAnchor` is `position`.
  *
  * Returns `null` when the host wall or segment is missing.
  *
@@ -148,7 +180,8 @@ export function deviceWorldPlacement(
         side,
         bounds: rect,
         footprintRect: rect,
-        glyphPosition: add(position, scale(outward, footprint.across_in / 2)),
+        glyphAnchor: add(position, scale(outward, footprint.across_in / 2)),
+        glyphOffsetIn: 0,
       }
     }
 
@@ -162,7 +195,10 @@ export function deviceWorldPlacement(
       side,
       bounds: boxCorners(symbolPosition, DEVICE_NOMINAL_IN / 2, DEVICE_NOMINAL_IN / 2, ex, ey),
       footprintRect: null,
-      glyphPosition: symbolPosition,
+      // The bare face point, BEFORE the baseline shift `position` bakes in —
+      // the renderer applies that shift itself, inside the D4 scale.
+      glyphAnchor: position,
+      glyphOffsetIn: faceOffsetIn,
     }
   }
 
@@ -179,23 +215,29 @@ export function deviceWorldPlacement(
     side: null,
     bounds: corners,
     footprintRect: footprint ? corners : null,
-    glyphPosition: { ...device.position },
+    glyphAnchor: { ...device.position },
+    glyphOffsetIn: 0,
   }
 }
 
 /**
- * Corners of the nominal pictogram box a placement's glyph occupies: the
- * `DEVICE_NOMINAL_IN` square centred on `glyphPosition`, rotated with the
- * placement. Identical to `bounds` for a symbolic device; for a footprint
- * device it is the ink the inscribed glyph adds around its true-size rectangle,
- * which content extents (and therefore the export viewBox) must cover.
+ * Corners of the nominal pictogram box a placement's glyph occupies at
+ * counter-scale 1: the `DEVICE_NOMINAL_IN` square centred on the glyph's own
+ * centre — `glyphAnchor` shifted by `glyphOffsetIn` along the placement's
+ * local axis, the same composition a renderer applies (see `glyphAnchor`) —
+ * rotated with the placement. Identical to `bounds` for a symbolic device; for
+ * a footprint device it is the ink the inscribed glyph adds around its
+ * true-size rectangle, which content extents (and therefore the export
+ * viewBox) must cover. Used only for that static, unzoomed content bounds, so
+ * it never takes the D4 legibility scale.
  */
 export function deviceGlyphBox(placement: DevicePlacement): Point[] {
   const angleRad = (placement.angleDeg * Math.PI) / 180
   const ex = { x: Math.cos(angleRad), y: Math.sin(angleRad) }
   const ey = { x: -Math.sin(angleRad), y: Math.cos(angleRad) }
+  const centre = add(placement.glyphAnchor, scale(ey, -placement.glyphOffsetIn))
   const half = DEVICE_NOMINAL_IN / 2
-  return boxCorners(placement.glyphPosition, half, half, ex, ey)
+  return boxCorners(centre, half, half, ex, ey)
 }
 
 /**

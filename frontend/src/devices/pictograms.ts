@@ -10,22 +10,26 @@ import type { DeviceType } from '@/types/plan'
  *
  * Because the box is centred on the wall face by default, a symbol whose ink
  * extends well past y = 6 (e.g. a switch's stem) would otherwise poke through
- * the far side of a thin partition. Each wall-mounted type may therefore
- * declare a BASELINE — the local y that should land exactly on the wall face,
- * read via `pictogramBaselineY` — and `deviceWorldPlacement` shifts the whole
- * symbol outward, into the room, by `baselineY - PICTOGRAM_CENTER` inches so
- * that y lands on the face instead of the box centre. A baseline of
- * `PICTOGRAM_CENTER` (the default for any type with no entry below) means
- * "unchanged, centred on the face" — the correct behaviour for ceiling/free
- * pictograms and any wall symbol already centred on its ink.
+ * the far side of a thin partition. `pictogramBaselineY` DERIVES the local y
+ * that should land exactly on the wall face from the shapes themselves — the
+ * greatest y any shape's ink reaches — and `deviceWorldPlacement` shifts the
+ * whole symbol outward, into the room, by `baselineY - PICTOGRAM_CENTER`
+ * inches so that y lands on the face instead of the box centre. Deriving it
+ * (rather than hand-maintaining a lookup table) means the baseline can never
+ * silently disagree with the shapes it is meant to describe.
  */
 
-/** One drawable shape of a pictogram, in the 12×12 symbol coordinate box. */
+/**
+ * One drawable shape of a pictogram, in the 12×12 symbol coordinate box.
+ *
+ * A `path`'s ink extent cannot be read off its `d` string, so it carries an
+ * authored `inkMaxY` instead — see `pictogramBaselineY`.
+ */
 export type PictogramShape =
   | { kind: 'circle'; cx: number; cy: number; r: number; fill?: boolean }
   | { kind: 'line'; x1: number; y1: number; x2: number; y2: number }
   | { kind: 'polyline'; points: readonly [number, number][]; closed?: boolean }
-  | { kind: 'path'; d: string }
+  | { kind: 'path'; d: string; inkMaxY?: number }
   | { kind: 'rect'; x: number; y: number; w: number; h: number; fill?: boolean }
   | { kind: 'text'; x: number; y: number; text: string; size: number }
 
@@ -67,7 +71,9 @@ export const DEVICE_PICTOGRAMS: Record<DeviceType, readonly PictogramShape[]> = 
     { kind: 'line', x1: 3.17, y1: 8.83, x2: 8.83, y2: 3.17 },
   ],
   wall_light: [
-    { kind: 'path', d: 'M 2.2 9 A 3.8 3.8 0 0 1 9.8 9' },
+    // The arc bulges toward −y between two endpoints at y = 9, so its ink
+    // never reaches past that y — hence the authored `inkMaxY: 9`.
+    { kind: 'path', d: 'M 2.2 9 A 3.8 3.8 0 0 1 9.8 9', inkMaxY: 9 },
     { kind: 'line', x1: 2.2, y1: 9, x2: 9.8, y2: 9 },
     { kind: 'line', x1: 4, y1: 6.6, x2: 8, y2: 8.6 },
     { kind: 'line', x1: 8, y1: 6.6, x2: 4, y2: 8.6 },
@@ -151,32 +157,57 @@ export const DEVICE_PICTOGRAMS: Record<DeviceType, readonly PictogramShape[]> = 
 }
 
 /**
- * Local y that lands on the wall face, per type — only listed for wall-mounted
- * pictograms whose ink is not already centred on the face (see the module
- * docstring). Absent entries fall back to `PICTOGRAM_CENTER` via
- * `pictogramBaselineY`, which also correctly leaves ceiling/free pictograms
- * (never wall-anchored) and `baseboard_heater` (drawn as its own oriented
- * rectangle, not this box) unshifted.
+ * The greatest local y a single shape's ink reaches — the wall-facing edge,
+ * since +y points into the wall (see the module docstring). Every kind but
+ * `path` reads this straight off its own drawn coordinates; `path` cannot, so
+ * it relies on its authored `inkMaxY`.
  */
-const PICTOGRAM_BASELINE_Y: Partial<Record<DeviceType, number>> = {
-  outlet_gfci: 9,
-  switch: 11.5,
-  switch_3way: 11.5,
-  wall_light: 9,
-  thermostat: 9.6,
-  vacuum_inlet: 11.5,
-  network_jack: 9.6,
-  panel: 9,
-  feed_up: 10.4,
-  feed_down: 10.4,
+function shapeInkMaxY(shape: PictogramShape): number {
+  switch (shape.kind) {
+    case 'circle':
+      return shape.cy + shape.r
+    case 'line':
+      return Math.max(shape.y1, shape.y2)
+    case 'polyline':
+      return Math.max(...shape.points.map(([, y]) => y))
+    case 'rect':
+      return shape.y + shape.h
+    case 'text':
+      // `dominant-baseline="central"` centres the glyph on `y`, so its ink
+      // extends about half the font size below the anchor.
+      return shape.y + shape.size / 2
+    case 'path':
+      if (shape.inkMaxY === undefined) {
+        throw new Error(
+          `pictogram path "${shape.d}" is missing inkMaxY — its ink extent cannot be derived ` +
+            'from `d` and must be authored explicitly',
+        )
+      }
+      return shape.inkMaxY
+  }
+}
+
+/**
+ * A pictogram's maximum ink y over its whole shape list — the wall-facing
+ * edge, since +y points into the wall (see the module docstring). NOT
+ * clamped; see `pictogramBaselineY` for the clamped, per-type baseline this
+ * feeds.
+ */
+export function pictogramInkMaxY(shapes: readonly PictogramShape[]): number {
+  return Math.max(...shapes.map(shapeInkMaxY))
 }
 
 /**
  * The local y (in the 12×12 symbol box) that should sit exactly on the wall
- * face for a wall-mounted device of `type`. `PICTOGRAM_CENTER` when `type` has
- * no baseline recorded above, meaning the pictogram is already centred on the
- * face and needs no outward shift.
+ * face for a wall-mounted device of `type`: `pictogramInkMaxY` over the
+ * type's own shapes, derived rather than hand-maintained so it can never
+ * disagree with them.
+ *
+ * Clamped to at least `PICTOGRAM_CENTER` — a symbol whose ink sits entirely
+ * above the box centre (e.g. a ceiling/free pictogram, or any wall symbol
+ * already centred on its ink) must stay centred on the face rather than being
+ * pulled INTO the wall.
  */
 export function pictogramBaselineY(type: DeviceType): number {
-  return PICTOGRAM_BASELINE_Y[type] ?? PICTOGRAM_CENTER
+  return Math.max(pictogramInkMaxY(DEVICE_PICTOGRAMS[type]), PICTOGRAM_CENTER)
 }

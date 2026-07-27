@@ -254,14 +254,17 @@ function renderDevice(device: Device, walls: readonly Wall[], color: string): st
       `<polygon points="${pointsAttr(placement.footprintRect)}" fill="none" stroke="${color}" stroke-width="${1.2 * DEVICE_STROKE_IN}" />`,
     )
   }
-  const { glyphPosition, angleDeg } = placement
+  const { glyphAnchor, glyphOffsetIn, angleDeg } = placement
   // The pictogram box is authored on [0,12]^2 with the anchor at (6,6); shift it
-  // so (6,6) lands on the world glyph position, then rotate about that anchor.
+  // so (6,6) lands on the world glyph anchor, then rotate about that anchor.
+  // The export never takes the D4 legibility clamp (scale is fixed at 1), but
+  // the baseline offset still composes INSIDE it — same rule as the canvas
+  // (`DevicesLayer.vue`) — so the two can never drift apart.
   const shapes = DEVICE_PICTOGRAMS[device.type]
     .map((shape) => renderPictogramShape(shape, color))
     .join('')
   out.push(
-    `<g transform="translate(${num(glyphPosition.x)} ${num(glyphPosition.y)}) rotate(${num(angleDeg)}) translate(-6 -6)">${shapes}</g>`,
+    `<g transform="translate(${num(glyphAnchor.x)} ${num(glyphAnchor.y)}) rotate(${num(angleDeg)}) scale(1) translate(0 ${num(-glyphOffsetIn)}) translate(-6 -6)">${shapes}</g>`,
   )
   return out
 }
