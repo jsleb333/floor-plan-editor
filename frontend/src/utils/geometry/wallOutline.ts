@@ -113,12 +113,7 @@ export function wallFacePolylines(input: WallGeometryInput): WallFacePolylines {
   if (!(input.thicknessIn > 0)) {
     throw new RangeError(`Wall thickness must be positive, got ${input.thicknessIn}`)
   }
-  let points = dedupeConsecutive(input.vertices, false)
-  let closed = input.closed ?? false
-  if (points.length >= 2 && distance(points[0], points[points.length - 1]) <= EPSILON) {
-    points = points.slice(0, -1)
-    closed = true
-  }
+  const { points, closed } = wallSpine(input)
   if (points.length < (closed ? 3 : 2)) return { left: [], right: [], closed }
 
   const [leftDistance, rightDistance] = wallFaceOffsets(input.reference, input.thicknessIn)
@@ -127,6 +122,31 @@ export function wallFacePolylines(input: WallGeometryInput): WallFacePolylines {
     right: offsetPolyline(points, rightDistance, closed),
     closed,
   }
+}
+
+/** A wall's spine as the offset routines see it: deduped, ring-normalized. */
+export interface WallSpine {
+  /** Distinct vertices; for a ring, without the repeated first vertex. */
+  points: Point[]
+  /** True when the chain is a ring, whether declared or implied by a repeated last vertex. */
+  closed: boolean
+}
+
+/**
+ * Normalizes a wall's stored vertices the way the offset routines do: drops
+ * consecutive duplicates and folds a repeated last vertex into `closed`.
+ *
+ * Face polylines index-align with this spine, so anything mapping between the
+ * two (the wall network's end frames) must normalize through here rather than
+ * reading `input.vertices` directly.
+ */
+export function wallSpine(input: WallGeometryInput): WallSpine {
+  const points = dedupeConsecutive(input.vertices, false)
+  const closed = input.closed ?? false
+  if (points.length >= 2 && distance(points[0], points[points.length - 1]) <= EPSILON) {
+    return { points: points.slice(0, -1), closed: true }
+  }
+  return { points, closed }
 }
 
 /** Signed offsets `[leftFace, rightFace]` from the reference line (positive = left of travel). */
