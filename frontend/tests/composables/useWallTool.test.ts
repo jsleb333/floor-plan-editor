@@ -6,6 +6,7 @@ import { useSnapping } from '@/composables/useSnapping'
 import { useWallTool } from '@/composables/useWallTool'
 import type { UseWallToolReturn } from '@/composables/useWallTool'
 import type { Joint, Wall } from '@/types/plan'
+import { resolveWallNetwork } from '@/utils/geometry'
 import { makeWall } from '../helpers/planFactory'
 
 interface Harness {
@@ -18,6 +19,8 @@ interface Harness {
 
 interface HarnessOverrides {
   walls?: Wall[]
+  /** Supplies the resolved network, making the walls' surfaces snappable. */
+  surfaces?: boolean
   grid?: boolean
   angle?: boolean
   wallSnaps?: boolean
@@ -31,6 +34,7 @@ function makeTool(overrides: HarnessOverrides = {}): Harness {
   const walls: Ref<readonly Wall[]> = ref(overrides.walls ?? [])
   const snapping = useSnapping({
     walls,
+    network: overrides.surfaces === true ? ref(resolveWallNetwork(walls.value, [])) : undefined,
     pixelsPerInch: ref(1),
     settings: {
       grid: ref(overrides.grid ?? true),
@@ -622,5 +626,57 @@ describe('useWallTool ids', () => {
     tool.handleKey('Enter')
     expect(committed).toHaveLength(2)
     expect(committed[0].id).not.toBe(committed[1].id)
+  })
+})
+
+describe('useWallTool relations', () => {
+  const SHELL = makeWall({
+    id: 'shell',
+    thickness_in: 12,
+    vertices: [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+    ],
+  })
+
+  it('starting on a wall surface lands the endpoint on the surface and records a T', () => {
+    const { tool, committed, committedJoints } = makeTool({ walls: [SHELL], surfaces: true })
+    // Aim just outside the shell's lower surface (y = 6), 6" from its spine, and
+    // clear of the spine midpoint at x = 100, which is still a point target.
+    tool.onClick({ x: 60, y: 8 })
+    tool.onClick({ x: 60, y: 120 })
+    tool.handleKey('Enter')
+
+    // The stored endpoint is where the wall really ends: on the surface, not 6"
+    // inside the shell on its spine.
+    expect(committed[0].vertices[0]).toEqual({ x: 60, y: 6 })
+    expect(committedJoints[0]).toEqual([
+      {
+        id: expect.any(String),
+        kind: 'tee',
+        end: { wall_id: committed[0].id, end: 'start' },
+        host: { wall_id: 'shell', segment_index: 0 },
+      },
+    ])
+  })
+
+  it('starting at a wall end records a corner naming both ends', () => {
+    const { tool, committed, committedJoints } = makeTool({ walls: [SHELL], surfaces: true })
+    tool.onClick({ x: 199, y: 1 })
+    tool.onClick({ x: 200, y: 120 })
+    tool.handleKey('Enter')
+
+    expect(committed[0].vertices[0]).toEqual({ x: 200, y: 0 })
+    expect(committedJoints[0]).toEqual([
+      {
+        id: expect.any(String),
+        kind: 'corner',
+        ends: [
+          { wall_id: 'shell', end: 'end' },
+          { wall_id: committed[0].id, end: 'start' },
+        ],
+        rule: 'miter',
+      },
+    ])
   })
 })

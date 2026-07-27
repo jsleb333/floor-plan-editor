@@ -17,6 +17,7 @@ import { formatFeetInches, parseFeetInches } from '@/utils/units'
 
 import type {
   SnapChainContext,
+  SnapTarget,
   SnapGuide,
   SnapMarkerKind,
   SnapResult,
@@ -147,6 +148,9 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
 
   let startAttachment: WallSnapAttachment | null = null
   let lastAttachment: WallSnapAttachment | null = null
+  /** What the first and most recent clicks captured, for the relations to record. */
+  let startTarget: SnapTarget | null = null
+  let lastTarget: SnapTarget | null = null
   // Whether the user explicitly picked a thickness since the last arm; an
   // explicit pick always wins and suppresses the smart presets (spec S1d).
   let manualOverride = false
@@ -260,12 +264,20 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     reference.value = REFERENCE_CYCLE[(index + 1) % REFERENCE_CYCLE.length]
   }
 
-  function pushVertex(point: Point, attachment: WallSnapAttachment | null): void {
+  function pushVertex(
+    point: Point,
+    attachment: WallSnapAttachment | null,
+    target: SnapTarget | null = null,
+  ): void {
     const chain = vertices.value
     const last = chain[chain.length - 1]
     if (last && distance(last, point) <= EPSILON) return
-    if (chain.length === 0) startAttachment = attachment
+    if (chain.length === 0) {
+      startAttachment = attachment
+      startTarget = target
+    }
     lastAttachment = attachment
+    lastTarget = target
     vertices.value = [...chain, { ...point }]
   }
 
@@ -275,7 +287,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
       closeChain()
       return
     }
-    pushVertex(snap.point, snap.attachment)
+    pushVertex(snap.point, snap.attachment, snap.target)
     // Landing on an existing wall terminates the chain there (spec S3a): the
     // wall has reached existing geometry, no explicit finish needed. The
     // remaining markers are all wall snaps ('close' returned above).
@@ -294,6 +306,7 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
       // real chain end (only possible in free-draw); drop it before finishing.
       vertices.value = chain.slice(0, -1)
       lastAttachment = null
+      lastTarget = null
     }
     finish()
   }
@@ -332,8 +345,12 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
   function commitWall(wallVertices: Point[], closed: boolean): void {
     const id = crypto.randomUUID()
     const joints: Joint[] = []
-    if (startAttachment) joints.push(teeJoint(id, 'start', startAttachment))
-    if (!closed && lastAttachment) joints.push(teeJoint(id, 'end', lastAttachment))
+    const startJoint = jointFor(id, 'start', startTarget, startAttachment)
+    if (startJoint) joints.push(startJoint)
+    if (!closed) {
+      const endJoint = jointFor(id, 'end', lastTarget, lastAttachment)
+      if (endJoint) joints.push(endJoint)
+    }
     commit(
       {
         id,
@@ -412,6 +429,8 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     inputBuffer.value = ''
     startAttachment = null
     lastAttachment = null
+    startTarget = null
+    lastTarget = null
   }
 
   function cancel(): void {
@@ -442,6 +461,47 @@ export function useWallTool(options: UseWallToolOptions): UseWallToolReturn {
     deactivate,
     arm,
   }
+}
+
+/**
+ * The relation to record for one end of a new wall (`docs/WALL_NETWORK.md` §6).
+ *
+ * A captured wall END makes a corner — the two spines meet, so their faces
+ * mitre. A captured SURFACE makes a T, with the endpoint already sitting on the
+ * surface rather than reaching to the host's spine. A spine projection with no
+ * surface target is still a T, from the pre-network snap path.
+ *
+ * `surface-end` is deliberately absent: continuing a wall flush needs the new
+ * wall's own direction to know which of its surfaces is shared, and that is not
+ * known until the next click.
+ */
+function jointFor(
+  wallId: string,
+  end: WallEnd,
+  target: SnapTarget | null,
+  attachment: WallSnapAttachment | null,
+): Joint | null {
+  if (target?.kind === 'wall-end') {
+    return {
+      id: crypto.randomUUID(),
+      kind: 'corner',
+      ends: [
+        { wall_id: target.wallId, end: target.end },
+        { wall_id: wallId, end },
+      ],
+      rule: 'miter',
+    }
+  }
+  if (target?.kind === 'surface') {
+    return {
+      id: crypto.randomUUID(),
+      kind: 'tee',
+      end: { wall_id: wallId, end },
+      host: { wall_id: target.wallId, segment_index: target.segmentIndex },
+    }
+  }
+  if (attachment) return teeJoint(wallId, end, attachment)
+  return null
 }
 
 /**

@@ -21,7 +21,8 @@ import type {
   Wire,
 } from '@/types/plan'
 import { pickNextCircuitColor } from '@/utils/circuits'
-import { deriveJoints, wallIdsOf, wallSegmentSpan } from '@/utils/geometry'
+import { deriveJoints, resolveWallNetwork, wallIdsOf, wallSegmentSpan } from '@/utils/geometry'
+import type { ResolvedNetwork } from '@/utils/geometry'
 import type { PresetListName } from '@/utils/presetLists'
 import { DEFAULT_DISPLAY_PRECISION_IN } from '@/utils/units'
 
@@ -436,6 +437,16 @@ export const useEditorStore = defineStore('editor', () => {
     }
     return ids
   }
+
+  /**
+   * The resolved wall network (`docs/WALL_NETWORK.md`): the one derived geometry
+   * the renderer, snapping, export and hit-testing all read, memoized on
+   * `documentVersion` so a document change resolves it once for everybody.
+   */
+  const wallNetwork = computed<ResolvedNetwork>(() => {
+    void documentVersion.value
+    return resolveWallNetwork(document.value?.walls ?? [], document.value?.joints ?? [])
+  })
 
   const selectedWallIds = computed<ReadonlySet<string>>(() => selectedIdsOfKind('wall'))
   const selectedOpeningIds = computed<ReadonlySet<string>>(() => selectedIdsOfKind('opening'))
@@ -970,6 +981,7 @@ export const useEditorStore = defineStore('editor', () => {
     canUndo,
     canRedo,
     selection,
+    wallNetwork,
     selectedWallIds,
     selectedOpeningIds,
     selectedStairsIds,

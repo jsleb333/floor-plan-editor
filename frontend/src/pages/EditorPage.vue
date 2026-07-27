@@ -248,6 +248,7 @@ const scrollMode = useScrollMode()
 const snapping = useSnapping({
   walls: documentWalls,
   joints: documentJoints,
+  network: computed(() => editorStore.wallNetwork),
   pixelsPerInch,
   settings: snapSettings,
 })

@@ -5,6 +5,7 @@ import type { Ref } from 'vue'
 import { useSnapping } from '@/composables/useSnapping'
 import type { SnapChainContext, UseSnappingReturn } from '@/composables/useSnapping'
 import type { Joint, Wall } from '@/types/plan'
+import { resolveWallNetwork } from '@/utils/geometry'
 import { makeWall } from '../helpers/planFactory'
 
 interface SnappingOverrides {
@@ -12,6 +13,8 @@ interface SnappingOverrides {
   angle?: boolean
   walls?: boolean
   pixelsPerInch?: number
+  /** Supplies the resolved network, which is what makes wall surfaces snappable. */
+  surfaces?: boolean
 }
 
 /** Snap engine over the given walls; pixelsPerInch defaults to 1 (threshold = 10"). */
@@ -24,6 +27,7 @@ function makeSnapping(
   return useSnapping({
     walls: wallsRef,
     joints: ref<readonly Joint[]>(joints),
+    network: overrides.surfaces === true ? ref(resolveWallNetwork(walls, joints)) : undefined,
     pixelsPerInch: ref(overrides.pixelsPerInch ?? 1),
     settings: {
       grid: ref(overrides.grid ?? true),
@@ -503,5 +507,80 @@ describe('useSnapping alignment guides (S1e)', () => {
     // Cursor 282" from the nearest vertex; capture is 250px / 1 px-per-inch.
     const result = snapping.resolve({ x: 1.5, y: 18 }, null, false)
     expect(result.alignmentGuides).toHaveLength(0)
+  })
+})
+
+describe('useSnapping wall surfaces', () => {
+  /** 12" shell running east on y = 0: surfaces at y = -6 and y = +6. */
+  const SHELL = makeWall({
+    id: 'shell',
+    thickness_in: 12,
+    vertices: [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+    ],
+  })
+
+  it('captures a thick wall by its surface, which its spine is too far away to do', () => {
+    // Pointing 1" outside the surface, 7" from the spine: beyond the 10" test
+    // threshold here it would work either way, so squeeze the threshold to 3".
+    const overrides = { pixelsPerInch: 10 / 3, grid: false, angle: false, surfaces: true }
+    const onSurface = makeSnapping([SHELL], overrides).resolve({ x: 50, y: -7 }, null, false)
+
+    expect(onSurface.point).toEqual({ x: 50, y: -6 })
+    expect(onSurface.target).toEqual({
+      kind: 'surface',
+      wallId: 'shell',
+      side: 'left',
+      segmentIndex: 0,
+    })
+
+    // Without the network the only target is the invisible spine, 7" away.
+    const spineOnly = makeSnapping([SHELL], { ...overrides, surfaces: false }).resolve(
+      { x: 50, y: -7 },
+      null,
+      false,
+    )
+    expect(spineOnly.target).toBeNull()
+    expect(spineOnly.point).not.toEqual({ x: 50, y: -6 })
+  })
+
+  it('reports the visible corner of a surface as a continuation target', () => {
+    const result = makeSnapping([SHELL], { grid: false, angle: false, surfaces: true }).resolve(
+      { x: 202, y: -5 },
+      null,
+      false,
+    )
+
+    expect(result.point).toEqual({ x: 200, y: -6 })
+    expect(result.target).toEqual({
+      kind: 'surface-end',
+      wallId: 'shell',
+      side: 'left',
+      end: 'end',
+      segmentIndex: 0,
+    })
+  })
+
+  it('picks the nearest point target, so a spine end still wins when it is closer', () => {
+    const result = makeSnapping([SHELL], { grid: false, angle: false, surfaces: true }).resolve(
+      { x: 201, y: 1 },
+      null,
+      false,
+    )
+
+    expect(result.point).toEqual({ x: 200, y: 0 })
+    expect(result.target).toEqual({ kind: 'wall-end', wallId: 'shell', end: 'end' })
+  })
+
+  it('keeps an angle-constrained segment on its ray when it lands on a surface', () => {
+    const snapping = makeSnapping([SHELL], { grid: false, surfaces: true })
+    // Drawing north from below, drifting 2" east: the segment must stay vertical
+    // and still land on the shell's near surface.
+    const result = snapping.resolve({ x: 52, y: 12 }, chain([50, 60], [50, 60], 1), false)
+
+    expect(result.point.x).toBeCloseTo(50)
+    expect(result.point.y).toBeCloseTo(6)
+    expect(result.target?.kind).toBe('surface')
   })
 })
