@@ -16,6 +16,7 @@ import ExportDialog from '@/components/editor/ExportDialog.vue'
 import EditorStatusBar from '@/components/editor/EditorStatusBar.vue'
 import EditorTopBar from '@/components/editor/EditorTopBar.vue'
 import LabelsLayer from '@/components/editor/LabelsLayer.vue'
+import ModeSwitcher from '@/components/editor/ModeSwitcher.vue'
 import OpeningsLayer from '@/components/editor/OpeningsLayer.vue'
 import SelectionOverlay from '@/components/editor/SelectionOverlay.vue'
 import ShortcutOverlay from '@/components/editor/ShortcutOverlay.vue'
@@ -26,8 +27,15 @@ import ViewportCanvas from '@/components/editor/ViewportCanvas.vue'
 import WallToolOverlay from '@/components/editor/WallToolOverlay.vue'
 import WallsLayer from '@/components/editor/WallsLayer.vue'
 import WiresLayer from '@/components/editor/WiresLayer.vue'
-import { TOOLS, armedDeviceTypeFor, startupToolFor } from '@/components/editor/tools'
-import type { ToolId } from '@/components/editor/tools'
+import {
+  MODES,
+  TOOLS,
+  armedDeviceTypeFor,
+  modeForTool,
+  startupStateFor,
+  toolsForMode,
+} from '@/components/editor/tools'
+import type { ModeId, ToolId } from '@/components/editor/tools'
 import { useCalibrateTool } from '@/composables/useCalibrateTool'
 import { useCircuitValidation } from '@/composables/useCircuitValidation'
 import { useDeviceTool } from '@/composables/useDeviceTool'
@@ -104,14 +112,26 @@ const ARROW_NUDGES: Record<string, { dx: number; dy: number }> = {
 /** How long a transient status-bar notice stays visible (spec §6.2, quiet feedback). */
 const STATUS_NOTICE_MS = 4000
 
+/**
+ * Opacity structure renders at in Electrical mode (spec E10, context dimming),
+ * so devices and wires read first. Dimmed elements stay selectable and
+ * snappable — opacity never touches hit testing.
+ */
+const STRUCTURE_DIM_OPACITY = 0.4
+
+/** Digits the Wire tool reads as "make circuit N active" (spec W1). */
+const CIRCUIT_DIGIT_KEY = /^[1-9]$/
+
 const route = useRoute()
 const editorStore = useEditorStore()
 const layersStore = useLayersStore()
 const deviceMruStore = useDeviceMruStore()
 const { plan, document: planDocument, saveState, saveError } = storeToRefs(editorStore)
-const { validation } = useCircuitValidation()
+const { validation, warningCount } = useCircuitValidation()
 
 const loadState = ref<LoadState>({ status: 'loading' })
+/** The workspace mode: it scopes the tool rail and the chorded letters (spec E10). */
+const activeMode = ref<ModeId>('structure')
 const activeTool = ref<ToolId>('select')
 const cursorWorld = ref<Point | null>(null)
 const currentViewport = ref<Viewport | null>(null)
@@ -121,6 +141,12 @@ const canvas = ref<InstanceType<typeof ViewportCanvas> | null>(null)
 
 const planId = computed(() => planIdFromRoute(route))
 const zoomPercent = computed(() => Math.round((currentViewport.value?.zoom ?? 1) * 100))
+/** The tools the rail offers in the active mode (spec E10, §6.1). */
+const railTools = computed(() => toolsForMode(activeMode.value))
+/** Structure fades behind the electrical layout while wiring (spec E10). */
+const structureOpacity = computed(() =>
+  activeMode.value === 'electrical' ? STRUCTURE_DIM_OPACITY : 1,
+)
 const thicknessPresetsIn = computed<readonly number[]>(
   () => planDocument.value?.thickness_presets_in ?? [],
 )
@@ -463,7 +489,11 @@ async function load(): Promise<void> {
     currentViewport.value = loaded.document.viewport
     emptyStateDismissed.value = false
     loadState.value = { status: 'ready' }
-    applyStartupTool(startupToolFor(loaded.document))
+    const startup = startupStateFor(loaded.document)
+    // Restoring a session is not a user mode switch: the mode is adopted
+    // directly, keeping `setMode`'s selection reset out of the way.
+    activeMode.value = startup.mode
+    applyStartupTool(startup.tool)
   } catch (error) {
     loadState.value = {
       status: 'error',
@@ -485,6 +515,20 @@ function applyStartupTool(tool: ToolId): void {
     return
   }
   activeTool.value = tool
+}
+
+/**
+ * Switches workspace mode (spec E10). The switch lands on Select with an
+ * empty selection so the new mode opens on its overview, and drops any
+ * circuit isolation: an isolated canvas whose isolate toggle lives in a mode
+ * the user just left is a trap.
+ */
+function setMode(mode: ModeId): void {
+  if (activeMode.value === mode) return
+  activeMode.value = mode
+  activeTool.value = 'select'
+  editorStore.clearSelection()
+  editorStore.clearIsolation()
 }
 
 function showStatusNotice(message: string): void {
@@ -795,6 +839,24 @@ function handleSelectToolKey(event: KeyboardEvent): boolean {
 }
 
 /**
+ * Digits 1–9 make circuit N active while the Wire tool is armed (spec W1),
+ * echoed by the status bar's circuit chip. A digit past the end of the list is
+ * still consumed — the wire tool has no other reading for it — with a notice
+ * saying there is nothing there.
+ */
+function handleWireCircuitDigit(key: string): boolean {
+  if (!CIRCUIT_DIGIT_KEY.test(key)) return false
+  const circuit = documentCircuits.value[Number(key) - 1]
+  if (!circuit) {
+    showStatusNotice(`No circuit ${key}`)
+    return true
+  }
+  editorStore.setActiveCircuit(circuit.id)
+  showStatusNotice(`Active circuit — ${circuit.name}`)
+  return true
+}
+
+/**
  * Esc ladder with a tool armed (specs E4/E8): the tool first cancels its
  * in-progress action, then the first free Esc clears the selection back to
  * pure placement, and only after that Esc falls through to the tool's mode
@@ -828,6 +890,7 @@ function handleActiveToolKey(event: KeyboardEvent): boolean {
       }
       return false
     case 'wire':
+      if (handleWireCircuitDigit(event.key)) return true
       if (wireTool.handleKey(event.key)) return true
       if (event.key === 'Escape') {
         activeTool.value = 'select'
@@ -913,6 +976,9 @@ useToolShortcuts(
     activeTool.value = id
   },
   {
+    modes: MODES,
+    activeMode,
+    onSelectMode: setMode,
     suppress: (event) =>
       (activeTool.value === 'wall' &&
         (wallDrawing.value || wallInputBuffer.value !== '') &&
@@ -986,10 +1052,25 @@ watch(activeTool, (tool, previous) => {
     })
   }
   if (previous === 'calibrate' && tool !== 'calibrate') calibrateTool.deactivate()
+  // A tool armed from outside its mode pulls the mode along (spec E10) — e.g.
+  // the underlay inspector's Recalibrate button arming Calibrate while
+  // Electrical is active. A follow, not a user switch: the selection stands.
+  const definition = TOOLS.find((candidate) => candidate.id === tool)
+  if (definition && !definition.modes.includes(activeMode.value)) {
+    activeMode.value = modeForTool(tool)
+  }
   // Persist the tool choice into the document (spec P4). Like the viewport,
   // it rides the debounced autosave and never enters the undo history.
   if (planDocument.value && planDocument.value.active_tool !== tool) {
     editorStore.mutate({ type: 'setActiveTool', toolId: tool })
+  }
+})
+
+// Persist the mode alongside the tool (spec P4/E10): same debounced autosave,
+// same absence from the undo history.
+watch(activeMode, (mode) => {
+  if (planDocument.value && planDocument.value.active_mode !== mode) {
+    editorStore.mutate({ type: 'setActiveMode', modeId: mode })
   }
 })
 
@@ -1026,7 +1107,7 @@ onBeforeUnmount(() => {
     />
 
     <div class="flex min-h-0 flex-1">
-      <ToolRail :tools="TOOLS" :active-tool="activeTool" @select="activeTool = $event" />
+      <ToolRail :tools="railTools" :active-tool="activeTool" @select="activeTool = $event" />
 
       <main class="relative min-w-0 flex-1" aria-label="Canvas">
         <ViewportCanvas
@@ -1044,9 +1125,13 @@ onBeforeUnmount(() => {
             <UnderlayLayer :hairline="hairline" :size="underlayImageSize" />
           </template>
           <template #default="{ hairline }">
-            <StairsLayer :hairline="hairline" :preview="stairsPreview" />
-            <WallsLayer :hairline="hairline" :preview-wall="wallReferencePreview" />
-            <OpeningsLayer :hairline="hairline" :preview="openingPreview" />
+            <!-- Structure dims behind the electrical layout (spec E10); the
+                 dimming is visual only — hit testing is untouched. -->
+            <g :opacity="structureOpacity">
+              <StairsLayer :hairline="hairline" :preview="stairsPreview" />
+              <WallsLayer :hairline="hairline" :preview-wall="wallReferencePreview" />
+              <OpeningsLayer :hairline="hairline" :preview="openingPreview" />
+            </g>
             <ControlLinksLayer
               :hairline="hairline"
               :armed-center="controlLinkArmedCenter"
@@ -1118,6 +1203,12 @@ onBeforeUnmount(() => {
             Retry
           </button>
         </div>
+
+        <ModeSwitcher
+          class="absolute top-3 left-1/2 z-10 -translate-x-1/2"
+          :active-mode="activeMode"
+          @select="setMode"
+        />
 
         <EditorEmptyState v-if="showEmptyState" @start-drawing="emptyStateDismissed = true" />
 
@@ -1214,9 +1305,11 @@ onBeforeUnmount(() => {
       :notice="statusNotice"
       :active-circuit-name="activeTool === 'wire' ? (activeCircuit?.name ?? null) : null"
       :active-circuit-color="activeTool === 'wire' ? (activeCircuit?.color ?? null) : null"
+      :warning-count="warningCount"
       @toggle-snap="toggleSnap"
       @cycle-scroll-mode="cycleScrollMode"
       @show-shortcuts="showShortcuts = true"
+      @open-circuits="setMode('electrical')"
     />
 
     <ExportDialog

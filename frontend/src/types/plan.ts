@@ -207,8 +207,9 @@ export interface Underlay {
 
 /**
  * The versioned plan document — everything the editor persists via autosave.
- * Schema version 8: adds the per-wall `color` override (spec S1f) on top of
- * the v7 per-plan `display_precision_in` override (spec
+ * Schema version 9: adds the persisted `active_mode` (spec P4/E10) on top of
+ * the v8 per-wall `color` override (spec S1f), the v7 per-plan
+ * `display_precision_in` override (spec
  * §5.9 tier 2), the v6 persisted `active_tool` (spec P4/E9), the v5
  * electrical layout — colour-coded `circuits`, the `wires` connecting
  * devices into them (spec §5.6) and the documentary switch `control_links`
