@@ -241,6 +241,20 @@ function removeUnderlay(): void {
       </button>
     </section>
 
+    <section aria-label="Guides layer" class="flex items-center gap-1.5">
+      <span class="text-ink flex-1">Guides</span>
+      <button
+        type="button"
+        :aria-pressed="layersStore.guidesVisible"
+        :aria-label="layersStore.guidesVisible ? 'Hide guides' : 'Show guides'"
+        class="hover:bg-canvas rounded p-1 transition-colors"
+        :class="layersStore.guidesVisible ? 'text-ink' : 'text-ink-faint'"
+        @click="layersStore.guidesVisible = !layersStore.guidesVisible"
+      >
+        <component :is="layersStore.guidesVisible ? Eye : EyeOff" :size="14" aria-hidden="true" />
+      </button>
+    </section>
+
     <p class="text-ink-muted leading-relaxed">
       Per-circuit wire and device visibility lives in the Circuits tab, on each circuit's row.
     </p>

@@ -48,6 +48,7 @@ function baseProps() {
     selectedDimensions: [],
     selectedDevices: [],
     selectedWires: [],
+    selectedGuides: [],
     allDevices: [],
     circuits: [],
     controlLinks: [],

@@ -14,6 +14,7 @@ describe('useLayersStore', () => {
     expect(store.structureVisible).toBe(true)
     expect(store.devicesVisible).toBe(true)
     expect(store.annotationsVisible).toBe(true)
+    expect(store.guidesVisible).toBe(true)
     expect(store.hiddenWireCircuitIds.size).toBe(0)
     expect(store.hiddenDeviceCircuitIds.size).toBe(0)
     // A circuit created after this point needs no registration to be visible.

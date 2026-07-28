@@ -46,7 +46,7 @@ import {
   wireHitDistance,
   sampleWirePoints,
 } from '@/utils/geometry'
-import type { Bounds, DeviceGaps, FaceGap } from '@/utils/geometry'
+import type { Bounds, DeviceGaps, FaceGap, GuideLine } from '@/utils/geometry'
 import {
   deviceAtPoint,
   dimensionAtPoint,
@@ -83,6 +83,8 @@ const LOCK_FLASH_MS = 700
 /** Arrow-key nudge steps (spec E4): 1", or 12" with Shift. */
 const NUDGE_STEP_IN = 1
 const NUDGE_BIG_STEP_IN = 12
+/** Shared empty guide-line list, for hosts that pass no guides (or have them hidden). */
+const NO_GUIDE_LINES: readonly GuideLine[] = []
 
 /** What the editor store must provide; satisfied by `useEditorStore()`. */
 export interface SelectToolStore {
@@ -115,6 +117,15 @@ export interface UseSelectToolOptions {
   wires: Ref<readonly Wire[]>
   /** Whether a circuit's wires are visible; hidden wires are not hit-testable (spec C6). */
   isCircuitWiresVisible: (circuitId: string) => boolean
+  /**
+   * The custom guides as world lines (spec S9), already resolved —
+   * `editor.guideLines`.
+   *
+   * VISIBILITY is the caller's call, exactly as in `useSnapping`: a hidden
+   * guide must not be clickable, so pass an EMPTY array (or omit the option)
+   * whenever the layers toggle has guides off.
+   */
+  guideLines?: Ref<readonly GuideLine[]>
   /** Current tracing underlay of the document (reactive to every mutation). */
   underlay: Ref<Underlay | null>
   /** Natural pixel size of the loaded underlay image (null until loaded). */
@@ -335,6 +346,7 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
     pixelsPerInch,
     snapSettings,
   } = options
+  const guideLines = options.guideLines ?? shallowRef(NO_GUIDE_LINES)
 
   const state: ShallowRef<PointerState> = shallowRef({ mode: 'idle' })
   const inputBuffer = ref('')
@@ -491,10 +503,32 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
   }
 
   /**
+   * The nearest custom guide within the click threshold, or null (spec S9).
+   * Guides are infinite lines, so a click near one is only ever a guide click
+   * when nothing else was under the cursor.
+   */
+  function guideAtPoint(point: Point): GuideLine | null {
+    const radius = thresholdIn(HANDLE_RADIUS_PX)
+    let best: GuideLine | null = null
+    let bestDistance = Infinity
+    for (const line of guideLines.value) {
+      const along = dot(sub(point, line.point), line.dir)
+      const gap = distance(point, add(line.point, scale(line.dir, along)))
+      if (gap <= radius && gap < bestDistance) {
+        best = line
+        bestDistance = gap
+      }
+    }
+    return best
+  }
+
+  /**
    * Topmost element under the cursor. Openings sit on walls, and annotations
    * render above the structure, so they hit before wall bodies; stairs render
    * under walls and hit after them; the underlay sits below everything and
    * hits last (spec U3: lowest priority, and only when unlocked and visible).
+   * Guides come after all of it: they cross the whole plan, so they must never
+   * take a click something real could claim (spec S9).
    */
   function elementAtPoint(point: Point): ElementRef | null {
     const opening = openingAtPoint(point, openings.value, walls.value)
@@ -512,6 +546,8 @@ export function useSelectTool(options: UseSelectToolOptions): UseSelectToolRetur
     const stair = stairsAtPoint(point, stairs.value)
     if (stair) return { kind: 'stairs', id: stair.id }
     if (underlayAtPoint(point)) return { kind: 'underlay', id: UNDERLAY_ELEMENT_ID }
+    const guide = guideAtPoint(point)
+    if (guide) return { kind: 'guide', id: guide.guideId }
     return null
   }
 

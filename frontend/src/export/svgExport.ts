@@ -18,6 +18,8 @@ import { circuitsByDevice, deviceCircuitColor } from '@/utils/circuitMembership'
 import { validatePlan } from '@/utils/circuits'
 import {
   DOOR_DASH_IN,
+  EPSILON,
+  add,
   boundsOfPoints,
   deviceGlyphBox,
   deviceWorldPlacement,
@@ -26,6 +28,8 @@ import {
   labelBounds,
   labelFontSizeIn,
   openingWorldRect,
+  resolveGuideLines,
+  scale,
   stairsArrow,
   arrowHeadStrokes,
   stairsCenter,
@@ -36,7 +40,7 @@ import {
   wireEndpoint,
   wirePathData,
 } from '@/utils/geometry'
-import type { Bounds, ResolvedNetwork } from '@/utils/geometry'
+import type { Bounds, GuideLine, ResolvedNetwork } from '@/utils/geometry'
 import { doorStrokeToPath, polylineToPath, ringsToPath } from '@/utils/svgPath'
 import { formatFeetInches } from '@/utils/units'
 
@@ -50,6 +54,8 @@ import {
   EXPORT_MARGIN_IN,
   EXPORT_WALL_EDGE,
   EXPORT_WALL_FILL,
+  GUIDE_DASH_IN,
+  GUIDE_STROKE_IN,
   STRUCTURE_STROKE_IN,
   TEXT_HALO_STROKE_IN,
   WIRE_STROKE_IN,
@@ -89,6 +95,12 @@ export interface SvgExportOptions {
   includeUnderlay?: boolean
   /** Emit the labels + dimensions group (spec X4). Defaults to true. */
   includeAnnotations?: boolean
+  /**
+   * Emit the custom guides group (spec S9/X4). Defaults to FALSE: guides are
+   * working geometry, like the underlay. Included guides are clipped to the
+   * viewBox and never widen it — an infinite line has no bounds to add.
+   */
+  includeGuides?: boolean
   /** Circuits whose wires to include, or `'all'` (default). */
   circuitIds?: 'all' | readonly string[]
   /** Background fill; `null` for a transparent file. Defaults to the canvas colour. */
@@ -305,6 +317,51 @@ function renderDimension(dimension: Dimension, precisionIn?: number): string[] {
   return out
 }
 
+/**
+ * The visible piece of an infinite guide line: its intersection with the
+ * viewBox rectangle, or `null` when the line misses the page entirely.
+ *
+ * A guide has no endpoints of its own, so the page frame is what gives it two
+ * (spec S9). Solved as the parametric overlap of the two axis slabs, which
+ * handles the axis-parallel guides — the common case — without dividing by zero.
+ */
+function clipGuideToBox(line: GuideLine, box: PlanViewBox): { a: Point; b: Point } | null {
+  let tMin = -Infinity
+  let tMax = Infinity
+  const axes = [
+    { origin: line.point.x, direction: line.dir.x, lo: box.minX, hi: box.minX + box.width },
+    { origin: line.point.y, direction: line.dir.y, lo: box.minY, hi: box.minY + box.height },
+  ]
+  for (const axis of axes) {
+    if (Math.abs(axis.direction) < EPSILON) {
+      // Parallel to this axis: either wholly inside its slab, or wholly outside.
+      if (axis.origin < axis.lo || axis.origin > axis.hi) return null
+      continue
+    }
+    const first = (axis.lo - axis.origin) / axis.direction
+    const second = (axis.hi - axis.origin) / axis.direction
+    tMin = Math.max(tMin, Math.min(first, second))
+    tMax = Math.min(tMax, Math.max(first, second))
+  }
+  if (!(tMin < tMax)) return null
+  return { a: add(line.point, scale(line.dir, tMin)), b: add(line.point, scale(line.dir, tMax)) }
+}
+
+/** The guides that cross the page, as dashed hairlines clipped to it (spec X4). */
+function renderGuides(document: PlanDocument, box: PlanViewBox): string[] {
+  const lines = resolveGuideLines(document.guides, document.walls, wallNetworkOf(document))
+  const out: string[] = []
+  for (const line of lines) {
+    const clipped = clipGuideToBox(line, box)
+    if (!clipped) continue
+    out.push(
+      `<line x1="${num(clipped.a.x)}" y1="${num(clipped.a.y)}" x2="${num(clipped.b.x)}" y2="${num(clipped.b.y)}" ` +
+        `stroke="${EXPORT_INK_MUTED}" stroke-width="${GUIDE_STROKE_IN}" stroke-dasharray="${GUIDE_DASH_IN.join(' ')}" />`,
+    )
+  }
+  return out
+}
+
 /** World-space corners of the underlay image, applying its calibration transform. */
 function underlayCorners(underlay: Underlay, embed: UnderlayPixelSize): Point[] {
   const { origin, rotation_deg: rotationDeg, scale } = underlay.transform
@@ -469,6 +526,7 @@ export function planViewBox(document: PlanDocument, options: SvgExportOptions = 
 export function buildPlanSvg(document: PlanDocument, options: SvgExportOptions = {}): string {
   const includeUnderlay = options.includeUnderlay ?? false
   const includeAnnotations = options.includeAnnotations ?? true
+  const includeGuides = options.includeGuides ?? false
   const background = options.background === undefined ? EXPORT_CANVAS : options.background
   const underlayEmbed = options.underlay ?? null
   const wallsById = new Map(document.walls.map((wall) => [wall.id, wall]))
@@ -519,6 +577,12 @@ export function buildPlanSvg(document: PlanDocument, options: SvgExportOptions =
     renderDevice(device, document.walls, deviceCircuitColor(device, membership) ?? EXPORT_INK),
   )
   groups.push(`<g id="devices">${devices.join('')}</g>`)
+
+  if (includeGuides) {
+    // Excluded by default (spec X4): construction lines are working geometry.
+    const guides = renderGuides(document, { minX, minY, width, height })
+    if (guides.length > 0) groups.push(`<g id="guides">${guides.join('')}</g>`)
+  }
 
   if (includeAnnotations) {
     // Dimension texts honour the plan's display precision (spec §5.9 tier 2)
