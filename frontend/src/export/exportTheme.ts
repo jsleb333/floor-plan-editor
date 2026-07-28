@@ -31,6 +31,10 @@ export const ANNOTATION_STROKE_IN = 0.75
 export const DEVICE_STROKE_IN = 0.7
 /** Wire stroke in world inches. */
 export const WIRE_STROKE_IN = 1.5
+/** Custom guide hairline in world inches — thinner than any real element (spec X4). */
+export const GUIDE_STROKE_IN = 0.4
+/** Guide dash pattern in world inches: the long-short rhythm the canvas draws (spec S9). */
+export const GUIDE_DASH_IN: readonly number[] = [6, 2, 1.5, 2]
 /** Text halo (paint-order stroke) width in world inches for legibility over lines. */
 export const TEXT_HALO_STROKE_IN = 2
 /** Font size in world inches for dimension figures and the stair direction label. */

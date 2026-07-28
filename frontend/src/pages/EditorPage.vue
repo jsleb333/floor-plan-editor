@@ -13,6 +13,7 @@ import DimensionsLayer from '@/components/editor/DimensionsLayer.vue'
 import EditorEmptyState from '@/components/editor/EditorEmptyState.vue'
 import EditorSidePanel from '@/components/editor/EditorSidePanel.vue'
 import ExportDialog from '@/components/editor/ExportDialog.vue'
+import GuidesLayer from '@/components/editor/GuidesLayer.vue'
 import EditorStatusBar from '@/components/editor/EditorStatusBar.vue'
 import EditorTopBar from '@/components/editor/EditorTopBar.vue'
 import LabelsLayer from '@/components/editor/LabelsLayer.vue'
@@ -20,6 +21,7 @@ import OpeningsLayer from '@/components/editor/OpeningsLayer.vue'
 import SelectionOverlay from '@/components/editor/SelectionOverlay.vue'
 import ShortcutOverlay from '@/components/editor/ShortcutOverlay.vue'
 import StairsLayer from '@/components/editor/StairsLayer.vue'
+import TapeToolOverlay from '@/components/editor/TapeToolOverlay.vue'
 import ToolRail from '@/components/editor/ToolRail.vue'
 import UnderlayLayer from '@/components/editor/UnderlayLayer.vue'
 import ViewportCanvas from '@/components/editor/ViewportCanvas.vue'
@@ -40,6 +42,7 @@ import { useSnapSettings } from '@/composables/useSnapSettings'
 import { useSnapping } from '@/composables/useSnapping'
 import type { AlignmentGuidesView, SnapToggleId } from '@/composables/useSnapping'
 import { useStairsTool } from '@/composables/useStairsTool'
+import { useTapeTool } from '@/composables/useTapeTool'
 import { useToolSelection } from '@/composables/useToolSelection'
 import { isTypingTarget, useToolShortcuts } from '@/composables/useToolShortcuts'
 import { BASE_PIXELS_PER_INCH } from '@/composables/useViewport'
@@ -57,6 +60,7 @@ import type {
   Device,
   DeviceType,
   Dimension,
+  Guide,
   Label,
   Opening,
   Point,
@@ -69,6 +73,7 @@ import type {
 import { circuitsByDevice } from '@/utils/circuitMembership'
 import { controlLinkKind } from '@/utils/circuits'
 import { deviceWorldPlacement } from '@/utils/geometry'
+import type { GuideLine } from '@/utils/geometry'
 import { deviceAtPoint } from '@/utils/hitTest'
 import { loadImageSize } from '@/utils/imageSize'
 import type { ImageSize } from '@/utils/imageSize'
@@ -156,6 +161,15 @@ const selectedLabels = computed(() => editorStore.selectedLabels)
 const selectedDimensions = computed(() => editorStore.selectedDimensions)
 const selectedDevices = computed(() => editorStore.selectedDevices)
 const selectedWires = computed(() => editorStore.selectedWires)
+const selectedGuides = computed(() => editorStore.selectedGuides)
+/**
+ * The guides the user can actually see, as world lines (spec S9): hiding the
+ * layer must also stop guides from snapping and from being clickable, so the
+ * toggle is applied once here and the empty list is what the engines receive.
+ */
+const visibleGuideLines = computed<readonly GuideLine[]>(() =>
+  layersStore.guidesVisible ? editorStore.guideLines : [],
+)
 const deviceArmedType = ref<DeviceType | null>(null)
 /** Per-type last-used device draft, edited via `DeviceToolOptions` (spec E8/§6.1). */
 const deviceDraftsByType = ref<Partial<Record<DeviceType, DeviceDraft>>>({})
@@ -246,6 +260,7 @@ const scrollMode = useScrollMode()
 const snapping = useSnapping({
   walls: documentWalls,
   network: computed(() => editorStore.wallNetwork),
+  guideLines: visibleGuideLines,
   pixelsPerInch,
   settings: snapSettings,
 })
@@ -278,6 +293,7 @@ const selectTool = useSelectTool({
   devices: documentDevices,
   wires: documentWires,
   isCircuitWiresVisible: (circuitId) => layersStore.isCircuitAxisVisible(circuitId, 'wires'),
+  guideLines: visibleGuideLines,
   underlay: documentUnderlay,
   underlayImageSize,
   pixelsPerInch,
@@ -388,6 +404,13 @@ const dimensionTool = useDimensionTool({
   ),
 })
 
+const tapeTool = useTapeTool({
+  snapping,
+  walls: documentWalls,
+  commit: (guide) => editorStore.mutate({ type: 'addGuide', guide }),
+  displayPrecisionIn,
+})
+
 const statusInputBuffer = computed(() => {
   if (activeTool.value === 'wall') return wallInputBuffer.value
   if (activeTool.value === 'select') return selectInputBuffer.value
@@ -395,6 +418,7 @@ const statusInputBuffer = computed(() => {
   if (activeTool.value === 'device') return deviceTool.inputBuffer.value
   if (activeTool.value === 'door' || activeTool.value === 'window') return openingInputBuffer.value
   if (activeTool.value === 'stairs') return stairsInputBuffer.value
+  if (activeTool.value === 'measure') return tapeTool.inputBuffer.value
   return ''
 })
 
@@ -414,6 +438,7 @@ const dimensionPreview = computed(() =>
 const devicePreview = computed(() =>
   activeTool.value === 'device' ? deviceTool.preview.value : null,
 )
+const tapePreview = computed(() => (activeTool.value === 'measure' ? tapeTool.preview.value : null))
 
 /** S1e alignment guides of the active drawing tool, feeding the shared overlay. */
 const alignmentGuidesView = computed<AlignmentGuidesView | null>(() => {
@@ -551,6 +576,7 @@ function handleCursorMove(point: Point | null): void {
   openingTool.setCursor(point)
   stairsTool.setCursor(point)
   dimensionTool.setCursor(point)
+  tapeTool.setCursor(point)
   deviceTool.setCursor(point)
   wireTool.setCursor(point)
   if (point && activeTool.value === 'select') selectTool.onPointerMove(point)
@@ -628,6 +654,11 @@ function handleCanvasPress(point: Point, modifiers: { shift: boolean; alt: boole
     case 'device':
       if (!toolSelection.trySelectForEdit('device', point)) deviceTool.onClick(point)
       break
+    case 'measure':
+      // The tape measures from wherever it is clicked (spec S9): every click
+      // belongs to the tool, and a guide under the cursor is not a target.
+      tapeTool.onClick(point)
+      break
     case 'wire':
       wireTool.onClick(point)
       break
@@ -687,6 +718,10 @@ function handleBulkUpdateDevices(devices: Device[]): void {
 
 function handleUpdateWire(wire: Wire): void {
   editorStore.mutate({ type: 'updateWire', wireId: wire.id, wire })
+}
+
+function handleUpdateGuide(guide: Guide): void {
+  editorStore.mutate({ type: 'updateGuide', guideId: guide.id, guide })
 }
 
 function handleArmControlLink(switchId: string): void {
@@ -820,6 +855,9 @@ function handleActiveToolKey(event: KeyboardEvent): boolean {
     case 'dimension':
       if (dimensionTool.handleKey(event.key)) return true
       return event.key === 'Escape' && toolSelection.clearOnEscape()
+    case 'measure':
+      if (tapeTool.handleKey(event.key)) return true
+      return event.key === 'Escape' && toolSelection.clearOnEscape()
     case 'device':
       if (event.key === 'Escape' && toolSelection.clearOnEscape()) return true
       if (deviceTool.handleKey(event.key)) return true
@@ -906,6 +944,7 @@ function setAltEverywhere(held: boolean): void {
   selectTool.setAlt(held)
   stairsTool.setAlt(held)
   dimensionTool.setAlt(held)
+  tapeTool.setAlt(held)
 }
 
 useToolShortcuts(
@@ -926,6 +965,9 @@ useToolShortcuts(
         isBufferKey(event.key)) ||
       (activeTool.value === 'select' &&
         (selectTool.isDragging.value || selectInputBuffer.value !== '') &&
+        isBufferKey(event.key)) ||
+      (activeTool.value === 'measure' &&
+        (tapeTool.isMeasuring.value || tapeTool.inputBuffer.value !== '') &&
         isBufferKey(event.key)) ||
       (activeTool.value === 'calibrate' &&
         calibrateTool.isAwaitingLength.value &&
@@ -972,6 +1014,7 @@ watch(activeTool, (tool, previous) => {
   }
   if (previous === 'stairs' && tool !== 'stairs') stairsTool.deactivate()
   if (previous === 'dimension' && tool !== 'dimension') dimensionTool.deactivate()
+  if (previous === 'measure' && tool !== 'measure') tapeTool.deactivate()
   if (previous === 'device' && tool !== 'device') {
     deviceTool.deactivate()
     deviceArmedType.value = null
@@ -1066,6 +1109,7 @@ onBeforeUnmount(() => {
               :highlight-device-ids="isolationHighlightIds"
               :membership="circuitMembership"
             />
+            <GuidesLayer :hairline="hairline" />
             <LabelsLayer :hairline="hairline" />
             <DimensionsLayer :hairline="hairline" :preview="dimensionPreview" />
             <AlignmentGuidesOverlay
@@ -1095,6 +1139,11 @@ onBeforeUnmount(() => {
             <DeviceToolOverlay
               v-if="activeTool === 'device'"
               :chips="deviceChips"
+              :hairline="hairline"
+            />
+            <TapeToolOverlay
+              v-if="activeTool === 'measure' && tapePreview"
+              :preview="tapePreview"
               :hairline="hairline"
             />
           </template>
@@ -1155,6 +1204,7 @@ onBeforeUnmount(() => {
         :selected-dimensions="selectedDimensions"
         :selected-devices="selectedDevices"
         :selected-wires="selectedWires"
+        :selected-guides="selectedGuides"
         :all-devices="documentDevices"
         :circuits="documentCircuits"
         :control-links="documentControlLinks"
@@ -1188,6 +1238,7 @@ onBeforeUnmount(() => {
         @update-device="handleUpdateDevice"
         @bulk-update-devices="handleBulkUpdateDevices"
         @update-wire="handleUpdateWire"
+        @update-guide="handleUpdateGuide"
         @arm-control-link="handleArmControlLink"
         @remove-control-link="handleRemoveControlLink"
         @arm-device="handleArmDevice"

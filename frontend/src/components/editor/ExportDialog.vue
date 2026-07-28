@@ -31,6 +31,7 @@ const FORMATS: readonly ExportFormat[] = ['svg', 'png', 'json']
 const format = ref<ExportFormat>('svg')
 const includeUnderlay = ref(false)
 const includeAnnotations = ref(true)
+const includeGuides = ref(false)
 const pixelsPerFoot = ref(24)
 const transparentBackground = ref(false)
 const selectedCircuitIds = ref<Set<string>>(new Set(props.visibleCircuitIds))
@@ -41,6 +42,8 @@ const error = ref<string | null>(null)
 const hasUnderlay = computed(
   () => props.document.underlay !== null && props.underlayImageSize !== null,
 )
+/** Guides are offered only when the plan has some (spec S9/X4: off by default). */
+const hasGuides = computed(() => props.document.guides.length > 0)
 const showRasterOptions = computed(() => format.value === 'png')
 const showLayerOptions = computed(() => format.value === 'svg' || format.value === 'png')
 const filename = computed(
@@ -68,6 +71,7 @@ function sharedSvgOptions(underlay: UnderlayEmbed | null): SvgExportOptions {
   return {
     includeUnderlay: includeUnderlay.value && hasUnderlay.value,
     includeAnnotations: includeAnnotations.value,
+    includeGuides: includeGuides.value && hasGuides.value,
     circuitIds: circuitIdsOption(),
     underlay,
   }
@@ -114,6 +118,10 @@ watch(
 
 watch(hasUnderlay, (has) => {
   if (!has) includeUnderlay.value = false
+})
+
+watch(hasGuides, (has) => {
+  if (!has) includeGuides.value = false
 })
 
 function onKeyDown(event: KeyboardEvent): void {
@@ -193,6 +201,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true))
                 :disabled="!hasUnderlay"
               />
               Include underlay image
+            </label>
+
+            <label
+              class="flex items-center gap-2 text-sm"
+              :class="{ 'text-ink-faint': !hasGuides }"
+              :title="hasGuides ? undefined : 'This plan has no guides.'"
+            >
+              <input
+                v-model="includeGuides"
+                type="checkbox"
+                class="accent-accent"
+                :disabled="!hasGuides"
+              />
+              Include guides
             </label>
 
             <div v-if="circuits.length > 0" aria-label="Circuits to include">

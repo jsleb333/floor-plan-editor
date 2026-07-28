@@ -54,7 +54,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   { id: 'dimension', name: 'Dimension', shortcut: 'x', icon: RulerDimensionLine, enabled: true },
   { id: 'device', name: 'Device', shortcut: 'e', icon: Zap, enabled: true },
   { id: 'wire', name: 'Wire', shortcut: 'r', icon: Spline, enabled: true },
-  { id: 'measure', name: 'Measure', shortcut: 'm', icon: Ruler, enabled: false },
+  { id: 'measure', name: 'Tape measure', shortcut: 'm', icon: Ruler, enabled: true },
   { id: 'calibrate', name: 'Calibrate', shortcut: 'c', icon: Crosshair, enabled: true },
 ]
 

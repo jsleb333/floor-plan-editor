@@ -7,6 +7,7 @@ import DeviceInspector from '@/components/editor/DeviceInspector.vue'
 import DevicePicker from '@/components/editor/DevicePicker.vue'
 import DeviceToolOptions from '@/components/editor/DeviceToolOptions.vue'
 import DimensionInspector from '@/components/editor/DimensionInspector.vue'
+import GuideInspector from '@/components/editor/GuideInspector.vue'
 import LabelInspector from '@/components/editor/LabelInspector.vue'
 import LayersPanel from '@/components/editor/LayersPanel.vue'
 import OpeningInspector from '@/components/editor/OpeningInspector.vue'
@@ -31,6 +32,7 @@ import type {
   DeviceType,
   Dimension,
   DoorStyle,
+  Guide,
   Label,
   Opening,
   Stairs,
@@ -105,6 +107,13 @@ const TOOL_HINTS: Partial<Record<ToolId, { title: string; lines: string[] }>> = 
       'A placed dimension stays selected below; click an existing one to edit it. Esc cancels the first point.',
     ],
   },
+  measure: {
+    title: 'Tape measure',
+    lines: [
+      'Click a wall face, corner or empty space; type a value for exact offset/angle.',
+      'The second click places the guide the preview shows; Esc places nothing and leaves the reading. Guides hide from the Layers tab and stay out of exports unless asked for.',
+    ],
+  },
   wire: {
     title: 'Wire',
     lines: [
@@ -164,6 +173,8 @@ const props = defineProps<{
   selectedDimensions: readonly Dimension[]
   selectedDevices: readonly Device[]
   selectedWires: readonly Wire[]
+  /** Selected custom guides (spec S9); one inspects, more than one summarises. */
+  selectedGuides: readonly Guide[]
   /** All devices, for wire endpoint / control-link target labels (spec §5.6, D6). */
   allDevices: readonly Device[]
   /** All circuits, for the wire circuit-reassignment select (spec W2). */
@@ -211,6 +222,7 @@ const emit = defineEmits<{
   'update-device': [device: Device]
   'bulk-update-devices': [devices: Device[]]
   'update-wire': [wire: Wire]
+  'update-guide': [guide: Guide]
   'arm-control-link': [switchId: string]
   'remove-control-link': [linkId: string]
   'arm-device': [type: DeviceType]
@@ -245,6 +257,7 @@ const selectionCount = computed(
     props.selectedDimensions.length +
     props.selectedDevices.length +
     props.selectedWires.length +
+    props.selectedGuides.length +
     (props.selectedUnderlay ? 1 : 0),
 )
 
@@ -343,6 +356,12 @@ const inspectedDimension = computed<Dimension | null>(() =>
     : null,
 )
 
+const inspectedGuide = computed<Guide | null>(() =>
+  toolInspects('guide') && soloSelection.value && props.selectedGuides.length === 1
+    ? props.selectedGuides[0]
+    : null,
+)
+
 const inspectedUnderlay = computed<Underlay | null>(() =>
   toolInspects('underlay') && soloSelection.value && props.selectedUnderlay
     ? props.selectedUnderlay
@@ -380,6 +399,7 @@ const hasInspectedElement = computed(
     inspectedStairs.value !== null ||
     inspectedLabel.value !== null ||
     inspectedDimension.value !== null ||
+    inspectedGuide.value !== null ||
     inspectedUnderlay.value !== null ||
     inspectedDevices.value !== null ||
     inspectedWire.value !== null ||
@@ -551,6 +571,12 @@ const activePlaceholder = computed(
             :dimension="inspectedDimension"
             @update-dimension="emit('update-dimension', $event)"
             @delete-dimension="emit('delete-selection')"
+          />
+          <GuideInspector
+            v-else-if="inspectedGuide"
+            :guide="inspectedGuide"
+            @update-guide="emit('update-guide', $event)"
+            @delete-guide="emit('delete-selection')"
           />
           <UnderlayInspector
             v-else-if="inspectedUnderlay"

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { armedDeviceTypeFor, isRestorableToolId, startupToolFor } from '@/components/editor/tools'
+import {
+  TOOLS,
+  armedDeviceTypeFor,
+  isRestorableToolId,
+  startupToolFor,
+} from '@/components/editor/tools'
 import { makeDevice, makeDocument, makeUnderlay, makeWall } from '../helpers/planFactory'
 
 describe('startupToolFor', () => {
@@ -30,12 +35,15 @@ describe('startupToolFor', () => {
     expect(startupToolFor(document)).toBe('device')
   })
 
-  it('falls back to select when the saved tool is missing, unknown or disabled', () => {
+  it('falls back to select when the saved tool is missing or unknown', () => {
     const walls = [makeWall()]
     expect(startupToolFor(makeDocument({ walls, active_tool: null }))).toBe('select')
     expect(startupToolFor(makeDocument({ walls, active_tool: 'teleport' }))).toBe('select')
-    // 'measure' is a declared tool that is not enabled yet — it must not be restored.
-    expect(startupToolFor(makeDocument({ walls, active_tool: 'measure' }))).toBe('select')
+  })
+
+  it('restores the tape measure, now that it is an enabled tool (spec S9)', () => {
+    const document = makeDocument({ walls: [makeWall()], active_tool: 'measure' })
+    expect(startupToolFor(document)).toBe('measure')
   })
 })
 
@@ -43,9 +51,19 @@ describe('isRestorableToolId', () => {
   it('accepts enabled tool ids and rejects everything else', () => {
     expect(isRestorableToolId('wall')).toBe(true)
     expect(isRestorableToolId('select')).toBe(true)
-    expect(isRestorableToolId('measure')).toBe(false)
+    expect(isRestorableToolId('measure')).toBe(true)
     expect(isRestorableToolId('teleport')).toBe(false)
     expect(isRestorableToolId(null)).toBe(false)
+  })
+})
+
+describe('TOOLS', () => {
+  it('offers the tape measure as an enabled tool on M with the ruler icon (spec S9)', () => {
+    const measure = TOOLS.find((tool) => tool.id === 'measure')
+
+    expect(measure).toMatchObject({ name: 'Tape measure', shortcut: 'm', enabled: true })
+    // Every declared tool now ships, so nothing in the rail is a dead slot.
+    expect(TOOLS.every((tool) => tool.enabled)).toBe(true)
   })
 })
 

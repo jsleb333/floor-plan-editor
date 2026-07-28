@@ -7,7 +7,7 @@ import { useSelectTool } from '@/composables/useSelectTool'
 import type { UseSelectToolReturn } from '@/composables/useSelectTool'
 import type { SnapSettings } from '@/composables/useSnapping'
 import { UNDERLAY_ELEMENT_ID, useEditorStore } from '@/stores/editor'
-import type { PlanDocument, Wall } from '@/types/plan'
+import type { Guide, PlanDocument, Wall } from '@/types/plan'
 import type { ImageSize } from '@/utils/imageSize'
 import { underlayToWorld } from '@/utils/underlay'
 import {
@@ -61,6 +61,7 @@ describe('useSelectTool', () => {
       devices: computed(() => store.document?.devices ?? []),
       wires: computed(() => store.document?.wires ?? []),
       isCircuitWiresVisible: () => true,
+      guideLines: computed(() => store.guideLines),
       underlay: computed(() => store.document?.underlay ?? null),
       underlayImageSize: ref(imageSize),
       pixelsPerInch: ref(2),
@@ -519,6 +520,33 @@ describe('useSelectTool', () => {
     store.undo()
     expect(store.document?.stairs[0]?.origin).toEqual({ x: 200, y: 200 })
     expect(store.canUndo).toBe(false)
+  })
+
+  /** A free horizontal guide 50" below the wall, crossing the whole plan (spec S9). */
+  const GUIDE: Guide = { id: 'g1', kind: 'free', origin: { x: 0, y: 50 }, angle_deg: 0 }
+
+  it('selects a guide only where nothing else was clicked, and deletes it (spec S9)', async () => {
+    const { store, tool } = await setupDocument({ walls: [makeWall({ id: 'a' })], guides: [GUIDE] })
+
+    // The guide crosses the plan, so over the wall the wall still wins.
+    click(tool, 60, 0.5)
+    expect(store.selectedWallIds).toEqual(new Set(['a']))
+
+    // 1" off the guide line; at 2 px/in the 6 px click radius is 3".
+    click(tool, 60, 51)
+    expect([...store.selection.values()]).toEqual([{ kind: 'guide', id: 'g1' }])
+
+    // 10" off it: out of reach, so the click clears the selection instead.
+    click(tool, 60, 60)
+    expect(store.selection.size).toBe(0)
+
+    click(tool, 60, 51)
+    store.deleteSelection()
+    expect(store.document?.guides).toEqual([])
+    expect(store.selection.size).toBe(0)
+
+    store.undo()
+    expect(store.document?.guides).toEqual([GUIDE])
   })
 
   const IMAGE_SIZE: ImageSize = { width: 200, height: 200 }

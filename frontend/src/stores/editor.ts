@@ -89,7 +89,7 @@ export const PASTE_OFFSET_IN = 12
 
 /** Kinds of selectable elements (spec E2). */
 export type ElementKind =
-  'wall' | 'opening' | 'stairs' | 'label' | 'dimension' | 'device' | 'wire' | 'underlay'
+  'wall' | 'opening' | 'stairs' | 'label' | 'dimension' | 'device' | 'wire' | 'guide' | 'underlay'
 
 /** Selection id of the (single) underlay — the document holds at most one. */
 export const UNDERLAY_ELEMENT_ID = 'underlay'
@@ -529,6 +529,7 @@ export const useEditorStore = defineStore('editor', () => {
   const selectedDimensionIds = computed<ReadonlySet<string>>(() => selectedIdsOfKind('dimension'))
   const selectedDeviceIds = computed<ReadonlySet<string>>(() => selectedIdsOfKind('device'))
   const selectedWireIds = computed<ReadonlySet<string>>(() => selectedIdsOfKind('wire'))
+  const selectedGuideIds = computed<ReadonlySet<string>>(() => selectedIdsOfKind('guide'))
 
   function selectedOfCollection<T extends { id: string }>(
     items: readonly T[] | undefined,
@@ -570,6 +571,11 @@ export const useEditorStore = defineStore('editor', () => {
   const selectedWires = computed<Wire[]>(() => {
     void documentVersion.value
     return selectedOfCollection(document.value?.wires, selectedWireIds.value)
+  })
+
+  const selectedGuides = computed<Guide[]>(() => {
+    void documentVersion.value
+    return selectedOfCollection(document.value?.guides, selectedGuideIds.value)
   })
 
   const selectedUnderlay = computed<Underlay | null>(() => {
@@ -976,6 +982,9 @@ export const useEditorStore = defineStore('editor', () => {
     for (const dimensionId of selectedDimensionIds.value) {
       mutate({ type: 'removeDimension', dimensionId })
     }
+    for (const guideId of selectedGuideIds.value) {
+      mutate({ type: 'removeGuide', guideId })
+    }
     for (const wireId of selectedWireIds.value) {
       mutate({ type: 'removeWire', wireId })
     }
@@ -1063,6 +1072,7 @@ export const useEditorStore = defineStore('editor', () => {
       dimension: new Set(doc.dimensions.map((dimension) => dimension.id)),
       device: new Set(doc.devices.map((device) => device.id)),
       wire: new Set(doc.wires.map((wire) => wire.id)),
+      guide: new Set(doc.guides.map((guide) => guide.id)),
       underlay: doc.underlay ? new Set([UNDERLAY_ELEMENT_ID]) : new Set(),
     }
     let changed = false
@@ -1175,6 +1185,7 @@ export const useEditorStore = defineStore('editor', () => {
     selectedDimensionIds,
     selectedDeviceIds,
     selectedWireIds,
+    selectedGuideIds,
     selectedWalls,
     selectedOpenings,
     selectedStairs,
@@ -1182,6 +1193,7 @@ export const useEditorStore = defineStore('editor', () => {
     selectedDimensions,
     selectedDevices,
     selectedWires,
+    selectedGuides,
     selectedUnderlay,
     displayPrecisionIn,
     activeCircuitId,

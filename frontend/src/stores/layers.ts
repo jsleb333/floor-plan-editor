@@ -9,7 +9,9 @@ export type CircuitAxis = 'wires' | 'devices'
  * Session-level layer visibility (spec §6: Layers tab).
  *
  * Structure covers walls, openings and stairs; devices cover electrical
- * pictograms; annotations cover labels and dimension lines. Per-circuit
+ * pictograms; annotations cover labels and dimension lines; guides cover the
+ * custom construction lines (spec S9) — hiding them also silences their snap
+ * tier, since a guide nobody can see must not capture a cursor. Per-circuit
  * visibility (spec C6) has TWO independent axes — wires and devices — each
  * tracked as the SET OF HIDDEN circuit ids, so circuits default to fully
  * visible and newly created ones need no registration. The underlay's own
@@ -21,6 +23,7 @@ export const useLayersStore = defineStore('layers', () => {
   const structureVisible = ref(true)
   const devicesVisible = ref(true)
   const annotationsVisible = ref(true)
+  const guidesVisible = ref(true)
   const hiddenWireCircuitIds = ref<Set<string>>(new Set())
   const hiddenDeviceCircuitIds = ref<Set<string>>(new Set())
 
@@ -51,6 +54,7 @@ export const useLayersStore = defineStore('layers', () => {
     structureVisible,
     devicesVisible,
     annotationsVisible,
+    guidesVisible,
     hiddenWireCircuitIds,
     hiddenDeviceCircuitIds,
     isCircuitAxisVisible,

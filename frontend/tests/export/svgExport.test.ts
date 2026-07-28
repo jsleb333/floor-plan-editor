@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { DEVICE_STROKE_IN, EXPORT_INK, EXPORT_WALL_EDGE } from '@/export/exportTheme'
+import {
+  DEVICE_STROKE_IN,
+  EXPORT_INK,
+  EXPORT_INK_MUTED,
+  EXPORT_WALL_EDGE,
+  GUIDE_DASH_IN,
+  GUIDE_STROKE_IN,
+} from '@/export/exportTheme'
 import {
   buildPlanSvg,
   embedUnderlay,
@@ -8,7 +15,7 @@ import {
   slugify,
   type UnderlayEmbed,
 } from '@/export/svgExport'
-import type { DoorStyle, PlanDocument, Point } from '@/types/plan'
+import type { DoorStyle, Guide, PlanDocument, Point } from '@/types/plan'
 import { DOOR_DASH_IN, deviceWorldPlacement, doorFigure, wallOutline } from '@/utils/geometry'
 import { doorStrokeToPath, ringsToPath } from '@/utils/svgPath'
 
@@ -52,6 +59,37 @@ function makeRichDocument(overrides: Partial<PlanDocument> = {}): PlanDocument {
     wires: [makeWire()],
     ...overrides,
   })
+}
+
+/** A free horizontal guide whose stored origin lies a mile east of the plan. */
+const FAR_GUIDE: Guide = {
+  id: 'guide-far',
+  kind: 'free',
+  origin: { x: 100000, y: 30 },
+  angle_deg: 0,
+}
+/** A guide anchored 12" off the default wall's left surface. */
+const WALL_GUIDE: Guide = {
+  id: 'guide-wall',
+  kind: 'surface',
+  wall_id: 'wall-1',
+  segment_index: 0,
+  side: 'left',
+  offset_in: 12,
+}
+/** A vertical guide a mile east: it never crosses the page. */
+const OFF_PAGE_GUIDE: Guide = {
+  id: 'guide-off',
+  kind: 'free',
+  origin: { x: 100000, y: 0 },
+  angle_deg: 90,
+}
+
+/** The contents of the export's guides group; throws when it has none. */
+function guidesGroup(svg: string): string {
+  const match = svg.match(/<g id="guides">(.*?)<\/g>/)
+  if (!match) throw new Error('the export has no guides group')
+  return match[1]
 }
 
 describe('slugify', () => {
@@ -302,6 +340,51 @@ describe('buildPlanSvg', () => {
   it('excludes the annotations group when includeAnnotations is false', () => {
     const svg = buildPlanSvg(makeRichDocument(), { includeAnnotations: false })
     expect(svg).not.toContain('<g id="annotations">')
+  })
+
+  it('X4: guides are working geometry — excluded unless asked for (spec S9)', () => {
+    const document = makeRichDocument({ guides: [FAR_GUIDE, WALL_GUIDE] })
+
+    expect(buildPlanSvg(document)).not.toContain('id="guides"')
+    expect(buildPlanSvg(document, { includeGuides: true })).toContain('<g id="guides">')
+  })
+
+  it('clips every included guide to the viewBox, whatever the guide reaches', () => {
+    const document = makeRichDocument({ guides: [FAR_GUIDE, WALL_GUIDE] })
+    const box = planViewBox(document)
+    const svg = buildPlanSvg(document, { includeGuides: true })
+
+    const group = guidesGroup(svg)
+    const coordinates = [...group.matchAll(/x1="(-?[\d.]+)" y1="(-?[\d.]+)"/g)].flatMap((match) =>
+      match.slice(1, 3).map(Number),
+    )
+    expect(coordinates).toHaveLength(4)
+    for (const [x, y] of [
+      [coordinates[0], coordinates[1]],
+      [coordinates[2], coordinates[3]],
+    ]) {
+      expect(x).toBeGreaterThanOrEqual(box.minX)
+      expect(x).toBeLessThanOrEqual(box.minX + box.width)
+      expect(y).toBeGreaterThanOrEqual(box.minY)
+      expect(y).toBeLessThanOrEqual(box.minY + box.height)
+    }
+    // Dashed muted hairlines, thinner than any real element.
+    expect(group).toContain(`stroke="${EXPORT_INK_MUTED}"`)
+    expect(group).toContain(`stroke-dasharray="${GUIDE_DASH_IN.join(' ')}"`)
+    expect(group).toContain(`stroke-width="${GUIDE_STROKE_IN}"`)
+  })
+
+  it('never lets a guide move the viewBox, however far from the plan it lies', () => {
+    const document = makeRichDocument()
+    const withGuides = makeRichDocument({ guides: [FAR_GUIDE] })
+
+    expect(planViewBox(withGuides, { includeGuides: true })).toEqual(planViewBox(document))
+  })
+
+  it('drops a guide that misses the page entirely', () => {
+    const document = makeRichDocument({ guides: [OFF_PAGE_GUIDE] })
+
+    expect(buildPlanSvg(document, { includeGuides: true })).not.toContain('id="guides"')
   })
 
   it('U4: a default export references neither /api/assets nor an <image>', () => {
