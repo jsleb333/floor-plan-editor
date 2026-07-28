@@ -18,7 +18,7 @@ export interface UseUnderlayImportReturn {
 }
 
 /**
- * The underlay import flow (spec U1), shared by the Layers panel and the
+ * The underlay import flow (spec U1), shared by the underlay panel and the
  * empty-state hint: validates the file type, uploads it as an asset, measures
  * it and installs it as the plan's underlay centred on the current viewport.
  */

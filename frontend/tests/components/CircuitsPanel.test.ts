@@ -82,3 +82,68 @@ describe('CircuitsPanel per-circuit visibility (spec C6)', () => {
     expect(mountPanel().text()).toContain('shift-click either toggle')
   })
 })
+
+describe('CircuitsPanel active circuit vs isolation (specs W1/C5)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('makes a circuit active on a row click without isolating it', async () => {
+    const wrapper = mountPanel()
+    const store = useEditorStore()
+
+    await wrapper.get('[aria-label="Make Data the active circuit"]').trigger('click')
+
+    expect(store.activeCircuitId).toBe('data')
+    expect(store.isolatedCircuitId).toBeNull()
+  })
+
+  it('marks the active row pressed, and only that one', async () => {
+    const wrapper = mountPanel()
+
+    await wrapper.get('[aria-label="Make Data the active circuit"]').trigger('click')
+
+    expect(
+      wrapper.get('[aria-label="Make Data the active circuit"]').attributes('aria-pressed'),
+    ).toBe('true')
+    expect(
+      wrapper.get('[aria-label="Make Kitchen the active circuit"]').attributes('aria-pressed'),
+    ).toBe('false')
+  })
+
+  it('isolates from its own button — a separate control that also makes the row active', async () => {
+    const wrapper = mountPanel()
+    const store = useEditorStore()
+
+    await wrapper.get('[aria-label="Isolate Kitchen"]').trigger('click')
+
+    expect(store.isolatedCircuitId).toBe('kitchen')
+    expect(store.activeCircuitId).toBe('kitchen')
+    const toggle = wrapper.get('[aria-label="Exit Kitchen isolation"]')
+    expect(toggle.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.text()).toContain('Isolated')
+  })
+
+  it('exits isolation on a second press, keeping the circuit active', async () => {
+    const wrapper = mountPanel()
+    const store = useEditorStore()
+
+    await wrapper.get('[aria-label="Isolate Kitchen"]').trigger('click')
+    await wrapper.get('[aria-label="Exit Kitchen isolation"]').trigger('click')
+
+    expect(store.isolatedCircuitId).toBeNull()
+    expect(store.activeCircuitId).toBe('kitchen')
+    expect(wrapper.get('[aria-label="Isolate Kitchen"]').attributes('aria-pressed')).toBe('false')
+  })
+
+  it('leaves isolation untouched when another row is clicked', async () => {
+    const wrapper = mountPanel()
+    const store = useEditorStore()
+
+    await wrapper.get('[aria-label="Isolate Kitchen"]').trigger('click')
+    await wrapper.get('[aria-label="Make Data the active circuit"]').trigger('click')
+
+    expect(store.activeCircuitId).toBe('data')
+    expect(store.isolatedCircuitId).toBe('kitchen')
+  })
+})

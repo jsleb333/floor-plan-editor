@@ -7,7 +7,6 @@ function baseProps() {
   return {
     planName: 'Basement',
     planDescription: 'Reno 2026',
-    thicknessPresetsIn: [12, 4.5, 3.5],
     displayPrecisionIn: null,
   }
 }
@@ -18,9 +17,6 @@ describe('PlanSettingsPanel', () => {
 
     expect(wrapper.text()).toContain('Basement')
     expect(wrapper.get<HTMLTextAreaElement>('textarea').element.value).toBe('Reno 2026')
-    expect(
-      wrapper.get<HTMLInputElement>('input[aria-label="Thickness preset 1"]').element.value,
-    ).toBe('12"')
     // A null override falls back to the 1/8" default in the select (spec §5.9).
     expect(wrapper.get<HTMLSelectElement>('select').element.value).toBe('0.125')
   })
@@ -64,13 +60,11 @@ describe('PlanSettingsPanel', () => {
     expect(wrapper.emitted('update-description')).toEqual([['New description']])
   })
 
-  it('emits the edited preset list', async () => {
+  it('leaves the wall thickness presets to the Structure overview (spec §6.1)', () => {
     const wrapper = mount(PlanSettingsPanel, { props: baseProps() })
-    const first = wrapper.get('input[aria-label="Thickness preset 1"]')
-    await first.setValue(`8"`)
-    await first.trigger('blur')
 
-    expect(wrapper.emitted('set-thickness-presets')).toEqual([[[8, 4.5, 3.5]]])
+    expect(wrapper.find('input[aria-label="Thickness preset 1"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Wall thickness presets')
   })
 
   it('emits the picked display precision as a number', async () => {

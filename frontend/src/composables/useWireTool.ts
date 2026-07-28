@@ -15,7 +15,7 @@ export interface UseWireToolOptions {
   walls: Ref<readonly Wall[]>
   /** Receives each placed wire; the caller dispatches the store command. */
   commit: (wire: Wire) => void
-  /** Called when a click needs an active circuit but none is set (opens the Circuits tab). */
+  /** Called when a click needs an active circuit but none is set (raises a quiet notice, W1). */
   onRequireCircuit: () => void
 }
 

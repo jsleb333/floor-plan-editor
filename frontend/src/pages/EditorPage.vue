@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { assetUrl } from '@/api/assets'
@@ -192,8 +192,6 @@ const armedDeviceDraft = computed<DeviceDraft>(() => {
 })
 /** The switch a control link is being armed from (pick-target mode, spec D6), else null. */
 const armedControlLinkSwitchId = ref<string | null>(null)
-/** When set, asks the side panel to switch tabs (e.g. wire tool opens Circuits, §6.1). */
-const requestedTab = ref<'inspector' | 'circuits' | 'layers' | null>(null)
 /**
  * Transient would-be wall while the inspector's reference-side options or
  * swap button are hovered (spec S1a) — previewed on the canvas, never stored
@@ -332,12 +330,8 @@ const wireTool = useWireTool({
   devices: documentDevices,
   walls: documentWalls,
   commit: (wire) => editorStore.mutate({ type: 'addWire', wire }),
-  onRequireCircuit: () => {
-    requestedTab.value = null
-    void nextTick(() => {
-      requestedTab.value = 'circuits'
-    })
-  },
+  onRequireCircuit: () =>
+    showStatusNotice('Create a circuit first — the Wire tool lists them in the panel.'),
 })
 
 const deviceTool = useDeviceTool({
@@ -757,14 +751,6 @@ function handleChangeDevice(): void {
   deviceTool.handleKey('Escape')
 }
 
-function handleUpdateUnderlay(underlay: Underlay): void {
-  editorStore.mutate({ type: 'setUnderlay', underlay })
-}
-
-function handleRemoveUnderlay(): void {
-  editorStore.mutate({ type: 'setUnderlay', underlay: null })
-}
-
 function handleRecalibrate(): void {
   if (documentUnderlay.value) activeTool.value = 'calibrate'
 }
@@ -1045,12 +1031,6 @@ watch(activeTool, (tool, previous) => {
     deviceArmedType.value = armedDeviceTypeFor(documentDevices.value, deviceMruStore.recent)
   }
   if (previous === 'wire' && tool !== 'wire') wireTool.deactivate()
-  if (tool === 'wire' && previous !== 'wire' && editorStore.activeCircuitId === null) {
-    requestedTab.value = null
-    void nextTick(() => {
-      requestedTab.value = 'circuits'
-    })
-  }
   if (previous === 'calibrate' && tool !== 'calibrate') calibrateTool.deactivate()
   // A tool armed from outside its mode pulls the mode along (spec E10) — e.g.
   // the underlay inspector's Recalibrate button arming Calibrate while
@@ -1223,6 +1203,7 @@ onBeforeUnmount(() => {
 
       <EditorSidePanel
         :active-tool="activeTool"
+        :active-mode="activeMode"
         :plan-name="plan?.name ?? 'Untitled'"
         :plan-description="plan?.description ?? ''"
         :display-precision-in="documentDisplayPrecisionIn"
@@ -1250,7 +1231,6 @@ onBeforeUnmount(() => {
         :circuits="documentCircuits"
         :control-links="documentControlLinks"
         :armed-control-link-switch-id="armedControlLinkSwitchId"
-        :requested-tab="requestedTab"
         :selected-underlay="editorStore.selectedUnderlay"
         :underlay-image-size="underlayImageSize"
         :device-armed-type="deviceArmedType"
@@ -1285,9 +1265,8 @@ onBeforeUnmount(() => {
         @arm-device="handleArmDevice"
         @update-device-draft="handleUpdateDeviceDraft"
         @change-device="handleChangeDevice"
-        @update-underlay="handleUpdateUnderlay"
         @recalibrate="handleRecalibrate"
-        @remove-underlay="handleRemoveUnderlay"
+        @export="showExportDialog = true"
         @delete-selection="handleDeleteSelection"
         @flash-segments="handleFlashSegments"
       />

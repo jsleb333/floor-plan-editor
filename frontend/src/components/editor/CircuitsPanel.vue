@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { Lightbulb, LightbulbOff, Plus, Trash2, TriangleAlert, Zap, ZapOff } from 'lucide-vue-next'
+import {
+  Focus,
+  Lightbulb,
+  LightbulbOff,
+  Plus,
+  Trash2,
+  TriangleAlert,
+  Zap,
+  ZapOff,
+} from 'lucide-vue-next'
 import { computed } from 'vue'
 import type { Component } from 'vue'
 
@@ -118,8 +127,20 @@ function removeCircuit(circuit: Circuit): void {
   editorStore.mutate({ type: 'removeCircuit', circuitId: circuit.id })
 }
 
+/**
+ * A row click sets the DRAWING TARGET only (spec W1/C5): new wires land on the
+ * active circuit. Isolation — the viewing filter — is the row's own explicit
+ * button; conflating the two is a known UX trap.
+ */
 function selectRow(circuit: Circuit): void {
-  editorStore.toggleIsolatedCircuit(circuit.id)
+  editorStore.setActiveCircuit(circuit.id)
+}
+
+/** Accessible name for the isolate toggle, e.g. "Isolate Kitchen". */
+function isolateLabel(circuit: Circuit): string {
+  return editorStore.isolatedCircuitId === circuit.id
+    ? `Exit ${circuit.name} isolation`
+    : `Isolate ${circuit.name}`
 }
 
 /**
@@ -168,8 +189,8 @@ function deviceLabel(type: string): string {
     </header>
 
     <p v-if="circuits.length === 0" class="text-ink-muted leading-relaxed">
-      No circuits yet. Create one, then draw wires with the Wire tool (R) to connect a source — the
-      panel, or a feed from another floor — to your devices.
+      No circuits yet. Create one, then draw wires with the Wire tool (<kbd>E</kbd> <kbd>W</kbd>) to
+      connect a source — the panel, or a feed from another floor — to your devices.
     </p>
 
     <ul class="flex flex-col gap-2">
@@ -199,7 +220,8 @@ function deviceLabel(type: string): string {
           <button
             type="button"
             class="flex-1 truncate text-left"
-            :aria-pressed="editorStore.isolatedCircuitId === circuit.id"
+            :aria-pressed="editorStore.activeCircuitId === circuit.id"
+            :aria-label="`Make ${circuit.name} the active circuit`"
             @click="selectRow(circuit)"
           >
             <input
@@ -216,6 +238,16 @@ function deviceLabel(type: string): string {
           >
             Isolated
           </span>
+          <button
+            type="button"
+            class="hover:bg-canvas rounded p-1 transition-colors"
+            :class="editorStore.isolatedCircuitId === circuit.id ? 'text-accent' : 'text-ink-faint'"
+            :aria-pressed="editorStore.isolatedCircuitId === circuit.id"
+            :aria-label="isolateLabel(circuit)"
+            @click="editorStore.toggleIsolatedCircuit(circuit.id)"
+          >
+            <Focus :size="13" aria-hidden="true" />
+          </button>
           <button
             v-for="axis in VISIBILITY_AXES"
             :key="axis.id"
@@ -311,8 +343,11 @@ function deviceLabel(type: string): string {
     </ul>
 
     <p v-if="circuits.length > 0" class="text-ink-muted leading-relaxed">
-      Each circuit hides its wires and its devices independently — shift-click either toggle to hide
-      or show both at once. Sources and devices on no circuit always stay visible.
+      Clicking a row makes that circuit active — new wires land on it. Isolating filters the canvas
+      to one circuit and dims the rest; it is a separate button, so the drawing target and the view
+      never move together. Each circuit also hides its wires and its devices independently —
+      shift-click either toggle to hide or show both at once. Sources and devices on no circuit
+      always stay visible.
     </p>
 
     <section

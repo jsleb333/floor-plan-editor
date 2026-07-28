@@ -1,26 +1,25 @@
 <script setup lang="ts">
 import { Trash2 } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 
 import CircuitsPanel from '@/components/editor/CircuitsPanel.vue'
 import DeviceInspector from '@/components/editor/DeviceInspector.vue'
 import DevicePicker from '@/components/editor/DevicePicker.vue'
 import DeviceToolOptions from '@/components/editor/DeviceToolOptions.vue'
 import DimensionInspector from '@/components/editor/DimensionInspector.vue'
+import InspectorOverviewPanel from '@/components/editor/InspectorOverviewPanel.vue'
 import LabelInspector from '@/components/editor/LabelInspector.vue'
-import LayersPanel from '@/components/editor/LayersPanel.vue'
 import OpeningInspector from '@/components/editor/OpeningInspector.vue'
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
-import PlanSettingsPanel from '@/components/editor/PlanSettingsPanel.vue'
 import StairsInspector from '@/components/editor/StairsInspector.vue'
 import StairsToolOptions from '@/components/editor/StairsToolOptions.vue'
+import StructureOverviewPanel from '@/components/editor/StructureOverviewPanel.vue'
 import ToolPlacementHint from '@/components/editor/ToolPlacementHint.vue'
-import UnderlayInspector from '@/components/editor/UnderlayInspector.vue'
+import UnderlayPanel from '@/components/editor/UnderlayPanel.vue'
 import WallInspector from '@/components/editor/WallInspector.vue'
 import WireInspector from '@/components/editor/WireInspector.vue'
 import WallToolOptions from '@/components/editor/WallToolOptions.vue'
-import type { ToolId } from '@/components/editor/tools'
-import { useCircuitValidation } from '@/composables/useCircuitValidation'
+import type { ModeId, ToolId } from '@/components/editor/tools'
 import type { DeviceDraft } from '@/composables/useDeviceTool'
 import { DEVICE_CATALOG } from '@/devices/catalog'
 import type { ElementKind } from '@/stores/editor'
@@ -41,31 +40,8 @@ import type {
 import type { WallReference } from '@/utils/geometry'
 import type { ImageSize } from '@/utils/imageSize'
 
-type TabId = 'inspector' | 'circuits' | 'layers'
-
-interface TabDefinition {
-  id: TabId
-  label: string
-  placeholder: string
-}
-
-const TABS: readonly TabDefinition[] = [
-  {
-    id: 'inspector',
-    label: 'Inspector',
-    placeholder: 'Select an element to edit its properties.',
-  },
-  {
-    id: 'circuits',
-    label: 'Circuits',
-    placeholder: '',
-  },
-  {
-    id: 'layers',
-    label: 'Layers',
-    placeholder: '',
-  },
-]
+/** Shown when a tool has neither options nor a selection to inspect (spec §6.1). */
+const IDLE_PLACEHOLDER = 'Select an element to edit its properties.'
 
 /** Minimal placement instructions shown while a placement tool is active (spec E1/E6). */
 const TOOL_HINTS: Partial<Record<ToolId, { title: string; lines: string[] }>> = {
@@ -108,8 +84,15 @@ const TOOL_HINTS: Partial<Record<ToolId, { title: string; lines: string[] }>> = 
   wire: {
     title: 'Wire',
     lines: [
-      'Wires draw on the active circuit — create or select one in the Circuits tab first.',
+      'Wires draw on the active circuit — click a row in the list above to make it the target, or press 1–9 to switch while the tool is armed.',
       'Click a source device, then a target device to connect them. The target becomes the next source, so outlets daisy-chain. Enter or Esc ends the chain.',
+    ],
+  },
+  calibrate: {
+    title: 'Calibrate',
+    lines: [
+      'Click the two ends of something you know the real length of on the photo above — a 10′ wall, a door.',
+      'Then type that length and press Enter: the underlay rescales around the first point. Esc cancels.',
     ],
   },
 }
@@ -133,7 +116,9 @@ const TOOL_SELECTION_KINDS: Partial<Record<ToolId, ElementKind>> = {
 
 const props = defineProps<{
   activeTool: ToolId
-  /** Plan metadata shown in the plan-settings view (spec §5.9 tier 2/§6.1). */
+  /** The workspace mode, which picks the overview shown when nothing is armed (spec E10/§6.1). */
+  activeMode: ModeId
+  /** Plan metadata shown in the Inspector overview (spec §5.9 tier 2/§6.1). */
   planName: string
   planDescription: string
   /** The document's precision override; `null` means the 1/8" default (spec §5.9 tier 2). */
@@ -174,8 +159,6 @@ const props = defineProps<{
   controlLinks: readonly ControlLink[]
   /** The switch whose control link is being armed (pick-target mode), else null (spec D6). */
   armedControlLinkSwitchId: string | null
-  /** When set, forces the panel to a tab (e.g. wire tool auto-opens Circuits, §6.1). */
-  requestedTab: TabId | null
   /** The underlay when it is the selected element, else null (spec U3 inspector). */
   selectedUnderlay: Underlay | null
   /** Natural pixel size of the underlay image, for centre-anchored rotation. */
@@ -221,23 +204,12 @@ const emit = defineEmits<{
   'update-device-draft': [patch: Partial<DeviceDraft>]
   /** Returns to the device picker — the same effect as Esc (spec §6.1). */
   'change-device': []
-  'update-underlay': [underlay: Underlay]
   recalibrate: []
-  'remove-underlay': []
+  /** Opens the export options dialog from the Inspector overview (spec X4/§6.1). */
+  export: []
   'delete-selection': []
   'flash-segments': [wallId: string, segments: number[]]
 }>()
-
-const activeTabId = ref<TabId>('inspector')
-
-const { warningCount } = useCircuitValidation()
-
-watch(
-  () => props.requestedTab,
-  (tab) => {
-    if (tab) activeTabId.value = tab
-  },
-)
 
 const selectionCount = computed(
   () =>
@@ -268,6 +240,12 @@ const openingKind = computed<'door' | 'window'>(() =>
 )
 
 const showStairsOptions = computed(() => props.activeTool === 'stairs')
+
+/** The Wire tool's options ARE the circuits list (spec W1/§6.1). */
+const showCircuitOptions = computed(() => props.activeTool === 'wire')
+
+/** The Calibrate tool's options are the underlay controls (spec §6.1). */
+const showUnderlayOptions = computed(() => props.activeTool === 'calibrate')
 
 const showDevicePicker = computed(
   () => props.activeTool === 'device' && props.deviceArmedType === null,
@@ -303,6 +281,8 @@ const hasToolSection = computed(
     showWallOptions.value ||
     showOpeningOptions.value ||
     showStairsOptions.value ||
+    showCircuitOptions.value ||
+    showUnderlayOptions.value ||
     showDevicePicker.value ||
     armedDeviceType.value !== null ||
     activeHint.value !== null,
@@ -346,8 +326,13 @@ const inspectedDimension = computed<Dimension | null>(() =>
     : null,
 )
 
+/**
+ * The selected underlay, inspected with the very same `UnderlayPanel` the
+ * Calibrate tool shows as its options — so under Calibrate the panel renders
+ * once, on top, and never twice.
+ */
 const inspectedUnderlay = computed<Underlay | null>(() =>
-  toolInspects('underlay') && soloSelection.value && props.selectedUnderlay
+  !showUnderlayOptions.value && toolInspects('underlay') && soloSelection.value
     ? props.selectedUnderlay
     : null,
 )
@@ -389,237 +374,226 @@ const hasInspectedElement = computed(
     showMultiSummary.value,
 )
 
-const activePlaceholder = computed(
-  () => TABS.find((tab) => tab.id === activeTabId.value)?.placeholder ?? '',
-)
+/**
+ * The mode's home screen (spec §6.1): shown only under the Select tool with an
+ * empty selection, so tool options and inspectors always win the panel.
+ */
+const showModeOverview = computed(() => props.activeTool === 'select' && !hasInspectedElement.value)
 </script>
 
 <template>
   <aside
-    aria-label="Editor panels"
+    aria-label="Editor panel"
     class="border-line bg-surface flex w-72 shrink-0 flex-col border-l"
   >
-    <div role="tablist" aria-label="Panel tabs" class="border-line flex border-b">
-      <button
-        v-for="tab in TABS"
-        :id="`tab-${tab.id}`"
-        :key="tab.id"
-        type="button"
-        role="tab"
-        :aria-selected="tab.id === activeTabId"
-        :aria-controls="`panel-${tab.id}`"
-        class="flex-1 border-b-2 px-2 py-2 text-xs font-medium transition-colors"
-        :class="
-          tab.id === activeTabId
-            ? 'border-accent text-accent'
-            : 'border-transparent text-ink-muted hover:text-ink'
-        "
-        @click="activeTabId = tab.id"
-      >
-        <span class="inline-flex items-center gap-1">
-          {{ tab.label }}
-          <span
-            v-if="tab.id === 'circuits' && warningCount > 0"
-            class="bg-amber-500 inline-flex min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-bold text-white"
-            :aria-label="`${warningCount} circuits over 80%`"
-            title="Circuits over 80%"
-          >
-            {{ warningCount }}
-          </span>
-        </span>
-      </button>
-    </div>
-    <div
-      :id="`panel-${activeTabId}`"
-      role="tabpanel"
-      :aria-labelledby="`tab-${activeTabId}`"
-      class="flex-1 overflow-y-auto p-4"
-    >
-      <CircuitsPanel v-if="activeTabId === 'circuits'" />
-      <LayersPanel
-        v-else-if="activeTabId === 'layers'"
-        :underlay-image-size="underlayImageSize"
-        @recalibrate="emit('recalibrate')"
+    <div class="flex-1 overflow-y-auto p-4">
+      <!-- 1. Tool options on top while a tool with options is armed (spec E8/§6.1). -->
+      <WallToolOptions
+        v-if="showWallOptions"
+        :presets-in="wallThicknessPresetsIn"
+        :thickness-in="wallThicknessIn"
+        :reference="wallReference"
+        :color="wallColor"
+        @set-thickness="emit('set-wall-thickness', $event)"
+        @set-reference="emit('set-wall-reference', $event)"
+        @set-color="emit('set-wall-color', $event)"
       />
-      <template v-else>
-        <!-- Tool options/hint on top while a placement tool is armed (spec E8). -->
-        <WallToolOptions
-          v-if="showWallOptions"
-          :presets-in="wallThicknessPresetsIn"
-          :thickness-in="wallThicknessIn"
-          :reference="wallReference"
-          :color="wallColor"
-          @set-thickness="emit('set-wall-thickness', $event)"
-          @set-reference="emit('set-wall-reference', $event)"
-          @set-color="emit('set-wall-color', $event)"
+      <template v-else-if="showOpeningOptions">
+        <OpeningToolOptions
+          :kind="openingKind"
+          :width-in="openingWidthIn"
+          :presets-in="openingWidthPresetsIn"
+          :door-style="openingStyle"
+          :hinge="openingHinge"
+          :swing="openingSwing"
+          @set-width="emit('set-opening-width', $event)"
+          @set-style="emit('set-opening-style', $event)"
+          @set-hinge="emit('set-opening-hinge', $event)"
+          @set-swing="emit('set-opening-swing', $event)"
+          @add-width-preset="emit('add-opening-width-preset', $event)"
         />
-        <template v-else-if="showOpeningOptions">
-          <OpeningToolOptions
-            :kind="openingKind"
-            :width-in="openingWidthIn"
-            :presets-in="openingWidthPresetsIn"
-            :door-style="openingStyle"
-            :hinge="openingHinge"
-            :swing="openingSwing"
-            @set-width="emit('set-opening-width', $event)"
-            @set-style="emit('set-opening-style', $event)"
-            @set-hinge="emit('set-opening-hinge', $event)"
-            @set-swing="emit('set-opening-swing', $event)"
-            @add-width-preset="emit('add-opening-width-preset', $event)"
-          />
-          <ToolPlacementHint
-            v-if="activeHint"
-            class="mt-4"
-            :title="activeHint.title"
-            :lines="activeHint.lines"
-          />
-        </template>
-        <template v-else-if="showStairsOptions">
-          <StairsToolOptions
-            :width-in="stairsWidthIn"
-            :presets-in="stairsWidthPresetsIn"
-            :direction="stairsDirection"
-            @set-width="emit('set-stairs-width', $event)"
-            @set-direction="emit('set-stairs-direction', $event)"
-            @add-width-preset="emit('add-stairs-width-preset', $event)"
-          />
-          <ToolPlacementHint
-            v-if="activeHint"
-            class="mt-4"
-            :title="activeHint.title"
-            :lines="activeHint.lines"
-          />
-        </template>
-        <DevicePicker
-          v-else-if="showDevicePicker"
-          :armed-type="deviceArmedType"
-          @pick="emit('arm-device', $event)"
-        />
-        <template v-else-if="armedDeviceType">
-          <DeviceToolOptions
-            :type="armedDeviceType"
-            :draft="deviceDraft"
-            :catalog-defaults="catalogDefaults"
-            @update-draft="emit('update-device-draft', $event)"
-            @change-device="emit('change-device')"
-          />
-          <ToolPlacementHint
-            v-if="armedDeviceHint"
-            class="mt-4"
-            :title="armedDeviceHint.title"
-            :lines="armedDeviceHint.lines"
-          />
-        </template>
         <ToolPlacementHint
-          v-else-if="activeHint"
+          v-if="activeHint"
+          class="mt-4"
           :title="activeHint.title"
           :lines="activeHint.lines"
         />
+      </template>
+      <template v-else-if="showStairsOptions">
+        <StairsToolOptions
+          :width-in="stairsWidthIn"
+          :presets-in="stairsWidthPresetsIn"
+          :direction="stairsDirection"
+          @set-width="emit('set-stairs-width', $event)"
+          @set-direction="emit('set-stairs-direction', $event)"
+          @add-width-preset="emit('add-stairs-width-preset', $event)"
+        />
+        <ToolPlacementHint
+          v-if="activeHint"
+          class="mt-4"
+          :title="activeHint.title"
+          :lines="activeHint.lines"
+        />
+      </template>
+      <!-- The Wire tool's options are the circuits list itself (spec W1/§6.1). -->
+      <template v-else-if="showCircuitOptions">
+        <CircuitsPanel />
+        <ToolPlacementHint
+          v-if="activeHint"
+          class="mt-4"
+          :title="activeHint.title"
+          :lines="activeHint.lines"
+        />
+      </template>
+      <!-- The Calibrate tool's options are the underlay controls (spec §6.1). -->
+      <template v-else-if="showUnderlayOptions">
+        <UnderlayPanel
+          :underlay-image-size="underlayImageSize"
+          @recalibrate="emit('recalibrate')"
+        />
+        <ToolPlacementHint
+          v-if="activeHint"
+          class="mt-4"
+          :title="activeHint.title"
+          :lines="activeHint.lines"
+        />
+      </template>
+      <DevicePicker
+        v-else-if="showDevicePicker"
+        :armed-type="deviceArmedType"
+        @pick="emit('arm-device', $event)"
+      />
+      <template v-else-if="armedDeviceType">
+        <DeviceToolOptions
+          :type="armedDeviceType"
+          :draft="deviceDraft"
+          :catalog-defaults="catalogDefaults"
+          @update-draft="emit('update-device-draft', $event)"
+          @change-device="emit('change-device')"
+        />
+        <ToolPlacementHint
+          v-if="armedDeviceHint"
+          class="mt-4"
+          :title="armedDeviceHint.title"
+          :lines="armedDeviceHint.lines"
+        />
+      </template>
+      <ToolPlacementHint
+        v-else-if="activeHint"
+        :title="activeHint.title"
+        :lines="activeHint.lines"
+      />
 
-        <!-- The selection's inspector below: any selection under Select, the
-             tool's own kind while a placement tool is armed (spec E8). -->
-        <div
-          v-if="hasInspectedElement"
-          :class="hasToolSection ? 'border-line mt-4 border-t pt-4' : ''"
-        >
-          <WallInspector
-            v-if="inspectedWall"
-            :wall="inspectedWall"
-            :thickness-presets-in="wallThicknessPresetsIn"
-            @update-wall="emit('update-wall', $event)"
-            @preview-wall="emit('preview-wall', $event)"
-            @delete-wall="emit('delete-selection')"
-            @flash-segments="emit('flash-segments', inspectedWall.id, $event)"
-          />
-          <OpeningInspector
-            v-else-if="inspectedOpening"
-            :opening="inspectedOpening"
-            :walls="walls"
-            @update-opening="emit('update-opening', $event)"
-            @delete-opening="emit('delete-selection')"
-          />
-          <StairsInspector
-            v-else-if="inspectedStairs"
-            :stairs="inspectedStairs"
-            @update-stairs="emit('update-stairs', $event)"
-            @delete-stairs="emit('delete-selection')"
-          />
-          <LabelInspector
-            v-else-if="inspectedLabel"
-            :label="inspectedLabel"
-            :autofocus="activeTool === 'label'"
-            @update-label="emit('update-label', $event)"
-            @delete-label="emit('delete-selection')"
-          />
-          <DimensionInspector
-            v-else-if="inspectedDimension"
-            :dimension="inspectedDimension"
-            @update-dimension="emit('update-dimension', $event)"
-            @delete-dimension="emit('delete-selection')"
-          />
-          <UnderlayInspector
-            v-else-if="inspectedUnderlay"
-            :underlay="inspectedUnderlay"
-            :image-size="underlayImageSize"
-            @update-underlay="emit('update-underlay', $event)"
-            @recalibrate="emit('recalibrate')"
-            @remove-underlay="emit('remove-underlay')"
-          />
-          <DeviceInspector
-            v-else-if="inspectedDevices"
-            :devices="inspectedDevices"
-            :walls="walls"
-            :catalog-defaults="catalogDefaults"
-            :all-devices="allDevices"
-            :control-links="controlLinks"
-            :armed-control-link-switch-id="armedControlLinkSwitchId"
-            @update-device="emit('update-device', $event)"
-            @bulk-update-devices="emit('bulk-update-devices', $event)"
-            @delete-selection="emit('delete-selection')"
-            @arm-control-link="emit('arm-control-link', $event)"
-            @remove-control-link="emit('remove-control-link', $event)"
-          />
-          <WireInspector
-            v-else-if="inspectedWire"
-            :wire="inspectedWire"
-            :circuits="circuits"
-            :devices="allDevices"
-            :walls="walls"
-            @update-wire="emit('update-wire', $event)"
-            @delete-selection="emit('delete-selection')"
-          />
-          <section v-else-if="showMultiSummary" aria-label="Selection summary" class="text-xs">
-            <h3 class="text-ink text-sm font-semibold">Selection</h3>
-            <p class="text-ink-muted mt-1">{{ selectionCount }} elements selected.</p>
-            <button
-              type="button"
-              class="border-danger/40 text-danger hover:bg-danger-soft mt-3 flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 transition-colors"
-              @click="emit('delete-selection')"
-            >
-              <Trash2 :size="13" aria-hidden="true" />
-              Delete selection
-            </button>
-          </section>
-        </div>
-        <!-- Nothing selected under the Select tool: the plan-settings view (spec §6.1/§5.9). -->
-        <PlanSettingsPanel
-          v-else-if="activeTool === 'select'"
+      <!-- 2. The selection's inspector below: any selection under Select, the
+           tool's own kind while a placement tool is armed (spec E8). -->
+      <div
+        v-if="hasInspectedElement"
+        :class="hasToolSection ? 'border-line mt-4 border-t pt-4' : ''"
+      >
+        <WallInspector
+          v-if="inspectedWall"
+          :wall="inspectedWall"
+          :thickness-presets-in="wallThicknessPresetsIn"
+          @update-wall="emit('update-wall', $event)"
+          @preview-wall="emit('preview-wall', $event)"
+          @delete-wall="emit('delete-selection')"
+          @flash-segments="emit('flash-segments', inspectedWall.id, $event)"
+        />
+        <OpeningInspector
+          v-else-if="inspectedOpening"
+          :opening="inspectedOpening"
+          :walls="walls"
+          @update-opening="emit('update-opening', $event)"
+          @delete-opening="emit('delete-selection')"
+        />
+        <StairsInspector
+          v-else-if="inspectedStairs"
+          :stairs="inspectedStairs"
+          @update-stairs="emit('update-stairs', $event)"
+          @delete-stairs="emit('delete-selection')"
+        />
+        <LabelInspector
+          v-else-if="inspectedLabel"
+          :label="inspectedLabel"
+          :autofocus="activeTool === 'label'"
+          @update-label="emit('update-label', $event)"
+          @delete-label="emit('delete-selection')"
+        />
+        <DimensionInspector
+          v-else-if="inspectedDimension"
+          :dimension="inspectedDimension"
+          @update-dimension="emit('update-dimension', $event)"
+          @delete-dimension="emit('delete-selection')"
+        />
+        <UnderlayPanel
+          v-else-if="inspectedUnderlay"
+          :underlay-image-size="underlayImageSize"
+          @recalibrate="emit('recalibrate')"
+        />
+        <DeviceInspector
+          v-else-if="inspectedDevices"
+          :devices="inspectedDevices"
+          :walls="walls"
+          :catalog-defaults="catalogDefaults"
+          :all-devices="allDevices"
+          :control-links="controlLinks"
+          :armed-control-link-switch-id="armedControlLinkSwitchId"
+          @update-device="emit('update-device', $event)"
+          @bulk-update-devices="emit('bulk-update-devices', $event)"
+          @delete-selection="emit('delete-selection')"
+          @arm-control-link="emit('arm-control-link', $event)"
+          @remove-control-link="emit('remove-control-link', $event)"
+        />
+        <WireInspector
+          v-else-if="inspectedWire"
+          :wire="inspectedWire"
+          :circuits="circuits"
+          :devices="allDevices"
+          :walls="walls"
+          @update-wire="emit('update-wire', $event)"
+          @delete-selection="emit('delete-selection')"
+        />
+        <section v-else-if="showMultiSummary" aria-label="Selection summary" class="text-xs">
+          <h3 class="text-ink text-sm font-semibold">Selection</h3>
+          <p class="text-ink-muted mt-1">{{ selectionCount }} elements selected.</p>
+          <button
+            type="button"
+            class="border-danger/40 text-danger hover:bg-danger-soft mt-3 flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 transition-colors"
+            @click="emit('delete-selection')"
+          >
+            <Trash2 :size="13" aria-hidden="true" />
+            Delete selection
+          </button>
+        </section>
+      </div>
+
+      <!-- 3. The mode's overview, the panel's fallback home (spec §6.1). -->
+      <template v-else-if="showModeOverview">
+        <StructureOverviewPanel
+          v-if="activeMode === 'structure'"
+          :thickness-presets-in="wallThicknessPresetsIn"
+          :underlay-image-size="underlayImageSize"
+          @set-thickness-presets="emit('set-thickness-presets', $event)"
+          @recalibrate="emit('recalibrate')"
+        />
+        <CircuitsPanel v-else-if="activeMode === 'electrical'" />
+        <InspectorOverviewPanel
+          v-else
           :plan-name="planName"
           :plan-description="planDescription"
-          :thickness-presets-in="wallThicknessPresetsIn"
           :display-precision-in="displayPrecisionIn"
           @rename="emit('rename', $event)"
           @update-description="emit('update-description', $event)"
-          @set-thickness-presets="emit('set-thickness-presets', $event)"
           @set-display-precision="emit('set-display-precision', $event)"
+          @export="emit('export')"
         />
-        <p
-          v-else-if="!hasToolSection"
-          class="text-ink-muted mt-4 text-center text-xs leading-relaxed"
-        >
-          {{ activePlaceholder }}
-        </p>
       </template>
+      <p
+        v-else-if="!hasToolSection"
+        class="text-ink-muted mt-4 text-center text-xs leading-relaxed"
+      >
+        {{ IDLE_PLACEHOLDER }}
+      </p>
     </div>
   </aside>
 </template>

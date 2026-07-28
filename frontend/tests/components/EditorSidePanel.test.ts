@@ -2,18 +2,29 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import CircuitsPanel from '@/components/editor/CircuitsPanel.vue'
 import DeviceToolOptions from '@/components/editor/DeviceToolOptions.vue'
 import EditorSidePanel from '@/components/editor/EditorSidePanel.vue'
+import InspectorOverviewPanel from '@/components/editor/InspectorOverviewPanel.vue'
 import OpeningInspector from '@/components/editor/OpeningInspector.vue'
 import OpeningToolOptions from '@/components/editor/OpeningToolOptions.vue'
-import PlanSettingsPanel from '@/components/editor/PlanSettingsPanel.vue'
 import StairsInspector from '@/components/editor/StairsInspector.vue'
 import StairsToolOptions from '@/components/editor/StairsToolOptions.vue'
+import StructureOverviewPanel from '@/components/editor/StructureOverviewPanel.vue'
 import ToolPlacementHint from '@/components/editor/ToolPlacementHint.vue'
+import UnderlayPanel from '@/components/editor/UnderlayPanel.vue'
 import WallInspector from '@/components/editor/WallInspector.vue'
 import WallToolOptions from '@/components/editor/WallToolOptions.vue'
 import type { DeviceDraft } from '@/composables/useDeviceTool'
-import { makeDevice, makeOpening, makeStairs, makeWall } from '../helpers/planFactory'
+import { useEditorStore } from '@/stores/editor'
+import {
+  makeDevice,
+  makeDocument,
+  makeOpening,
+  makeStairs,
+  makeUnderlay,
+  makeWall,
+} from '../helpers/planFactory'
 
 const EMPTY_DEVICE_DRAFT: DeviceDraft = {
   label: null,
@@ -22,10 +33,11 @@ const EMPTY_DEVICE_DRAFT: DeviceDraft = {
   depth_in: null,
 }
 
-/** Complete prop set for an idle panel (select tool, empty selection). */
+/** Complete prop set for an idle panel (Structure mode, select tool, empty selection). */
 function baseProps() {
   return {
     activeTool: 'select' as const,
+    activeMode: 'structure' as const,
     planName: 'Basement',
     planDescription: '',
     displayPrecisionIn: null,
@@ -53,7 +65,6 @@ function baseProps() {
     circuits: [],
     controlLinks: [],
     armedControlLinkSwitchId: null,
-    requestedTab: null,
     selectedUnderlay: null,
     underlayImageSize: null,
     deviceArmedType: null,
@@ -65,6 +76,14 @@ function baseProps() {
 describe('EditorSidePanel', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    useEditorStore().document = makeDocument()
+  })
+
+  it('is one contextual panel — no tab bar, no navigation (spec §6.1)', () => {
+    const wrapper = mount(EditorSidePanel, { props: baseProps() })
+
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(false)
+    expect(wrapper.find('[role="tab"]').exists()).toBe(false)
   })
 
   it('shows the door tool options and hint while the door tool is armed with no selection', () => {
@@ -160,7 +179,7 @@ describe('EditorSidePanel', () => {
     expect(wrapper.findComponent(StairsInspector).exists()).toBe(false)
   })
 
-  it('keeps the select tool behaviour: inspector only, no tool hint', () => {
+  it('keeps the select tool behaviour: inspector only, no tool hint, no overview', () => {
     const door = makeOpening()
     const wrapper = mount(EditorSidePanel, {
       props: { ...baseProps(), selectedOpenings: [door] },
@@ -168,42 +187,16 @@ describe('EditorSidePanel', () => {
 
     expect(wrapper.findComponent(ToolPlacementHint).exists()).toBe(false)
     expect(wrapper.findComponent(OpeningInspector).exists()).toBe(true)
-    expect(wrapper.findComponent(PlanSettingsPanel).exists()).toBe(false)
+    expect(wrapper.findComponent(StructureOverviewPanel).exists()).toBe(false)
   })
 
-  it('shows the plan settings when the select tool is active with nothing selected', () => {
+  it('inspects a selected underlay with the same underlay panel the Calibrate tool shows', () => {
     const wrapper = mount(EditorSidePanel, {
-      props: { ...baseProps(), planName: 'Basement', displayPrecisionIn: 0.25 },
+      props: { ...baseProps(), selectedUnderlay: makeUnderlay() },
     })
 
-    const settings = wrapper.findComponent(PlanSettingsPanel)
-    expect(settings.props('planName')).toBe('Basement')
-    expect(settings.props('displayPrecisionIn')).toBe(0.25)
-    expect(settings.props('thicknessPresetsIn')).toEqual([12, 4.5, 3.5])
-  })
-
-  it('relays the plan settings edits to the page', () => {
-    const wrapper = mount(EditorSidePanel, { props: baseProps() })
-    const settings = wrapper.findComponent(PlanSettingsPanel)
-
-    settings.vm.$emit('rename', 'Cellar')
-    settings.vm.$emit('update-description', 'Reno 2026')
-    settings.vm.$emit('set-thickness-presets', [12, 6])
-    settings.vm.$emit('set-display-precision', 0.5)
-
-    expect(wrapper.emitted('rename')).toEqual([['Cellar']])
-    expect(wrapper.emitted('update-description')).toEqual([['Reno 2026']])
-    expect(wrapper.emitted('set-thickness-presets')).toEqual([[[12, 6]]])
-    expect(wrapper.emitted('set-display-precision')).toEqual([[0.5]])
-  })
-
-  it('keeps the placeholder — not the plan settings — for the calibrate tool with no selection', () => {
-    const wrapper = mount(EditorSidePanel, {
-      props: { ...baseProps(), activeTool: 'calibrate' as const },
-    })
-
-    expect(wrapper.findComponent(PlanSettingsPanel).exists()).toBe(false)
-    expect(wrapper.text()).toContain('Select an element to edit its properties.')
+    expect(wrapper.findComponent(UnderlayPanel).exists()).toBe(true)
+    expect(wrapper.findComponent(StructureOverviewPanel).exists()).toBe(false)
   })
 
   it('shows wall options without a wall inspector while the wall tool is armed', () => {
@@ -218,7 +211,7 @@ describe('EditorSidePanel', () => {
 
   it('shows the device picker while the device tool is armed with no type picked', () => {
     const wrapper = mount(EditorSidePanel, {
-      props: { ...baseProps(), activeTool: 'device' as const },
+      props: { ...baseProps(), activeTool: 'device' as const, activeMode: 'electrical' as const },
     })
 
     expect(wrapper.find('[aria-label="Device picker"]').exists()).toBe(true)
@@ -232,6 +225,7 @@ describe('EditorSidePanel', () => {
       props: {
         ...baseProps(),
         activeTool: 'device' as const,
+        activeMode: 'electrical' as const,
         deviceArmedType: 'outlet' as const,
         deviceDraft: draft,
         catalogDefaults: { outlet: 240 },
@@ -265,5 +259,110 @@ describe('EditorSidePanel', () => {
     wrapper.findComponent(DeviceToolOptions).vm.$emit('change-device')
 
     expect(wrapper.emitted('change-device')).toHaveLength(1)
+  })
+
+  describe('tool options (spec §6.1)', () => {
+    it('gives the wire tool the circuits list and a hint naming the digit shortcut', () => {
+      const wrapper = mount(EditorSidePanel, {
+        props: { ...baseProps(), activeTool: 'wire' as const, activeMode: 'electrical' as const },
+      })
+
+      expect(wrapper.findComponent(CircuitsPanel).exists()).toBe(true)
+      const hint = wrapper.findComponent(ToolPlacementHint)
+      expect(hint.props('title')).toBe('Wire')
+      expect(hint.props('lines').join(' ')).toContain('1–9')
+    })
+
+    it('gives the calibrate tool the underlay controls', () => {
+      const wrapper = mount(EditorSidePanel, {
+        props: { ...baseProps(), activeTool: 'calibrate' as const },
+      })
+
+      expect(wrapper.findComponent(UnderlayPanel).exists()).toBe(true)
+      expect(wrapper.findComponent(StructureOverviewPanel).exists()).toBe(false)
+    })
+
+    it('relays recalibrate from the underlay controls', () => {
+      const wrapper = mount(EditorSidePanel, {
+        props: { ...baseProps(), activeTool: 'calibrate' as const },
+      })
+
+      wrapper.findComponent(UnderlayPanel).vm.$emit('recalibrate')
+
+      expect(wrapper.emitted('recalibrate')).toHaveLength(1)
+    })
+  })
+
+  describe('mode overview (spec §6.1)', () => {
+    it('shows the Structure overview under Select with nothing selected', () => {
+      const wrapper = mount(EditorSidePanel, {
+        props: { ...baseProps(), wallThicknessPresetsIn: [12, 6] },
+      })
+
+      const overview = wrapper.findComponent(StructureOverviewPanel)
+      expect(overview.props('thicknessPresetsIn')).toEqual([12, 6])
+      expect(wrapper.findComponent(InspectorOverviewPanel).exists()).toBe(false)
+    })
+
+    it('relays the Structure overview preset edits and recalibrate to the page', () => {
+      const wrapper = mount(EditorSidePanel, { props: baseProps() })
+      const overview = wrapper.findComponent(StructureOverviewPanel)
+
+      overview.vm.$emit('set-thickness-presets', [12, 6])
+      overview.vm.$emit('recalibrate')
+
+      expect(wrapper.emitted('set-thickness-presets')).toEqual([[[12, 6]]])
+      expect(wrapper.emitted('recalibrate')).toHaveLength(1)
+    })
+
+    it('shows the circuits list — the very component the Wire tool arms — in Electrical mode', () => {
+      const wrapper = mount(EditorSidePanel, {
+        props: { ...baseProps(), activeMode: 'electrical' as const },
+      })
+
+      expect(wrapper.findComponent(CircuitsPanel).exists()).toBe(true)
+      expect(wrapper.findComponent(StructureOverviewPanel).exists()).toBe(false)
+    })
+
+    it('shows the plan settings, layers and export in Inspector mode', () => {
+      const wrapper = mount(EditorSidePanel, {
+        props: {
+          ...baseProps(),
+          activeMode: 'inspector' as const,
+          planName: 'Basement',
+          displayPrecisionIn: 0.25,
+        },
+      })
+
+      const overview = wrapper.findComponent(InspectorOverviewPanel)
+      expect(overview.props('planName')).toBe('Basement')
+      expect(overview.props('displayPrecisionIn')).toBe(0.25)
+    })
+
+    it('relays the Inspector overview edits and its export request to the page', () => {
+      const wrapper = mount(EditorSidePanel, {
+        props: { ...baseProps(), activeMode: 'inspector' as const },
+      })
+      const overview = wrapper.findComponent(InspectorOverviewPanel)
+
+      overview.vm.$emit('rename', 'Cellar')
+      overview.vm.$emit('update-description', 'Reno 2026')
+      overview.vm.$emit('set-display-precision', 0.5)
+      overview.vm.$emit('export')
+
+      expect(wrapper.emitted('rename')).toEqual([['Cellar']])
+      expect(wrapper.emitted('update-description')).toEqual([['Reno 2026']])
+      expect(wrapper.emitted('set-display-precision')).toEqual([[0.5]])
+      expect(wrapper.emitted('export')).toHaveLength(1)
+    })
+
+    it('yields to a selection: the inspector replaces the overview', () => {
+      const wrapper = mount(EditorSidePanel, {
+        props: { ...baseProps(), selectedWalls: [makeWall()] },
+      })
+
+      expect(wrapper.findComponent(StructureOverviewPanel).exists()).toBe(false)
+      expect(wrapper.findComponent(WallInspector).exists()).toBe(true)
+    })
   })
 })

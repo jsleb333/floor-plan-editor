@@ -18,7 +18,7 @@ export interface UseCircuitValidationReturn {
   validation: ComputedRef<PlanValidation>
   /** Per-circuit load keyed by circuit id, for O(1) lookup in list rows. */
   loadByCircuit: ComputedRef<Map<string, CircuitLoad>>
-  /** How many circuits are in `warning` or `over` state (the Circuits tab badge, §6.1). */
+  /** How many circuits are in `warning` or `over` state (the status bar's ⚠ badge, §6.1). */
   warningCount: ComputedRef<number>
 }
 
