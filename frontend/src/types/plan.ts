@@ -246,6 +246,8 @@ export interface PlanDocument {
   control_links: ControlLink[]
   /** Tool armed when the session was last saved, restored on open (spec P4/E9). */
   active_tool: string | null
+  /** Mode active when the session was last saved, restored on open (spec P4/E10). */
+  active_mode: string | null
 }
 
 /** The computed electrical state of one circuit (spec C4/W4). Mirrors backend `CircuitLoad`. */

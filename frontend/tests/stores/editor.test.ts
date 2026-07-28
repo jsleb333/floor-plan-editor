@@ -162,6 +162,23 @@ describe('useEditorStore autosave', () => {
     })
   })
 
+  it('setActiveMode writes the mode into the document and autosaves it like the active tool (spec E10)', async () => {
+    vi.mocked(getPlan).mockResolvedValue(makePlan())
+    vi.mocked(savePlanDocument).mockResolvedValue({ revision: 4 })
+    const store = useEditorStore()
+    await store.loadPlan('plan-1')
+
+    store.mutate({ type: 'setActiveMode', modeId: 'electrical' })
+
+    expect(store.document?.active_mode).toBe('electrical')
+    expect(store.canUndo).toBe(false)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(savePlanDocument).toHaveBeenCalledWith('plan-1', {
+      revision: 3,
+      document: makeDocument({ active_mode: 'electrical' }),
+    })
+  })
+
   it('setDisplayPrecision writes the override, drives displayPrecisionIn and autosaves, without entering the history', async () => {
     vi.mocked(getPlan).mockResolvedValue(makePlan())
     vi.mocked(savePlanDocument).mockResolvedValue({ revision: 4 })
@@ -349,6 +366,17 @@ describe('useEditorStore undo/redo', () => {
     store.undo()
     expect(store.document?.walls).toEqual([])
     expect(store.document?.active_tool).toBe('device')
+    expect(store.canUndo).toBe(false)
+  })
+
+  it('excludes setActiveMode from the history: undo skips over mode changes', async () => {
+    const store = await loadedStore()
+    store.mutate({ type: 'addWall', wall: makeWall({ id: 'w1' }) })
+    store.mutate({ type: 'setActiveMode', modeId: 'electrical' })
+
+    store.undo()
+    expect(store.document?.walls).toEqual([])
+    expect(store.document?.active_mode).toBe('electrical')
     expect(store.canUndo).toBe(false)
   })
 
