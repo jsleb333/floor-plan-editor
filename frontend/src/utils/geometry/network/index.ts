@@ -18,6 +18,13 @@ export {
   type SurfaceAnchor,
 } from './flushPlacement'
 export {
+  guideCrossings,
+  resolveGuideLine,
+  resolveGuideLines,
+  type GuideCrossing,
+  type GuideLine,
+} from './guideLine'
+export {
   capOf,
   endFrame,
   geometryInputOf,

@@ -89,6 +89,48 @@ export interface FlushJoint {
 export type Joint = CornerJoint | TeeJoint | FlushJoint
 
 /**
+ * A guide anchored to a wall surface (spec S9): the line parallel to the named
+ * segment's surface on `side`, `offset_in` inches OUTWARD from it (away from
+ * the wall body). Stored as a relation, not a coordinate, so the guide keeps
+ * its offset when the wall moves or changes thickness.
+ */
+export interface SurfaceGuide {
+  id: string
+  kind: 'surface'
+  wall_id: string
+  segment_index: number
+  side: WallSide
+  offset_in: number
+}
+
+/**
+ * A guide through a wall end (spec S9), at `angle_deg` from the +x axis toward
+ * +y. Anchored to the point, so it follows that corner through edits.
+ */
+export interface PointGuide {
+  id: string
+  kind: 'point'
+  anchor: WallEndRef
+  angle_deg: number
+}
+
+/** A construction line anchored to nothing: through `origin` at `angle_deg` (spec S9). */
+export interface FreeGuide {
+  id: string
+  kind: 'free'
+  origin: Point
+  angle_deg: number
+}
+
+/**
+ * An infinite construction line placed with the tape measure (spec S9). The
+ * anchored kinds name the wall they were measured from rather than a position,
+ * so the geometry re-derives them on every edit
+ * (`frontend/src/utils/geometry/network/guideLine.ts`).
+ */
+export type Guide = SurfaceGuide | PointGuide | FreeGuide
+
+/**
  * The leaf configuration of a door (spec S4). Mirrors the backend `Opening.style`
  * union; it decides which of `hinge`/`swing` the drawn symbol reads.
  */
@@ -257,8 +299,9 @@ export interface Underlay {
 
 /**
  * The versioned plan document — everything the editor persists via autosave.
- * Schema version 8: moves wall connectivity off the walls into `joints`
- * (`docs/WALL_NETWORK.md`), on top of the v7 per-plan `display_precision_in`
+ * Schema version 9: adds the custom `guides` (spec S9), on top of the v8 move
+ * of wall connectivity off the walls into `joints`
+ * (`docs/WALL_NETWORK.md`), the v7 per-plan `display_precision_in`
  * override (spec §5.9 tier 2), the v6 persisted `active_tool` (spec P4/E9), the v5
  * electrical layout — colour-coded `circuits`, the `wires` connecting
  * devices into them (spec §5.6) and the documentary switch `control_links`
@@ -278,6 +321,12 @@ export interface PlanDocument {
    * open, which is also how a v7 document arrives.
    */
   joints: Joint[]
+  /**
+   * Infinite construction lines placed with the tape measure (spec S9). The
+   * anchored kinds carry a relation rather than a position, so the geometry
+   * resolves them from the walls they name on every edit.
+   */
+  guides: Guide[]
   openings: Opening[]
   stairs: Stairs[]
   labels: Label[]

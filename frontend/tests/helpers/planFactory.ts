@@ -156,6 +156,7 @@ export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocumen
     underlay: null,
     walls: [],
     joints: [],
+    guides: [],
     openings: [],
     stairs: [],
     labels: [],
