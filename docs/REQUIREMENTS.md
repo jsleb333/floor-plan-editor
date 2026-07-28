@@ -350,6 +350,40 @@ follow their devices; only interior control points are absolute.
 - **S8 Dimension annotations** — The user can add persistent dimension lines
   between two points; they display the real distance and update live when the
   geometry moves.
+- **S9 Tape measure and custom guides** — One tool (**M**), SketchUp-style:
+  it measures by default, and placing a guide is the byproduct of where the
+  clicks land. What the first click captures decides the meaning — plan
+  content drives the tool, as in S1d:
+  - **Click a wall surface, drag away, click** — places a guide **parallel
+    to that surface** at the dragged offset. A live distance chip shows the
+    offset while dragging, and typing a value (`36`, `3'0`, S2 conventions)
+    places it exactly. The guide is stored **anchored to that wall surface**:
+    when the wall moves or changes thickness, the guide keeps its offset —
+    it is a relation maintained by the constraint solver
+    (`docs/WALL_NETWORK.md`), not a coordinate. This is what a paper
+    tape-measure workflow cannot do, and the reason to prefer anchored
+    placement wherever a surface was clicked.
+  - **Click a wall corner or end, drag, click** — places a guide **through
+    that point** at the dragged angle, constrained to 0°/45°/90° unless Alt
+    is held (S1 angle conventions); typing a value sets the angle in degrees
+    exactly. Anchored to the point: it follows the corner through edits.
+  - **Click empty space, drag, click** — places a **free** infinite
+    construction line, same angle behaviour, anchored to nothing.
+  - **Click two points and press Esc** (or click a second point when the
+    first captured nothing to anchor to) — the tool acted as a pure
+    **measuring tape**: the distance chip was the deliverable and nothing is
+    placed.
+
+  Guides are infinite dashed hairlines, visually distinct from the transient
+  S1e alignment guides (different dash rhythm; they do not fade). They are
+  first-class elements: selectable, deletable, undoable; the Inspector shows
+  the angle and — for anchored guides — the offset, both editable. In the
+  snap engine they form a line tier **above wall projections** (the user
+  placed them deliberately), and guide×guide and guide×surface crossings are
+  point targets; Alt suspends guide snapping like every other snap. A
+  Layers-panel toggle hides all guides at once. Guides persist in the plan
+  document but are **excluded from export by default** (X4) — they are
+  working geometry, like the underlay.
 
 ### 5.4 Device catalog
 
@@ -541,7 +575,8 @@ floor to the storey below. They carry no load on this plan — their load overri
 - **X3 PNG** — Raster export with selectable resolution/scale and optional
   transparent background.
 - **X4** — Export dialog offers: layers to include, with/without underlay,
-  with/without dimension annotations.
+  with/without dimension annotations, with/without custom guides (S9; off by
+  default).
 
 ### 5.9 Settings and user-settable properties
 
@@ -698,8 +733,13 @@ Plan
   underlay: Underlay | null
   walls: [Wall]           # each: id, vertices [Point] (reference line),
                           # thickness_in, reference: center|left|right,
-                          # locked_segments: [int],  # indices of locked segments (S3b)
-                          # junctions: [{vertex_idx | t: float, wall_id}]  # T-junction attachments
+                          # locked_segments: [int]  # indices of locked segments (S3b)
+  joints: [Joint]         # wall connectivity, document-level and symmetric (v8):
+                          # corner {ends: [wall end refs]} | tee {end, host segment}
+                          # | flush {two surface parties} — docs/WALL_NETWORK.md
+  guides: [Guide]         # S9 custom guides (v9): id, anchor
+                          # (wall surface + offset_in | wall end point | free origin),
+                          # angle_deg for unanchored/point-anchored lines
   openings: [Opening]     # door|window: id, attachment (§4.2), width_in,
                           # style (swing|double|sliding|bifold|double_bifold|pocket, S4), hinge, swing
   stairs: [Stairs]        # id, rect, direction
