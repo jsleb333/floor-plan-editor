@@ -20,7 +20,7 @@ function toolClasses(tool: ToolDefinition, activeTool: ToolId): string {
 <template>
   <nav
     aria-label="Tools"
-    class="border-line bg-surface flex w-12 shrink-0 flex-col items-center gap-1 border-r py-2"
+    class="border-line bg-surface shadow-panel rounded-card m-3 flex w-12 shrink-0 flex-col items-center gap-1 border py-2"
   >
     <button
       v-for="tool in tools"

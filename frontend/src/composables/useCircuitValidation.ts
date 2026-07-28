@@ -25,8 +25,8 @@ export interface UseCircuitValidationReturn {
 /**
  * Live circuit validation mirrored from the open plan document (spec §8). The
  * server endpoint stays the source of truth, but this drives the Circuits panel
- * and the tab warning badge without a round trip, recomputing whenever the
- * document changes.
+ * and the status bar's warning badge without a round trip, recomputing
+ * whenever the document changes.
  */
 export function useCircuitValidation(): UseCircuitValidationReturn {
   const editorStore = useEditorStore()
