@@ -21,7 +21,7 @@ class PlanDocument(BaseModel):
     """The versioned JSON document holding everything a plan contains.
 
     Role:
-        Unit of persistence and autosave. Schema version 8 carries the
+        Unit of persistence and autosave. Schema version 9 carries the
         viewport, the optional tracing underlay, the structure element
         collections (walls with their optional colour override — spec S1f —,
         openings, stairs, labels, dimensions), the
@@ -39,10 +39,13 @@ class PlanDocument(BaseModel):
         lists never require a schema change), the electrical
         layout — the colour-coded ``circuits``, the ``wires`` connecting
         devices into them (spec section 5.6) and the documentary switch
-        ``control_links`` (spec D6) — and the ``active_tool`` last armed in
-        the editor, so a session restores where it left off (spec P4/E9;
-        the frontend owns the valid tool ids and falls back to Select on
-        unknown values). Older documents are migrated forward on read by
+        ``control_links`` (spec D6) — the ``active_tool`` last armed in the
+        editor (spec P4/E9; the frontend owns the valid tool ids and falls
+        back to Select on unknown values) and the ``active_mode`` last active
+        workspace mode (spec P4/E10; the frontend owns the valid mode ids —
+        ``structure`` | ``electrical`` | ``inspector`` — and resolves the mode
+        from the tool when the two disagree), so a session restores where it
+        left off. Older documents are migrated forward on read by
         :class:`backend.core.plan_migrator.PlanMigrator`; incoming documents
         with an older shape still validate because every field added since
         v1 has a default.
@@ -69,3 +72,4 @@ class PlanDocument(BaseModel):
     wires: list[Wire] = Field(default_factory=list)
     control_links: list[ControlLink] = Field(default_factory=list)
     active_tool: str | None = None
+    active_mode: str | None = None

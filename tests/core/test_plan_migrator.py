@@ -76,22 +76,32 @@ def _v7_document() -> dict[str, Any]:
     }
 
 
+def _v8_document() -> dict[str, Any]:
+    """Build a raw schema v8 document, carrying a wall with an explicit colour override."""
+    v7 = _v7_document()
+    return {
+        **v7,
+        "schema_version": 8,
+        "walls": [{**v7["walls"][0], "color": "#ff0000"}],
+    }
+
+
 class TestPlanMigrator:
     @pytest.fixture
     def migrator(self) -> PlanMigrator:
         """Migrator under test."""
         return PlanMigrator()
 
-    def test_migrate__when_document_is_v1__walks_all_steps_to_v8(
+    def test_migrate__when_document_is_v1__walks_all_steps_to_v9(
         self, migrator: PlanMigrator
     ) -> None:
-        """A v1 document gains the empty structure collections, the default thickness presets, the empty underlay slot, the empty device collections, the empty electrical-layout collections, the empty active-tool slot, the unset display precision and the per-wall colour slot, while keeping its viewport; the result validates as a PlanDocument."""
+        """A v1 document gains the empty structure collections, the default thickness presets, the empty underlay slot, the empty device collections, the empty electrical-layout collections, the empty active-tool slot, the unset display precision, the per-wall colour slot and the empty active-mode slot, while keeping its viewport; the result validates as a PlanDocument."""
         raw = _v1_document()
 
         migrated, did_migrate = migrator.migrate(raw)
 
         assert did_migrate is True
-        assert migrated["schema_version"] == 8
+        assert migrated["schema_version"] == 9
         assert migrated["viewport"] == raw["viewport"]
         assert migrated["walls"] == []
         assert migrated["openings"] == []
@@ -107,19 +117,20 @@ class TestPlanMigrator:
         assert migrated["control_links"] == []
         assert migrated["active_tool"] is None
         assert migrated["display_precision_in"] is None
+        assert migrated["active_mode"] is None
         document = PlanDocument.model_validate(migrated)
-        assert document.schema_version == 8
+        assert document.schema_version == 9
 
     def test_migrate__when_document_is_v2__adds_underlay_device_and_electrical_collections(
         self, migrator: PlanMigrator
     ) -> None:
-        """A v2 document gains the underlay slot, the device and electrical-layout collections, the active-tool slot, the display-precision slot and schema version 8, keeping its structure content; the result validates as a PlanDocument."""
+        """A v2 document gains the underlay slot, the device and electrical-layout collections, the active-tool slot, the display-precision slot, the active-mode slot and schema version 9, keeping its structure content; the result validates as a PlanDocument."""
         raw = _v2_document()
 
         migrated, did_migrate = migrator.migrate(raw)
 
         assert did_migrate is True
-        assert migrated["schema_version"] == 8
+        assert migrated["schema_version"] == 9
         assert migrated["underlay"] is None
         assert migrated["devices"] == []
         assert migrated["catalog_defaults"] == {}
@@ -128,6 +139,7 @@ class TestPlanMigrator:
         assert migrated["control_links"] == []
         assert migrated["active_tool"] is None
         assert migrated["display_precision_in"] is None
+        assert migrated["active_mode"] is None
         assert migrated["viewport"] == raw["viewport"]
         assert migrated["thickness_presets_in"] == raw["thickness_presets_in"]
         document = PlanDocument.model_validate(migrated)
@@ -136,18 +148,19 @@ class TestPlanMigrator:
     def test_migrate__when_document_is_v4__adds_electrical_collections_and_later_slots(
         self, migrator: PlanMigrator
     ) -> None:
-        """A v4 document only gains the circuits, wires and control-link collections, the empty active-tool and display-precision slots and schema version 8; the result validates as a PlanDocument."""
+        """A v4 document only gains the circuits, wires and control-link collections, the empty active-tool, display-precision and active-mode slots and schema version 9; the result validates as a PlanDocument."""
         raw = _v4_document()
 
         migrated, did_migrate = migrator.migrate(raw)
 
         assert did_migrate is True
-        assert migrated["schema_version"] == 8
+        assert migrated["schema_version"] == 9
         assert migrated["circuits"] == []
         assert migrated["wires"] == []
         assert migrated["control_links"] == []
         assert migrated["active_tool"] is None
         assert migrated["display_precision_in"] is None
+        assert migrated["active_mode"] is None
         assert migrated["devices"] == []
         assert migrated["viewport"] == raw["viewport"]
         document = PlanDocument.model_validate(migrated)
@@ -155,10 +168,10 @@ class TestPlanMigrator:
         assert document.wires == []
         assert document.control_links == []
 
-    def test_migrate__when_document_is_v5__adds_the_active_tool_and_display_precision_slots(
+    def test_migrate__when_document_is_v5__adds_the_active_tool_display_precision_and_active_mode_slots(
         self, migrator: PlanMigrator
     ) -> None:
-        """A v5 document gains only the empty active-tool and display-precision slots and schema version 8, keeping everything else untouched; the result validates as a PlanDocument."""
+        """A v5 document gains only the empty active-tool, display-precision and active-mode slots and schema version 9, keeping everything else untouched; the result validates as a PlanDocument."""
         raw = _v5_document()
 
         migrated, did_migrate = migrator.migrate(raw)
@@ -166,41 +179,66 @@ class TestPlanMigrator:
         assert did_migrate is True
         assert migrated == {
             **raw,
-            "schema_version": 8,
+            "schema_version": 9,
             "active_tool": None,
             "display_precision_in": None,
+            "active_mode": None,
         }
         document = PlanDocument.model_validate(migrated)
         assert document.active_tool is None
+        assert document.active_mode is None
 
-    def test_migrate__when_document_is_v6__only_adds_the_unset_display_precision(
+    def test_migrate__when_document_is_v6__adds_the_unset_display_precision_and_active_mode(
         self, migrator: PlanMigrator
     ) -> None:
-        """A v6 document gains only the unset per-plan display precision and schema version 8, keeping its active tool and everything else untouched; the result validates as a PlanDocument."""
+        """A v6 document gains only the unset per-plan display precision, the unset active mode and schema version 9, keeping its active tool and everything else untouched; the result validates as a PlanDocument."""
         raw = _v6_document()
 
         migrated, did_migrate = migrator.migrate(raw)
 
         assert did_migrate is True
-        assert migrated == {**raw, "schema_version": 8, "display_precision_in": None}
+        assert migrated == {
+            **raw,
+            "schema_version": 9,
+            "display_precision_in": None,
+            "active_mode": None,
+        }
         document = PlanDocument.model_validate(migrated)
         assert document.display_precision_in is None
         assert document.active_tool == "wall"
+        assert document.active_mode is None
 
     def test_migrate__when_document_is_v7__gives_every_wall_an_unset_colour(
         self, migrator: PlanMigrator
     ) -> None:
-        """A v7 document reaches v8 with each wall carrying an explicit empty colour, so it keeps taking the role default derived from the plan presets; the caller's dict is left pristine for the backup."""
+        """A v7 document reaches v9 with each wall carrying an explicit empty colour, so it keeps taking the role default derived from the plan presets, and gains the unset active-mode slot; the caller's dict is left pristine for the backup."""
         raw = _v7_document()
 
         migrated, did_migrate = migrator.migrate(raw)
 
         assert did_migrate is True
-        assert migrated["schema_version"] == 8
+        assert migrated["schema_version"] == 9
         assert migrated["walls"][0]["color"] is None
+        assert migrated["active_mode"] is None
         assert raw == _v7_document()
         document = PlanDocument.model_validate(migrated)
         assert document.walls[0].color is None
+        assert document.active_mode is None
+
+    def test_migrate__when_document_is_v8__adds_the_unset_active_mode(
+        self, migrator: PlanMigrator
+    ) -> None:
+        """A v8 document gains only the unset active-mode slot and schema version 9, keeping its active tool and per-wall colour untouched; the result validates as a PlanDocument."""
+        raw = _v8_document()
+
+        migrated, did_migrate = migrator.migrate(raw)
+
+        assert did_migrate is True
+        assert migrated == {**raw, "schema_version": 9, "active_mode": None}
+        document = PlanDocument.model_validate(migrated)
+        assert document.active_mode is None
+        assert document.active_tool == "wall"
+        assert document.walls[0].color == "#ff0000"
 
     def test_migrate__when_a_wall_already_carries_a_colour__keeps_it(
         self, migrator: PlanMigrator
@@ -223,7 +261,7 @@ class TestPlanMigrator:
         migrated, did_migrate = migrator.migrate(raw)
 
         assert did_migrate is True
-        assert migrated["schema_version"] == 8
+        assert migrated["schema_version"] == 9
 
     def test_migrate__when_document_is_current__passes_through_untouched(
         self, migrator: PlanMigrator

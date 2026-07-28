@@ -39,6 +39,7 @@ class PlanMigrator:
             5: self._migrate_v5_to_v6,
             6: self._migrate_v6_to_v7,
             7: self._migrate_v7_to_v8,
+            8: self._migrate_v8_to_v9,
         }
 
     def migrate(self, raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -185,4 +186,19 @@ class PlanMigrator:
                 {"color": None, **wall} if isinstance(wall, dict) else wall for wall in walls
             ]
         document["schema_version"] = 8
+        return document
+
+    @staticmethod
+    def _migrate_v8_to_v9(document: dict[str, Any]) -> dict[str, Any]:
+        """Add the v9 persisted active-mode slot (spec P4/E10), empty by default.
+
+        Args:
+            document: A schema v8 document dict.
+
+        Returns:
+            The same dict brought to schema version 9, with no active mode
+            recorded — the editor falls back to its content-aware startup.
+        """
+        document.setdefault("active_mode", None)
+        document["schema_version"] = 9
         return document
