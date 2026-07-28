@@ -170,6 +170,7 @@ export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocumen
     wires: [],
     control_links: [],
     active_tool: null,
+    active_mode: null,
     ...overrides,
   }
 }
