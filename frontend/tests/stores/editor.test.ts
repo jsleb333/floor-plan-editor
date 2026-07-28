@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/client'
 import { getPlan, savePlanDocument, updatePlanMetadata } from '@/api/plans'
 import { useEditorStore } from '@/stores/editor'
-import type { Joint } from '@/types/plan'
+import type { FreeGuide, Joint, PointGuide, SurfaceGuide } from '@/types/plan'
 import { CIRCUIT_PALETTE } from '@/utils/circuits'
 import {
   makeCircuit,
@@ -1397,5 +1397,155 @@ describe('useEditorStore wall joints', () => {
     const partition = store.document?.walls.find((wall) => wall.id === 'partition')
     expect(partition?.vertices[0]).toEqual({ x: 6, y: 100 })
     expect(store.document?.joints.map((joint) => joint.kind)).toEqual(['tee'])
+  })
+})
+
+describe('useEditorStore guide commands (S9)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  /** A guide parallel to the default wall's left surface, 12" out from it. */
+  function surfaceGuide(overrides: Partial<SurfaceGuide> = {}): SurfaceGuide {
+    return {
+      id: 'g1',
+      kind: 'surface',
+      wall_id: 'a',
+      segment_index: 0,
+      side: 'left',
+      offset_in: 12,
+      ...overrides,
+    }
+  }
+
+  it('add/update/removeGuide apply and their inverses undo exactly', () => {
+    const store = useEditorStore()
+    store.document = makeDocument()
+    const guide: FreeGuide = { id: 'g1', kind: 'free', origin: { x: 10, y: 20 }, angle_deg: 45 }
+    const updated: FreeGuide = { ...guide, angle_deg: 90 }
+
+    store.mutate({ type: 'addGuide', guide })
+    store.mutate({ type: 'updateGuide', guideId: 'g1', guide: updated })
+    expect(store.document?.guides).toEqual([updated])
+
+    store.mutate({ type: 'removeGuide', guideId: 'g1' })
+    expect(store.document?.guides).toEqual([])
+
+    store.undo()
+    expect(store.document?.guides).toEqual([updated])
+    store.undo()
+    expect(store.document?.guides).toEqual([guide])
+    store.undo()
+    expect(store.document?.guides).toEqual([])
+    expect(store.canUndo).toBe(false)
+
+    store.redo()
+    expect(store.document?.guides).toEqual([guide])
+  })
+
+  it('coalesces repeated guide updates inside a transaction into one undo step', () => {
+    const store = useEditorStore()
+    const guide: FreeGuide = { id: 'g1', kind: 'free', origin: { x: 0, y: 0 }, angle_deg: 0 }
+    store.document = makeDocument({ guides: [guide] })
+
+    store.beginTransaction()
+    for (const angle_deg of [10, 20, 30]) {
+      store.mutate({ type: 'updateGuide', guideId: 'g1', guide: { ...guide, angle_deg } })
+    }
+    store.commitTransaction()
+
+    expect(store.document?.guides[0]?.kind === 'free' && store.document.guides[0].angle_deg).toBe(
+      30,
+    )
+    store.undo()
+    expect(store.document?.guides).toEqual([guide])
+    expect(store.canUndo).toBe(false)
+  })
+
+  it('resolves every guide to its world line, keyed on the document version', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({ walls: [makeWall({ id: 'a' })], guides: [surfaceGuide()] })
+
+    // The default wall is 3.5" thick on its centre line, so its left surface is
+    // at y = -1.75 and a 12" offset puts the guide at y = -13.75.
+    expect(store.guideLines).toEqual([
+      { guideId: 'g1', point: { x: 0, y: -13.75 }, dir: { x: 1, y: 0 } },
+    ])
+
+    store.mutate({
+      type: 'updateWall',
+      wallId: 'a',
+      wall: makeWall({ id: 'a', thickness_in: 12 }),
+    })
+    expect(store.guideLines).toEqual([
+      { guideId: 'g1', point: { x: 0, y: -18 }, dir: { x: 1, y: 0 } },
+    ])
+  })
+
+  it('removing a wall degrades its anchored guides to free guides on the same line', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      walls: [makeWall({ id: 'a' }), makeWall({ id: 'b' })],
+      guides: [surfaceGuide(), surfaceGuide({ id: 'g2', wall_id: 'b' })],
+    })
+    const before = store.guideLines
+
+    store.mutate({ type: 'removeWall', wallId: 'a' })
+
+    // The guide survives the wall it was measured from, on exactly the line it
+    // already occupied, and stops naming a wall the document no longer holds.
+    expect(store.document?.guides[0]).toEqual({
+      id: 'g1',
+      kind: 'free',
+      origin: { x: 0, y: -13.75 },
+      angle_deg: 0,
+    })
+    expect(store.guideLines).toEqual(before)
+    // The guide on the surviving wall keeps its anchor.
+    expect(store.document?.guides[1]).toEqual(surfaceGuide({ id: 'g2', wall_id: 'b' }))
+
+    store.undo()
+    expect(store.document?.walls.map((wall) => wall.id)).toEqual(['a', 'b'])
+    expect(store.document?.guides[0]).toEqual(surfaceGuide())
+    expect(store.canUndo).toBe(false)
+  })
+
+  it('degrades a point guide to the resolved corner it hangs from', () => {
+    const store = useEditorStore()
+    const guide: PointGuide = {
+      id: 'g1',
+      kind: 'point',
+      anchor: { wall_id: 'a', end: 'end' },
+      angle_deg: 90,
+    }
+    store.document = makeDocument({ walls: [makeWall({ id: 'a' })], guides: [guide] })
+    const before = store.guideLines
+
+    store.mutate({ type: 'removeWall', wallId: 'a' })
+
+    const degraded = store.document?.guides[0]
+    expect(degraded?.kind).toBe('free')
+    expect(degraded?.kind === 'free' && degraded.origin).toEqual({ x: 120, y: 0 })
+    expect(degraded?.kind === 'free' && degraded.angle_deg).toBeCloseTo(90)
+    expect(store.guideLines[0]?.point).toEqual(before[0]?.point)
+    expect(store.guideLines[0]?.dir.x).toBeCloseTo(before[0]?.dir.x ?? NaN)
+    expect(store.guideLines[0]?.dir.y).toBeCloseTo(before[0]?.dir.y ?? NaN)
+  })
+
+  it('leaves a guide whose anchor is already broken untouched instead of failing', () => {
+    const store = useEditorStore()
+    const orphan = surfaceGuide({ id: 'g-orphan', wall_id: 'gone' })
+    store.document = makeDocument({
+      walls: [makeWall({ id: 'a' })],
+      guides: [orphan, surfaceGuide()],
+    })
+
+    store.mutate({ type: 'removeWall', wallId: 'gone' })
+    expect(store.document?.guides).toEqual([orphan, surfaceGuide()])
+    expect(store.canUndo).toBe(false)
+
+    store.mutate({ type: 'removeWall', wallId: 'a' })
+    expect(store.document?.guides[0]).toEqual(orphan)
   })
 })

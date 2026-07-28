@@ -6,6 +6,7 @@ import { useSnapping } from '@/composables/useSnapping'
 import type { SnapChainContext, UseSnappingReturn } from '@/composables/useSnapping'
 import type { Joint, Wall } from '@/types/plan'
 import { resolveWallNetwork } from '@/utils/geometry'
+import type { GuideLine } from '@/utils/geometry'
 import { makeWall } from '../helpers/planFactory'
 
 interface SnappingOverrides {
@@ -15,6 +16,8 @@ interface SnappingOverrides {
   pixelsPerInch?: number
   /** Supplies the resolved network, which is what makes wall surfaces snappable. */
   surfaces?: boolean
+  /** Resolved S9 guide lines; omitted entirely by every pre-guides case. */
+  guides?: GuideLine[]
 }
 
 /** Snap engine over the given walls; pixelsPerInch defaults to 1 (threshold = 10"). */
@@ -29,6 +32,7 @@ function makeSnapping(
   return useSnapping({
     walls: wallsRef,
     network: overrides.surfaces === true ? ref(resolveWallNetwork(walls, joints)) : undefined,
+    guideLines: overrides.guides === undefined ? undefined : ref(overrides.guides),
     pixelsPerInch: ref(overrides.pixelsPerInch ?? 1),
     settings: {
       grid: ref(overrides.grid ?? true),
@@ -557,5 +561,119 @@ describe('useSnapping wall surfaces', () => {
     expect(result.point.x).toBeCloseTo(50)
     expect(result.point.y).toBeCloseTo(6)
     expect(result.target?.kind).toBe('surface')
+  })
+})
+
+/** A guide line in world space; `dir` is a unit vector, as the resolver produces. */
+function guideLine(guideId: string, point: [number, number], dir: [number, number]): GuideLine {
+  return { guideId, point: { x: point[0], y: point[1] }, dir: { x: dir[0], y: dir[1] } }
+}
+
+/** The vertical guide at x = 50 most cases below snap against. */
+const VERTICAL_GUIDE = guideLine('g1', [50, 0], [0, 1])
+/** No angle or grid constraint, so the assertions are about the guide tier alone. */
+const RAW = { grid: false, angle: false }
+
+describe('useSnapping custom guides (S9)', () => {
+  it('drops the cursor onto a guide line and reports the guide it came from', () => {
+    const snapping = makeSnapping([], { ...RAW, guides: [VERTICAL_GUIDE] })
+    const result = snapping.resolve({ x: 52, y: 30 }, null, false)
+
+    expect(result.point).toEqual({ x: 50, y: 30 })
+    expect(result.marker).toBe('guide')
+    expect(result.guideId).toBe('g1')
+  })
+
+  it('a guide line outranks a wall projection even when the projection is nearer', () => {
+    const host = makeWall({
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 0, y: 240 },
+      ],
+    })
+    // The cursor is 2" from the wall's reference line and 6" from the guide, so
+    // only the TIER order can decide this: a guide is a deliberate placement.
+    const cursor = { x: 2, y: 100 }
+    const withGuide = makeSnapping([host], {
+      ...RAW,
+      guides: [guideLine('g1', [8, 0], [0, 1])],
+    }).resolve(cursor, null, false)
+
+    expect(withGuide.point).toEqual({ x: 8, y: 100 })
+    expect(withGuide.marker).toBe('guide')
+    expect(withGuide.guideId).toBe('g1')
+
+    // Same cursor with no guides: the projection was in range all along.
+    const control = makeSnapping([host], RAW).resolve(cursor, null, false)
+    expect(control.marker).toBe('projection')
+    expect(control.point).toEqual({ x: 0, y: 100 })
+    expect(control.guideId).toBeNull()
+  })
+
+  it('a guide crossing wins as a point target over a nearer hit on one line', () => {
+    const snapping = makeSnapping([], {
+      ...RAW,
+      guides: [VERTICAL_GUIDE, guideLine('g2', [0, 100], [1, 0])],
+    })
+    // 2" from the vertical guide, 6.3" from the crossing: the crossing is a
+    // point target, and points beat lines outright.
+    const result = snapping.resolve({ x: 52, y: 106 }, null, false)
+
+    expect(result.point).toEqual({ x: 50, y: 100 })
+    expect(result.marker).toBe('guide')
+    expect(result.guideId).toBe('g1')
+  })
+
+  it('where a guide crosses a wall surface is a point target too', () => {
+    const snapping = makeSnapping([makeWall()], {
+      ...RAW,
+      surfaces: true,
+      guides: [guideLine('g1', [60, 0], [0, 1])],
+    })
+    // The default wall's left surface runs along y = -1.75; the crossing at 3.2"
+    // beats both the wall's midpoint at 4.2" and the surface line under it.
+    const result = snapping.resolve({ x: 63, y: -3 }, null, false)
+
+    expect(result.point).toEqual({ x: 60, y: -1.75 })
+    expect(result.marker).toBe('guide')
+    expect(result.guideId).toBe('g1')
+  })
+
+  it('keeps an angle-constrained segment on its ray where the ray crosses a guide', () => {
+    const snapping = makeSnapping([], { grid: false, guides: [VERTICAL_GUIDE] })
+    // Drawing east from the origin, drifting 4" north: the segment stays
+    // horizontal and still lands exactly on the guide.
+    const result = snapping.resolve({ x: 52, y: 4 }, chain([0, 0], [0, 0], 1), false)
+
+    expect(result.point).toEqual({ x: 50, y: 0 })
+    expect(result.marker).toBe('guide')
+    expect(result.guideId).toBe('g1')
+    expect(result.guide).toEqual({ origin: { x: 0, y: 0 }, dir: { x: 1, y: 0 } })
+  })
+
+  it('Alt suspends guide snapping like every other snap', () => {
+    const snapping = makeSnapping([], { ...RAW, guides: [VERTICAL_GUIDE] })
+    const result = snapping.resolve({ x: 52, y: 30 }, null, true)
+
+    expect(result.point).toEqual({ x: 52, y: 30 })
+    expect(result.marker).toBeNull()
+    expect(result.guideId).toBeNull()
+  })
+
+  it('the walls toggle governs the guide tier as well', () => {
+    const snapping = makeSnapping([], { ...RAW, walls: false, guides: [VERTICAL_GUIDE] })
+    const result = snapping.resolve({ x: 52, y: 30 }, null, false)
+
+    expect(result.point).toEqual({ x: 52, y: 30 })
+    expect(result.marker).toBeNull()
+  })
+
+  it('an empty guide list is how a caller hides guides: nothing captures', () => {
+    const snapping = makeSnapping([], { ...RAW, guides: [] })
+    const result = snapping.resolve({ x: 52, y: 30 }, null, false)
+
+    expect(result.point).toEqual({ x: 52, y: 30 })
+    expect(result.marker).toBeNull()
+    expect(result.guideId).toBeNull()
   })
 })

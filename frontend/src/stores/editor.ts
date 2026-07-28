@@ -9,6 +9,7 @@ import type {
   ControlLink,
   Device,
   Dimension,
+  Guide,
   Joint,
   Label,
   Opening,
@@ -23,12 +24,14 @@ import type {
 import { pickNextCircuitColor } from '@/utils/circuits'
 import {
   deriveJoints,
+  resolveGuideLine,
+  resolveGuideLines,
   resolveWallNetwork,
   solveConstraints,
   wallIdsOf,
   wallSegmentSpan,
 } from '@/utils/geometry'
-import type { ResolvedNetwork } from '@/utils/geometry'
+import type { GuideLine, ResolvedNetwork } from '@/utils/geometry'
 import type { PresetListName } from '@/utils/presetLists'
 import { DEFAULT_DISPLAY_PRECISION_IN } from '@/utils/units'
 
@@ -36,6 +39,8 @@ const AUTOSAVE_DEBOUNCE_MS = 2000
 const HTTP_CONFLICT = 409
 /** Practical undo history depth (spec E3: >= 100 steps). */
 const HISTORY_LIMIT = 100
+/** Guides store their angle in degrees; the resolved geometry reports directions. */
+const RAD_TO_DEG = 180 / Math.PI
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -51,6 +56,9 @@ export type EditorCommand =
   | { type: 'removeJoints'; jointIds: string[] }
   | { type: 'updateWall'; wallId: string; wall: Wall }
   | { type: 'removeWall'; wallId: string }
+  | { type: 'addGuide'; guide: Guide; index?: number }
+  | { type: 'updateGuide'; guideId: string; guide: Guide }
+  | { type: 'removeGuide'; guideId: string }
   | { type: 'addOpening'; opening: Opening; index?: number }
   | { type: 'updateOpening'; openingId: string; opening: Opening }
   | { type: 'removeOpening'; openingId: string }
@@ -120,6 +128,18 @@ function removeById<T extends { id: string }>(items: readonly T[], id: string): 
   return items.filter((existing) => existing.id !== id)
 }
 
+/** Whether a guide's geometry is derived from the given wall (spec S9). */
+function guideAnchorsTo(guide: Guide, wallId: string): boolean {
+  switch (guide.kind) {
+    case 'surface':
+      return guide.wall_id === wallId
+    case 'point':
+      return guide.anchor.wall_id === wallId
+    case 'free':
+      return false
+  }
+}
+
 function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocument {
   switch (command.type) {
     case 'setViewport':
@@ -163,6 +183,12 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
         walls: removeById(document.walls, command.wallId),
         joints: document.joints.filter((joint) => !wallIdsOf(joint).includes(command.wallId)),
       }
+    case 'addGuide':
+      return { ...document, guides: insertAt(document.guides, command.guide, command.index) }
+    case 'updateGuide':
+      return { ...document, guides: replaceById(document.guides, command.guideId, command.guide) }
+    case 'removeGuide':
+      return { ...document, guides: removeById(document.guides, command.guideId) }
     case 'addOpening':
       return { ...document, openings: insertAt(document.openings, command.opening, command.index) }
     case 'updateOpening':
@@ -280,6 +306,18 @@ function invertCommand(
         index,
       }
     }
+    case 'addGuide':
+      return { type: 'removeGuide', guideId: command.guide.id }
+    case 'updateGuide': {
+      const previous = document.guides.find((guide) => guide.id === command.guideId)
+      if (!previous) return undefined
+      return { type: 'updateGuide', guideId: command.guideId, guide: previous }
+    }
+    case 'removeGuide': {
+      const index = document.guides.findIndex((guide) => guide.id === command.guideId)
+      if (index === -1) return undefined
+      return { type: 'addGuide', guide: document.guides[index], index }
+    }
     case 'addOpening':
       return { type: 'removeOpening', openingId: command.opening.id }
     case 'updateOpening': {
@@ -386,6 +424,8 @@ function updateKeyOf(command: EditorCommand): string | null {
   switch (command.type) {
     case 'updateWall':
       return `wall:${command.wallId}`
+    case 'updateGuide':
+      return `guide:${command.guideId}`
     case 'updateOpening':
       return `opening:${command.openingId}`
     case 'updateStairs':
@@ -466,6 +506,20 @@ export const useEditorStore = defineStore('editor', () => {
   const wallNetwork = computed<ResolvedNetwork>(() => {
     void documentVersion.value
     return resolveWallNetwork(document.value?.walls ?? [], document.value?.joints ?? [])
+  })
+
+  /**
+   * Every guide resolved to its world line (spec S9), memoized on
+   * `documentVersion` like `wallNetwork` — the one place the renderer, the tape
+   * measure tool and the snap engine read guide geometry from.
+   */
+  const guideLines = computed<GuideLine[]>(() => {
+    void documentVersion.value
+    return resolveGuideLines(
+      document.value?.guides ?? [],
+      document.value?.walls ?? [],
+      wallNetwork.value,
+    )
   })
 
   const selectedWallIds = computed<ReadonlySet<string>>(() => selectedIdsOfKind('wall'))
@@ -655,20 +709,52 @@ export const useEditorStore = defineStore('editor', () => {
     scheduleSave()
   }
 
+  /**
+   * The guides anchored to `wallId`, rewritten as FREE guides on the exact line
+   * they occupy right now (spec S9).
+   *
+   * Deleting a wall must neither take its construction lines with it — the user
+   * placed them deliberately, and they often outlive the wall they were measured
+   * from — nor leave them naming a wall the document no longer contains. Keeping
+   * the world line and dropping the relation is the only outcome that is both.
+   * A guide whose anchor is ALREADY broken resolves to nothing and is left
+   * untouched: there is no line to preserve.
+   */
+  function guidesFreedBy(wallId: string): Guide[] {
+    const current = document.value
+    if (!current) return []
+    const network = wallNetwork.value
+    const freed: Guide[] = []
+    for (const guide of current.guides) {
+      if (!guideAnchorsTo(guide, wallId)) continue
+      const line = resolveGuideLine(guide, current.walls, network)
+      if (!line) continue
+      freed.push({
+        id: guide.id,
+        kind: 'free',
+        origin: { ...line.point },
+        angle_deg: Math.atan2(line.dir.y, line.dir.x) * RAD_TO_DEG,
+      })
+    }
+    return freed
+  }
+
   function mutate(command: EditorCommand): void {
     if (!document.value) return
     if (command.type === 'removeWall') {
       // Removing a wall cascades to its openings AND its attached devices
       // (spec §4.2: nothing floats), coalesced into ONE undo step with the
       // wall removal itself. Device removals route back through mutate so their
-      // own wire/link cascades run too.
+      // own wire/link cascades run too. Guides anchored to the wall are the one
+      // exception: they degrade instead of dying with it.
       const hostedOpenings = document.value.openings.filter(
         (opening) => opening.wall_id === command.wallId,
       )
       const hostedDevices = document.value.devices.filter(
         (device) => device.attachment?.wall_id === command.wallId,
       )
-      if (hostedOpenings.length > 0 || hostedDevices.length > 0) {
+      const freedGuides = guidesFreedBy(command.wallId)
+      if (hostedOpenings.length > 0 || hostedDevices.length > 0 || freedGuides.length > 0) {
         const ownTransaction = transaction === null
         if (ownTransaction) beginTransaction()
         for (const opening of hostedOpenings) {
@@ -676,6 +762,9 @@ export const useEditorStore = defineStore('editor', () => {
         }
         for (const device of hostedDevices) {
           mutate({ type: 'removeDevice', deviceId: device.id })
+        }
+        for (const guide of freedGuides) {
+          applySingle({ type: 'updateGuide', guideId: guide.id, guide })
         }
         applySingle(command)
         if (ownTransaction) commitTransaction()
@@ -1078,6 +1167,7 @@ export const useEditorStore = defineStore('editor', () => {
     canRedo,
     selection,
     wallNetwork,
+    guideLines,
     selectedWallIds,
     selectedOpeningIds,
     selectedStairsIds,

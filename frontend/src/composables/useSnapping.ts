@@ -11,6 +11,7 @@ import {
   collectAlignmentAnchors,
   distance,
   dot,
+  guideCrossings,
   length,
   lerp,
   lineIntersection,
@@ -19,7 +20,7 @@ import {
   snapDirection,
   sub,
 } from '@/utils/geometry'
-import type { AlignmentAnchor, AlignmentGuide, ResolvedNetwork } from '@/utils/geometry'
+import type { AlignmentAnchor, AlignmentGuide, GuideLine, ResolvedNetwork } from '@/utils/geometry'
 
 /** Default grid pitch for grid snapping, in inches (spec §3: minor grid 3"). */
 export const GRID_STEP_IN = 3
@@ -35,6 +36,8 @@ const MIN_ALIGN_VERTICES = 2
 const NO_ALIGNMENT_GUIDES: readonly AlignmentGuide[] = []
 /** Shared empty anchor list for resolutions with the S1e guides inactive. */
 const NO_ANCHORS: readonly AlignmentAnchor[] = []
+/** Shared empty guide-line list, for resolutions with the S9 guides inactive. */
+const NO_GUIDE_LINES: readonly GuideLine[] = []
 
 /** Identifier of one snap toggle (status bar buttons). */
 export type SnapToggleId = keyof SnapSettings
@@ -49,8 +52,12 @@ export interface SnapSettings {
   walls: Ref<boolean>
 }
 
-/** Which visual marker a resolved snap displays (spec E6). Grid snaps show none. */
-export type SnapMarkerKind = 'close' | 'endpoint' | 'midpoint' | 'projection' | 'surface'
+/**
+ * Which visual marker a resolved snap displays (spec E6). Grid snaps show none.
+ * `guide` covers both ways a custom guide can be captured (spec S9): a point on
+ * one of its lines, and a crossing it takes part in.
+ */
+export type SnapMarkerKind = 'close' | 'endpoint' | 'midpoint' | 'projection' | 'surface' | 'guide'
 
 /**
  * What existing geometry a wall snap captured, so the tool can record the right
@@ -105,6 +112,11 @@ export interface SnapResult {
   attachment: WallSnapAttachment | null
   /** What was captured, when the snap landed on existing wall geometry. */
   target: SnapTarget | null
+  /**
+   * The custom guide the point was captured from (spec S9), or `null` for every
+   * other snap. For a crossing it is the FIRST guide of the pair.
+   */
+  guideId: string | null
 }
 
 /** The snapped point plus its engaged S1e guides, ready for the guides overlay. */
@@ -122,6 +134,15 @@ export interface UseSnappingOptions {
    * back to spine geometry only.
    */
   network?: Ref<ResolvedNetwork>
+  /**
+   * The custom guides to snap against (spec S9), already resolved to world lines
+   * — `editor.guideLines`.
+   *
+   * VISIBILITY is the caller's call, not the engine's: a hidden guide must not
+   * capture a cursor, so pass an EMPTY array (or omit the option) whenever the
+   * layers toggle has guides off, and the whole guide tier goes quiet.
+   */
+  guideLines?: Ref<readonly GuideLine[]>
   /** Current screen pixels per world inch, to convert the pixel threshold to inches. */
   pixelsPerInch: Ref<number>
   settings: SnapSettings
@@ -140,12 +161,16 @@ export interface UseSnappingReturn {
   thresholdIn: () => number
   /**
    * Resolves the snapped point for a raw world cursor (priority per specs
-   * S3a/S1e/E6): chain-start close, wall endpoint, segment midpoint,
-   * projection onto a reference line (constrained to the pending segment's
-   * snapped direction while drawing with angle snap on), alignment with the
-   * chain start (spec S1c), alignment guides through nearby network anchors
-   * (spec S1e), then angle/grid constraints. `free` (Alt held)
-   * disables the alignment, angle and grid constraints only.
+   * S3a/S9/S1e/E6): chain-start close, then the POINT tier — wall endpoint,
+   * surface end, segment midpoint and guide crossings (guide×guide and
+   * guide×surface, spec S9), nearest wins — then the LINE tier: a guide line
+   * first (the user placed it deliberately), then a wall surface, then a
+   * projection onto a reference line; all line hits are constrained to the
+   * pending segment's snapped direction while drawing with angle snap on. After
+   * the walls come alignment with the chain start (spec S1c), alignment guides
+   * through nearby network anchors (spec S1e), then angle/grid constraints.
+   * `free` (Alt held) disables the alignment, angle and grid constraints and the
+   * guide tier (spec S9); the wall point/line tiers stay live.
    */
   resolve: (cursor: Point, chain: SnapChainContext | null, free: boolean) => SnapResult
   /** Unit drawing direction `from -> toward`, angle-snapped unless disabled or `free`. */
@@ -157,6 +182,8 @@ interface WallSnapCandidate {
   distance: number
   attachment: WallSnapAttachment | null
   target: SnapTarget | null
+  /** Set only by the guide candidates (spec S9), which is also what marks them as guides. */
+  guideId?: string
 }
 
 /**
@@ -166,7 +193,7 @@ interface WallSnapCandidate {
  * headlessly testable and reusable by the Phase C editing tools.
  */
 export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
-  const { walls, network, pixelsPerInch, settings } = options
+  const { walls, network, guideLines, pixelsPerInch, settings } = options
   const anchorGuidesEnabled = options.anchorGuides ?? true
 
   function thresholdIn(): number {
@@ -197,6 +224,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         alignmentGuides: NO_ALIGNMENT_GUIDES,
         attachment: null,
         target: null,
+        guideId: null,
       }
     }
 
@@ -212,7 +240,10 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         chain && angleActive
           ? { origin: chain.last, dir: snapDirection(sub(cursor, chain.last), true) }
           : null
-      const wallSnap = resolveWallSnap(cursor, threshold, ray)
+      // The custom guides ride the walls toggle (they are wall-anchored geometry
+      // as often as not) and Alt suspends them like every other snap (spec S9).
+      const guides = free ? NO_GUIDE_LINES : (guideLines?.value ?? NO_GUIDE_LINES)
+      const wallSnap = resolveWallSnap(cursor, threshold, ray, guides)
       if (wallSnap) return wallSnap
     }
 
@@ -234,6 +265,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
             alignmentGuides: NO_ALIGNMENT_GUIDES,
             attachment: null,
             target: null,
+            guideId: null,
           }
         }
       }
@@ -248,6 +280,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
             alignmentGuides: anchored.guides,
             attachment: null,
             target: null,
+            guideId: null,
           }
         }
       }
@@ -260,6 +293,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         alignmentGuides: NO_ALIGNMENT_GUIDES,
         attachment: null,
         target: null,
+        guideId: null,
       }
     }
 
@@ -274,6 +308,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
           alignmentGuides: NO_ALIGNMENT_GUIDES,
           attachment: null,
           target: null,
+          guideId: null,
         }
       }
     }
@@ -289,6 +324,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
           alignmentGuides: anchored.guides,
           attachment: null,
           target: null,
+          guideId: null,
         }
       }
     }
@@ -302,6 +338,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         alignmentGuides: NO_ALIGNMENT_GUIDES,
         attachment: null,
         target: null,
+        guideId: null,
       }
     }
     return {
@@ -312,6 +349,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
       alignmentGuides: NO_ALIGNMENT_GUIDES,
       attachment: null,
       target: null,
+      guideId: null,
     }
   }
 
@@ -319,10 +357,13 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
     cursor: Point,
     threshold: number,
     ray: SnapGuide | null,
+    guides: readonly GuideLine[],
   ): SnapResult | null {
     let endpoint: WallSnapCandidate | null = null
     let surfaceEnd: WallSnapCandidate | null = null
     let midpoint: WallSnapCandidate | null = null
+    let guideCrossing: WallSnapCandidate | null = null
+    let guideHit: WallSnapCandidate | null = null
     let surface: WallSnapCandidate | null = null
     let projection: WallSnapCandidate | null = null
 
@@ -460,21 +501,78 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
       }
     }
 
+    // Custom guides (spec S9). Their crossings — with each other and with the
+    // wall surfaces they were measured from — are POINTS, which is the whole
+    // reason to place two of them; the lines themselves are a tier above wall
+    // projections, since a guide exists only because the user drew it.
+    for (const line of guides) {
+      const crossHit = nearestCrossingWithFaces(line, cursor, threshold)
+      if (crossHit && closer(guideCrossing, crossHit.distance)) {
+        guideCrossing = { ...crossHit, attachment: null, target: null, guideId: line.guideId }
+      }
+      const hit = ray
+        ? rayCrossingLine(line, ray, cursor, threshold)
+        : dropOntoLine(line, cursor, threshold)
+      if (!hit || !closer(guideHit, hit.distance)) continue
+      guideHit = { ...hit, attachment: null, target: null, guideId: line.guideId }
+    }
+
+    for (const crossing of guideCrossings(guides)) {
+      const d = distance(cursor, crossing.point)
+      if (d > threshold || !closer(guideCrossing, d)) continue
+      guideCrossing = {
+        point: crossing.point,
+        distance: d,
+        attachment: null,
+        target: null,
+        guideId: crossing.a,
+      }
+    }
+
     // Point targets beat line targets outright (spec S3a). Among the points the
     // NEAREST wins rather than a fixed order: on a 12" wall the visible corner
     // and the spine end are 6" apart, and a fixed order would make whichever
     // lost unreachable — the same defect as snapping only to spines.
-    const winner = nearest([endpoint, surfaceEnd, midpoint]) ?? surface ?? projection
+    const winner =
+      nearest([endpoint, surfaceEnd, midpoint, guideCrossing]) ?? guideHit ?? surface ?? projection
     if (!winner) return null
     return {
       point: winner.point,
       marker: markerFor(winner, { endpoint, surfaceEnd, midpoint }),
-      guide: winner === surface || winner === projection ? ray : null,
+      guide: winner === guideHit || winner === surface || winner === projection ? ray : null,
       alignGuide: null,
       alignmentGuides: NO_ALIGNMENT_GUIDES,
       attachment: winner.attachment,
       target: winner.target,
+      guideId: winner.guideId ?? null,
     }
+  }
+
+  /**
+   * Where a guide line crosses a wall SURFACE, nearest to the cursor (spec S9) —
+   * the point a guide measured off one wall makes on another.
+   *
+   * Bounded to each face segment's extent: the guide line is infinite, the
+   * surface it crosses is not, and a crossing off the end of a wall is a place
+   * nothing exists.
+   */
+  function nearestCrossingWithFaces(
+    line: GuideLine,
+    cursor: Point,
+    threshold: number,
+  ): { point: Point; distance: number } | null {
+    let best: { point: Point; distance: number } | null = null
+    for (const face of network?.value.faces ?? []) {
+      const faceDir = sub(face.b, face.a)
+      const point = lineIntersection(line.point, line.dir, face.a, faceDir)
+      if (!point) continue
+      const faceLength = length(faceDir)
+      const along = dot(sub(point, face.a), faceDir) / faceLength
+      if (along < -EPSILON || along > faceLength + EPSILON) continue
+      const d = distance(cursor, point)
+      if (d <= threshold && (!best || d < best.distance)) best = { point, distance: d }
+    }
+    return best
   }
 
   return { settings, thresholdIn, resolve, direction }
@@ -498,6 +596,9 @@ function markerFor(
     midpoint: WallSnapCandidate | null
   },
 ): SnapMarkerKind {
+  // Only the guide candidates carry a guide id, and both their tiers — a point
+  // on a guide line and a crossing — read as one marker (spec S9).
+  if (winner.guideId !== undefined) return 'guide'
   if (winner === points.endpoint) return 'endpoint'
   if (winner === points.surfaceEnd) return 'surface'
   if (winner === points.midpoint) return 'midpoint'
@@ -513,6 +614,34 @@ function dropOnto(
   const projected = projectPointOnPolyline(cursor, [...polyline])
   if (!projected || projected.distance > threshold) return null
   return { point: projected.point, distance: projected.distance }
+}
+
+/** Perpendicular drop of the cursor onto a guide's INFINITE line (spec S9). */
+function dropOntoLine(
+  line: GuideLine,
+  cursor: Point,
+  threshold: number,
+): { point: Point; distance: number } | null {
+  const point = add(line.point, scale(line.dir, dot(sub(cursor, line.point), line.dir)))
+  const d = distance(cursor, point)
+  return d <= threshold ? { point, distance: d } : null
+}
+
+/**
+ * Where a pending segment's constrained ray crosses a guide's infinite line
+ * (spec S9), ahead of the ray's origin: the segment keeps its 90/45 angle and
+ * still lands exactly on the guide.
+ */
+function rayCrossingLine(
+  line: GuideLine,
+  ray: SnapGuide,
+  cursor: Point,
+  threshold: number,
+): { point: Point; distance: number } | null {
+  const point = lineIntersection(ray.origin, ray.dir, line.point, line.dir)
+  if (!point || dot(sub(point, ray.origin), ray.dir) <= EPSILON) return null
+  const d = distance(cursor, point)
+  return d <= threshold ? { point, distance: d } : null
 }
 
 /**
