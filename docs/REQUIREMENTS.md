@@ -41,6 +41,7 @@ support, full Canadian Electrical Code validation, plumbing/HVAC layers, 3D.
 | **Wire** | A curved line connecting two device terminals, belonging to one circuit. |
 | **Underlay** | A raster image (photo/scan) displayed under the plan for tracing. |
 | **Layer** | A visibility/locking group: underlay, structure, devices, each circuit's wires, annotations. |
+| **Mode** | A high-level workspace (Structure, Electrical, Inspector; later Plumbing, Furniture) that scopes which tools the rail offers and what the side panel shows when nothing is armed. Modes never gate data — every layer stays visible and editable per its own rules. |
 
 ---
 
@@ -121,18 +122,18 @@ follow their devices; only interior control points are absolute.
   press "save". A saved/saving indicator is visible.
 - **P4** — A plan stores everything needed to restore the session: geometry,
   devices, circuits, wires, underlay reference and calibration, layer states,
-  last viewport position and active tool.
+  last viewport position and the active mode and tool (E10).
 - **P5 Creation flow** — "New plan" expands into an inline creation card on
   the home page (no modal): plan name (required, autofocused), optional
   description, and an optional underlay photo drop zone. A collapsed
   "Defaults" expander seeds the plan's settings (§5.9 tier 2: wall thickness
   presets, display precision) from the app preferences. Creating with a
-  photo uploads it and opens the editor directly in **Calibrate mode** with
-  the underlay loaded (U2) — drop, name, calibrate, trace. Creating without
-  opens the empty-state editor with the wall tool armed (E9). Name and
-  description stay editable later (inline rename in the top bar, plan
-  settings in the Inspector); the description appears on the home-page card
-  under the plan name.
+  photo uploads it and opens the editor with the **Calibrate tool** armed
+  (Structure mode) and the underlay loaded (U2) — drop, name, calibrate,
+  trace. Creating without opens the empty-state editor with the wall tool
+  armed (E9). Name and description stay editable later (inline rename in the
+  top bar, plan settings in the Inspector mode's overview); the description
+  appears on the home-page card under the plan name.
 
 ### 5.2 Underlay (trace over a photo)
 
@@ -431,11 +432,16 @@ floor to the storey below. They carry no load on this plan — their load overri
   draws in that circuit's colour (C2), both its pictogram and its true-size
   footprint outline, on the canvas and in the export alike. A device on several
   circuits (C3) takes the first one in document order; the sources stay ink,
-  since they belong to every circuit. Selecting a circuit in the panel
-  highlights all its wires and devices on the canvas and dims the rest — a
-  dimmed device keeps its circuit colour, just fainter — and the selection
-  colour always wins over the circuit colour so a selected device stays
-  legible. Devices not on any circuit can be listed ("unassigned") for review.
+  since they belong to every circuit. Each circuit row carries an explicit
+  **isolate** toggle that highlights all its wires and devices on the canvas
+  and dims the rest — a dimmed device keeps its circuit colour, just fainter —
+  and the selection colour always wins over the circuit colour so a selected
+  device stays legible. Isolation is deliberately a *different control* from
+  the **active circuit** (W1): clicking a row makes the circuit active (new
+  wires land on it); isolating is a separate, explicit action on the row —
+  one is a drawing target, the other a viewing filter, and conflating them is
+  a known UX trap. Devices not on any circuit can be listed ("unassigned")
+  for review.
 - **C6** — Per-circuit visibility toggles, on two independent axes: a circuit's
   **wires** and its **devices** can be hidden separately (shift-click either
   toggle to flip both). This reduces clutter, matching how one reads the paper
@@ -447,7 +453,12 @@ floor to the storey below. They carry no load on this plan — their load overri
 
 - **W1** — A wire connects two devices (or a device and the panel). Drawing:
   click a source device, click a target device; the wire is created on the
-  currently active circuit and inherits its colour.
+  currently active circuit and inherits its colour. The active circuit's home
+  is the Wire tool's own options — the circuits list (§6.1) — never a
+  separate panel; while the Wire tool is armed, digits <kbd>1</kbd>–<kbd>9</kbd>
+  switch the active circuit and the status bar echoes its name and colour.
+  Clicking the canvas with no circuit yet raises a quiet status notice (§6.2),
+  never a dialog.
 - **W2** — Wires render as smooth curves (cubic Bézier splines). A new wire
   gets a gentle auto-curve; the user can then drag the curve or its control
   handles to route it exactly where they want (matching the hand-drawn look,
@@ -465,7 +476,8 @@ floor to the storey below. They carry no load on this plan — their load overri
 
 - **E1** — Tools: Select (default), Wall, Door, Window, Stairs, Label,
   Dimension, Device (with type picker), Wire, Measure (ephemeral tape),
-  Calibrate. Single-key shortcuts (V, W, D, ...) shown in tooltips.
+  Calibrate. Tools are grouped into **modes** (E10); each tool has a
+  single-letter shortcut scoped to its mode, shown in tooltips.
 - **E2** — Select tool: click to select, shift-click to add, drag for rubber
   band selection, drag selection to move. Selected elements show handles and a
   contextual properties panel.
@@ -499,8 +511,10 @@ floor to the storey below. They carry no load on this plan — their load overri
   SVG export measures — falling back to a 30' region on an empty plan.
 - **E6** — Snapping is always visualized (snap markers, alignment guides)
   before the click commits, so the user can trust what will happen.
-- **E7** — Layers panel: show/hide and lock per layer (underlay, structure,
-  devices, annotations, each circuit). Locked layers are not selectable.
+- **E7** — Layer visibility and locking. Whole-plan rows (underlay,
+  structure, devices, annotations) live in the Inspector mode's overview
+  (§6.1); per-circuit rows live on the circuit rows themselves (C6). Locked
+  layers are not selectable. There is no standalone layers panel.
 - **E8 Tool ergonomics — preview, options, place-then-tweak** — Every
   placement tool honours the same contract:
   - **Ghost preview**: a faithful preview of exactly what a click would
@@ -521,12 +535,47 @@ floor to the storey below. They carry no load on this plan — their load overri
     selection back to pure placement. The wall tool is the one exception:
     clicks on walls are drawing semantics (S3a); walls are edited with
     Select.
-- **E9 Content-aware startup** — Opening a plan with no walls arms the
-  **wall tool** (exterior preset, S1d): the empty state's one job is
-  getting the first wall drawn. Otherwise the editor restores the last
-  active tool from the saved session (P4), defaulting to Select. The empty
-  state also offers the two entry paths — "import a photo to trace" /
-  "start drawing walls" (§6.2).
+- **E9 Content-aware startup** — Opening a plan with no walls lands in
+  **Structure mode** with the **wall tool** armed (exterior preset, S1d) —
+  or the calibrate tool when an underlay awaits tracing (P5/U2): the empty
+  state's one job is getting the first wall drawn. Otherwise the editor
+  restores the last active mode and tool from the saved session (P4),
+  defaulting to Structure / Select; a saved tool missing from the saved mode
+  resolves the mode from the tool. The empty state also offers the two entry
+  paths — "import a photo to trace" / "start drawing walls" (§6.2).
+- **E10 Modes** — The workspace is split into modes, each a phase of the
+  real workflow. A mode scopes the **tool rail** and the side panel's
+  **overview** (§6.1); it never gates data — every layer keeps its own
+  visibility and editability rules regardless of mode. Membership is
+  data-driven and many-to-many: a tool declares the modes it belongs to, and
+  the same tool may appear in several (pick-and-choose, not pinning).
+
+  | Mode | Key | Tools (letter) |
+  |---|---|---|
+  | Structure | <kbd>S</kbd> | Select V · Wall W · Door D · Window N · Stairs S · Calibrate C · Label T · Dimension X |
+  | Electrical | <kbd>E</kbd> | Select V · Device D · Wire W · Label T |
+  | Inspector | <kbd>I</kbd> | Select V · Measure M · Dimension X · Label T |
+
+  - **Chorded, mode-scoped shortcuts** — letters resolve against the active
+    mode's tools first, then against mode letters: <kbd>E</kbd> <kbd>W</kbd>
+    arms the Wire tool from anywhere, VSCode-style. Scoping is what lets
+    <kbd>D</kbd> mean Door in Structure and Device in Electrical without a
+    global registry of conflicts. Precedence, top first: the armed tool's own
+    key handling (typed input, Esc ladders, the Wire tool's circuit digits) →
+    the active mode's tool letters → mode letters. Two invariants, enforced
+    by tests: tool letters are unique *within* each mode, and a mode's letter
+    never collides with a tool letter of any *other* mode (or that mode
+    becomes unreachable from there).
+  - **Switching modes** arms Select and clears the selection, landing on the
+    mode's overview panel (§6.1). Arming a tool via chord switches to its
+    mode implicitly.
+  - **Persistence** — the active mode is stored in the document next to the
+    active tool (P4, §8).
+  - **Context dimming** *(should)* — in Electrical mode, structure renders
+    dimmed (still snappable and selectable) so devices and wires read first;
+    Structure and Inspector modes render everything at full strength.
+  - Future modes (Plumbing, Furniture/Decoration) ship only once they
+    contain tools — an empty mode reads as broken.
 
 ### 5.8 Export
 
@@ -570,7 +619,8 @@ device catalog defaults (per-type default load — e.g. change "baseboard
 default" from 1000 W to 750 W; affects future placements, with an explicit
 "apply to existing" action, never a silent retroactive change). All of
 these are seeded by the creation card (P5) and editable afterwards in the
-Inspector's plan-settings view. Door/window/stairs width option buttons are
+mode overviews (§6.1): wall thickness presets in the Structure overview,
+the rest in the Inspector overview. Door/window/stairs width option buttons are
 also per-plan presets, but grown rather than seeded: each tool starts from a
 built-in default list, and a custom value typed and committed in that
 tool's options is added as a one-click preset for the rest of the plan.
@@ -595,47 +645,65 @@ tool's options is added as a one-click preset for the rest of the plan.
 
 ## 6. UI layout & UX principles
 
-### 6.1 Layout — docked panels
+### 6.1 Layout — mode pill, tool rail, contextual panel
 
-Fixed, predictable homes for everything; no floating windows.
+Fixed, predictable homes for everything. Chrome is drawn as **fixed-position
+floating panels** — rounded, shadowed, margined off the edges — that still
+reserve layout space, so the canvas never hides beneath them and zoom-to-fit
+needs no occlusion math. Nothing is draggable; nothing overlaps anything
+else's home. Surfaces are solid for now (a translucent "glass" treatment is
+a later tuning pass, gated on the E5 frame budget and a
+`prefers-reduced-transparency` fallback).
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│ ◂ plans │ Basement ✎        saved ✓     100% ▾  ⤢  ↶ ↷  ⇓ │  top bar
-├───┬───────────────────────────────────────────┬────────────┤
-│ V │                                           │ Inspector  │
-│ W │                                           │ Circuits ⚠ │
-│ D │            C A N V A S                    │ Layers     │
-│ … │   rulers ∙ grid ∙ snap guides             │────────────│
-│ ⚡ │                                           │ (active    │
-│ ~ │                                           │  tab body) │
-├───┴───────────────────────────────────────────┴────────────┤
-│ snap: ⊞ grid ∠ 90° ⊢ walls │ ref: inside │ 12'5 ⏎ │ x, y   │  status bar
-└────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ ◂ plans │ Basement ✎           saved ✓     100% ▾  ⤢  ↶ ↷  ⇓ │  top bar
+├─────┬─────────────────────────────────────────┬──────────────┤
+│ ╭─╮ │      ╭─ Structure · Electrical · … ─╮   │ ╭──────────╮ │
+│ │V│ │      ╰────────── mode pill ─────────╯   │ │ overview │ │
+│ │W│ │                                         │ │    OR    │ │
+│ │D│ │            C A N V A S                  │ │ tool opts│ │
+│ │…│ │     rulers ∙ grid ∙ snap guides         │ │ + sel.   │ │
+│ ╰─╯ │                                         │ ╰──────────╯ │
+├─────┴─────────────────────────────────────────┴──────────────┤
+│ snap: ⊞ ∠ ⊢ │ ref: inside │ ⚠ 2 │ 12'5 ⏎ │ x, y             │  status bar
+└──────────────────────────────────────────────────────────────┘
 ```
 
 - **Top bar**: back to plan list, inline-renamable plan name, autosave
   indicator, zoom controls / zoom-to-fit, undo/redo, export.
-- **Left tool rail**: icon-only tools (Select, Wall, Door, Window, Stairs,
-  Label, Dimension, Device, Wire, Measure, Calibrate), each with a single-key
-  shortcut shown in its tooltip. The Device tool opens a searchable pictogram
-  flyout with most-recently-used types on top.
-- **Right panel**, three tabs, collapsible as a whole:
-  - **Inspector** — contextual: properties of the current selection; with a
-    placement tool armed, the tool's options *and* the just-placed (or
-    in-tool selected) element's properties (E8); with nothing active, plan
-    settings (name, description, presets, display precision).
-  - **Circuits** — the circuit list with colour swatch, name,
-    `load / breaker` bar and warning badges; the tab itself carries a ⚠ badge
-    when any circuit is over 80 %. Selecting a circuit highlights it on
-    canvas (C5); this is also where circuits are created and each circuit's
-    wires and devices are toggled (C6).
-  - **Layers** — visibility/lock rows for the whole-plan layers: underlay,
-    structure, devices, annotations. Per-circuit rows live in the Circuits tab,
-    on the row that already carries the circuit's colour.
+- **Mode pill** — floating top-centre over the canvas: one segment per mode
+  (E10), the active one highlighted, mode letters in tooltips.
+- **Left tool rail**: icon-only tools **of the active mode**, each with its
+  mode-scoped letter in the tooltip. The Device tool opens a searchable
+  pictogram picker with most-recently-used types on top.
+- **Right panel** — ONE contextual panel, no tabs, no navigation. It always
+  shows, top to bottom:
+  1. **Tool options** while a tool with options is armed — the same
+     properties the element will be created with (E8), plus the placement
+     hint. The Wire tool's options are the **circuits list itself**: create,
+     rename, colour, breaker/voltage/kind, the active row (W1), the isolate
+     toggle (C5), per-circuit wires/devices visibility (C6), live
+     `load / breaker` bars and floating/unassigned findings (C4/W4). The
+     Calibrate tool's options are the underlay controls (import, opacity,
+     rotation, scale, recalibrate, remove).
+  2. **Selection** below — the selected element's inspector (any kind under
+     Select; the tool's own kind while a placement tool is armed, E8).
+  3. **Mode overview** when nothing is armed beyond Select and nothing is
+     selected — the mode's home screen:
+     - **Structure** — underlay controls (same block the Calibrate tool
+       shows) and wall thickness presets.
+     - **Electrical** — the circuits list, verbatim the Wire tool's options:
+       one component, two entry points, zero duplication.
+     - **Inspector** — plan settings (name, description, display
+       precision), whole-plan layer visibility (underlay, structure,
+       devices, annotations — E7), and export.
 - **Bottom status bar**: live snap toggles, wall reference side (during wall
-  drawing), the typed-input echo (what you type — `12'5` — appears here before
-  Enter commits it), cursor coordinates in feet/inches.
+  drawing), the circuit-warning indicator (⚠ + count when any circuit is
+  over 80 %, C4 — clicking it switches to Electrical mode), the active
+  circuit's swatch and name while wiring (W1), the typed-input echo (what
+  you type — `12'5` — appears here before Enter commits it), cursor
+  coordinates in feet/inches.
 
 ### 6.2 UX principles
 
@@ -644,9 +712,11 @@ Fixed, predictable homes for everything; no floating windows.
 - **Contextual, not modal** — properties always live in the Inspector, never
   in pop-up dialogs. The only modal dialogs in the app: export options and
   permanent-delete confirmation.
-- **Keyboard-first, mouse-complete** — every tool and toggle has a single-key
-  shortcut, discoverable via tooltips and a `?` shortcut overlay; but every
-  action is also reachable by mouse alone.
+- **Keyboard-first, mouse-complete** — every mode and tool has a letter;
+  tool letters are scoped to the active mode and chain through mode letters
+  (<kbd>E</kbd> <kbd>W</kbd> = Electrical → Wire, E10), discoverable via
+  tooltips and a `?` shortcut overlay organised by mode; but every action is
+  also reachable by mouse alone.
 - **Typed precision everywhere** — any time a length is being determined
   (drawing, temporary dimensions, dragging), typing digits switches to exact
   input, echoed in the status bar. The keyboard is the tape measure.
@@ -725,6 +795,8 @@ Plan
   wires: [Wire]           # id, circuit_id, from_device_id, to_device_id,
                           # control_points: [Point]
   control_links: [Link]   # switch_id -> device_id, kind (controls|3way-pair)
+  active_tool: str | null # last armed tool, restored on open (P4, E9)
+  active_mode: str | null # last active mode, restored on open (P4, E10)
 
 Underlay
   image_ref: str          # server-stored asset id
@@ -828,6 +900,15 @@ geometry and the document model; take dependencies only for commodity.
    door/window/stairs (S4–S6, E8); plan-wide alignment guides (S1e); wall
    face identity and side swapping (S1a); plan description and per-plan
    display precision (§5.9 tier 2).
+9. **M9 Modes & contextual panel** — the mode model with chorded,
+   mode-scoped shortcuts and per-plan persistence (E10); the floating mode
+   pill and mode-filtered tool rail (§6.1); the tabbed side panel replaced by
+   one contextual panel with mode overviews (§6.1); the circuits list becomes
+   the Wire tool's options and the Electrical overview (W1); the
+   active-vs-isolated circuit split (C5); the layers panel dissolved
+   (underlay → Calibrate/Structure, whole-plan rows → Inspector overview,
+   E7); the circuit ⚠ indicator moves to the status bar; floating-chrome
+   restyle (solid surfaces).
 
 Each milestone ends with `poe check` green and the relevant user stories
 demonstrable in the running app.
