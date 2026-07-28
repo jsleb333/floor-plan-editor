@@ -7,6 +7,7 @@ from backend.models.circuit import Circuit
 from backend.models.control_link import ControlLink
 from backend.models.device import Device
 from backend.models.dimension import Dimension
+from backend.models.guide import Guide
 from backend.models.joint import Joint
 from backend.models.label import Label
 from backend.models.opening import Opening
@@ -22,7 +23,7 @@ class PlanDocument(BaseModel):
     """The versioned JSON document holding everything a plan contains.
 
     Role:
-        Unit of persistence and autosave. Schema version 8 carries the
+        Unit of persistence and autosave. Schema version 9 carries the
         viewport, the optional tracing underlay, the structure element
         collections (walls, openings, stairs, labels, dimensions), the
         electrical devices with their plan-level default loads
@@ -45,7 +46,11 @@ class PlanDocument(BaseModel):
         from geometry) — and the ``active_tool`` last armed in
         the editor, so a session restores where it left off (spec P4/E9;
         the frontend owns the valid tool ids and falls back to Select on
-        unknown values). Older documents are migrated forward on read by
+        unknown values). The tape-measure tool's ``guides`` (spec S9, new in
+        v9) are working geometry the user placed deliberately: surface- and
+        point-anchored ones store a relation the constraint solver maintains,
+        free ones store bare coordinates. Older documents are migrated forward
+        on read by
         :class:`backend.core.plan_migrator.PlanMigrator`; incoming documents
         with an older shape still validate because every field added since
         v1 has a default.
@@ -58,6 +63,7 @@ class PlanDocument(BaseModel):
     underlay: Underlay | None = None
     walls: list[Wall] = Field(default_factory=list)
     joints: list[Joint] = Field(default_factory=list)
+    guides: list[Guide] = Field(default_factory=list)
     openings: list[Opening] = Field(default_factory=list)
     stairs: list[Stairs] = Field(default_factory=list)
     labels: list[Label] = Field(default_factory=list)

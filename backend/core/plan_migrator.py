@@ -39,6 +39,7 @@ class PlanMigrator:
             5: self._migrate_v5_to_v6,
             6: self._migrate_v6_to_v7,
             7: self._migrate_v7_to_v8,
+            8: self._migrate_v8_to_v9,
         }
 
     def migrate(self, raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -191,4 +192,20 @@ class PlanMigrator:
         ]
         document.setdefault("joints", [])
         document["schema_version"] = 8
+        return document
+
+    @staticmethod
+    def _migrate_v8_to_v9(document: dict[str, Any]) -> dict[str, Any]:
+        """Add the v9 custom guide collection (spec S9), empty by default.
+
+        Args:
+            document: A schema v8 document dict.
+
+        Returns:
+            The same dict brought to schema version 9, with no guides — unlike
+            wall connectivity they are not derivable, since a guide only exists
+            because the user placed it.
+        """
+        document.setdefault("guides", [])
+        document["schema_version"] = 9
         return document
