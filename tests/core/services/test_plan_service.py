@@ -66,14 +66,14 @@ class TestPlanService:
     async def test_create_plan__when_called_with_name_only__persists_fresh_plan_with_defaults(
         self, service: PlanService, repo: PlanRepository, asset_repo: AssetRepository
     ) -> None:
-        """A bare create starts at revision 1 with an empty schema v7 document, an empty description, not archived, and never consults the asset store."""
+        """A bare create starts at revision 1 with an empty schema v9 document, an empty description, not archived, and never consults the asset store."""
         plan = await service.create_plan("Basement")
 
         assert plan.name == "Basement"
         assert not plan.description
         assert plan.revision == 1
         assert plan.archived_at is None
-        assert plan.document.schema_version == 8
+        assert plan.document.schema_version == 9
         assert plan.document.active_tool is None
         assert plan.document.devices == []
         assert plan.document.circuits == []
@@ -204,7 +204,7 @@ class TestPlanService:
     async def test_update_document__when_body_claims_an_old_schema_version__stores_current_version(
         self, service: PlanService, repo: PlanRepository
     ) -> None:
-        """A v2-shaped body validated against the current model is persisted claiming schema v7, not the stale v2 it was sent with."""
+        """A v2-shaped body validated against the current model is persisted claiming schema v9, not the stale v2 it was sent with."""
         repo.update_document.return_value = 5
         v2_shaped = PlanDocument.model_validate({
             "schema_version": 2,
@@ -214,7 +214,7 @@ class TestPlanService:
         await service.update_document("source-id", v2_shaped, expected_revision=4)
 
         stored_document = repo.update_document.await_args.args[1]
-        assert stored_document.schema_version == 8
+        assert stored_document.schema_version == 9
         assert stored_document.underlay is None
         assert stored_document.viewport == v2_shaped.viewport
 
@@ -297,13 +297,13 @@ class TestPlanServiceMigration:
         """Service under test over the real repository and migrator."""
         return PlanService(repository, PlanMigrator(), AsyncMock(spec=AssetRepository))
 
-    async def test_get_plan__when_stored_document_is_v1__returns_migrated_v8_and_keeps_backup(
+    async def test_get_plan__when_stored_document_is_v1__returns_migrated_v9_and_keeps_backup(
         self, service: PlanService, repository: SqlitePlanRepository
     ) -> None:
         """Reading a v1 plan returns a current-version document, persists it with a bumped revision and keeps the pristine pre-migration copy in document_backups."""
         plan = await service.get_plan("v1-plan")
 
-        assert plan.document.schema_version == 8
+        assert plan.document.schema_version == 9
         assert plan.document.viewport == Viewport(center=Point(x=24.0, y=-12.0), zoom=2.0)
         assert plan.document.walls == []
         assert plan.document.thickness_presets_in == [12.0, 4.5, 3.5]
@@ -321,7 +321,7 @@ class TestPlanServiceMigration:
         stored = await repository.get_raw("v1-plan")
         assert stored is not None
         assert stored.revision == 4
-        assert stored.document["schema_version"] == 8
+        assert stored.document["schema_version"] == 9
 
         cursor = await repository._connection.execute(
             "SELECT from_version, document FROM document_backups WHERE plan_id = ?", ("v1-plan",)
