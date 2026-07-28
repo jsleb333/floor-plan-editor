@@ -1074,7 +1074,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="bg-surface text-ink flex h-screen flex-col overflow-hidden">
+  <div class="bg-canvas text-ink flex h-screen flex-col overflow-hidden">
     <EditorTopBar
       :plan-name="plan?.name ?? 'Untitled'"
       :save-state="saveState"

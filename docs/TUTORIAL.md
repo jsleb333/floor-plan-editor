@@ -63,10 +63,11 @@ satisfied by a segment measuring 120.00" no matter whether the user typed
 
 ### 3.2 The tutorial panel
 
-A collapsible card docked **above the tab strip** of the right panel
-(`EditorSidePanel.vue`) — not a fourth tab, because steps routinely direct
-the user *into* the Inspector/Circuits/Layers tabs, which must stay usable
-while the instructions remain visible. Contents:
+A collapsible card docked **above** the right panel (`EditorSidePanel.vue`)
+— never inside it, because steps routinely direct the user *into* a
+different mode (Structure/Electrical/Inspector) and that mode's contextual
+overview, which must stay usable while the instructions remain visible.
+Contents:
 
 - Chapter title + overall progress bar (thin, quiet).
 - The current step: title, short body (may embed `<kbd>` keys), and its
@@ -83,8 +84,9 @@ completions are announced via a polite `aria-live` region.
 
 A step may declare one anchor; the UI shows a subtle pulsing ring on it
 while the step is active. Anchor kinds: a tool-rail button (`ToolId`), a
-side-panel tab, a top-bar item (undo/export), or the status bar (for typed
-input steps). No floating callouts, no arrows across the canvas.
+mode-switcher segment (`ModeId`), a top-bar item (undo/export), or the
+status bar (for typed input steps). No floating callouts, no arrows across
+the canvas.
 
 ### 3.4 Functional requirements
 
@@ -157,7 +159,7 @@ reference wall.
 | # | Kind | Step | Completion |
 |---|---|---|---|
 | 1 | info | What an underlay is; ours is out of scale and tilted on purpose | — |
-| 2 | task | Straighten it: select the underlay (<kbd>V</kbd>) and drag its round rotation handle, or type `0` in the Rotation field (Layers tab) — anchor: Layers tab | `abs(doc.underlay.transform.rotation_deg) < 0.5` |
+| 2 | task | Straighten it: select the underlay (<kbd>V</kbd>) and drag its round rotation handle, or type `0` in the Rotation field (Structure mode overview) — anchor: side panel | `abs(doc.underlay.transform.rotation_deg) < 0.5` |
 | 3 | task | Calibrate (<kbd>C</kbd>): trace the marked reference and type `10'` | `abs(doc.underlay.transform.scale - KNOWN_SCALE) / KNOWN_SCALE < 0.02` |
 | 4 | task | Adjust the underlay opacity in the Inspector | `doc.underlay.opacity ≠ entry.underlay.opacity` |
 
@@ -165,7 +167,7 @@ reference wall.
 
 | # | Kind | Step | Completion |
 |---|---|---|---|
-| 1 | task | Place a duplex outlet on a wall (<kbd>E</kbd>, pick from the palette) | `doc.devices.some(d => d.type === 'outlet' && d.attachment)` |
+| 1 | task | Place a duplex outlet on a wall (<kbd>E</kbd> <kbd>D</kbd> to enter Electrical mode and arm the Device tool, pick from the palette) | `doc.devices.some(d => d.type === 'outlet' && d.attachment)` |
 | 2 | task | Place a ceiling light anywhere | `doc.devices.some(d => d.type === 'ceiling_light')` |
 | 3 | task | Get three outlets on one wall — tip: <kbd>Ctrl+D</kbd> duplicates | `maxOutletsOnOneWall(doc) >= 3` |
 | 4 | task | Place a baseboard heater and set it to 750 W in the Inspector | `doc.devices.some(d => d.type === 'baseboard_heater' && d.load_w === 750)` |
@@ -175,11 +177,11 @@ reference wall.
 | # | Kind | Step | Completion |
 |---|---|---|---|
 | 1 | task | Place the electrical panel | `doc.devices.some(d => d.type === 'panel')` |
-| 2 | task | Create a circuit in the Circuits tab (pick a colour, 15 A) — anchor: Circuits tab | `doc.circuits.length > entry.circuits.length` |
-| 3 | task | Wire the panel to an outlet (<kbd>R</kbd>) | `validation.circuit_loads.some(c => c.connected_device_ids.length >= 1)` |
+| 2 | task | Create a circuit in the Electrical mode overview (pick a colour, 15 A) — anchor: Electrical mode | `doc.circuits.length > entry.circuits.length` |
+| 3 | task | Wire the panel to an outlet (<kbd>E</kbd> <kbd>W</kbd>) | `validation.circuit_loads.some(c => c.connected_device_ids.length >= 1)` |
 | 4 | task | Daisy-chain a second outlet | `...connected_device_ids.length >= 2` |
 | 5 | task | Overload it: wire the baseboard in and watch the load bar warn | `validation.circuit_loads.some(c => c.status !== 'ok')` |
-| 6 | task | Isolate the circuit (click it in the Circuits tab) | `editor.isolatedCircuitId !== null` |
+| 6 | task | Isolate the circuit (click it in the Electrical mode overview) | `editor.isolatedCircuitId !== null` |
 
 ### Chapter 8 — Save and export
 
@@ -201,7 +203,7 @@ component, one observer hook in the editor store.
 ```ts
 type TutorialAnchor =
   | { kind: 'tool'; tool: ToolId }
-  | { kind: 'tab'; tab: 'inspector' | 'circuits' | 'layers' }
+  | { kind: 'mode'; mode: ModeId }
   | { kind: 'topbar'; item: 'undo' | 'export' | 'save-indicator' }
   | { kind: 'statusbar' }
 
@@ -312,7 +314,7 @@ to "not started".
   (§3.2). Props in, events out; no store access beyond the composable's
   returns.
 - Anchor highlighting: the page computes the active anchor; `ToolRail.vue`,
-  `EditorSidePanel.vue` and `EditorTopBar.vue` accept an optional
+  `ModeSwitcher.vue` and `EditorTopBar.vue` accept an optional
   `highlight` prop and render the pulse ring class. No new positioning
   logic, no portals.
 - Home-page entry card in `PlansHomePage.vue`.
