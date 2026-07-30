@@ -114,11 +114,12 @@ const STATUS_NOTICE_MS = 4000
 
 /**
  * Screen pixels the floating chrome occludes per side (spec §6.1), fed to
- * zoom-to-fit: rail (12px margin + 44px pill + 12px gap), side panel
- * (12px + 288px + 12px), mode pill (12px + 44px). Mirrors the chrome's
- * Tailwind sizing (m-3, w-72, h-9 segments + p-1).
+ * zoom-to-fit: left = ruler strip (24px) + rail (12px margin + 44px pill +
+ * 12px gap); right = side panel (12px + 288px + 12px); top = ruler (24px) +
+ * mode pill (12px + 44px). Mirrors the chrome's Tailwind sizing (h-6/w-6
+ * rulers, m-3, w-72, h-9 segments + p-1).
  */
-const FIT_CHROME_INSETS = { left: 68, right: 312, top: 56, bottom: 0 }
+const FIT_CHROME_INSETS = { left: 92, right: 312, top: 80, bottom: 0 }
 
 /**
  * Opacity structure renders at in Electrical mode (spec E10, context dimming),
@@ -1194,7 +1195,7 @@ onBeforeUnmount(() => {
         </div>
 
         <ModeSwitcher
-          class="absolute top-3 left-1/2 z-10 -translate-x-1/2"
+          class="absolute top-9 left-1/2 z-10 -translate-x-1/2"
           :active-mode="activeMode"
           @select="setMode"
         />
@@ -1210,15 +1211,17 @@ onBeforeUnmount(() => {
         </p>
       </main>
 
+      <!-- The chrome floats inside the 24px ruler frame (top-6/left-6), so
+           the rulers stay readable at the true canvas edges. -->
       <ToolRail
-        class="absolute top-0 left-0 z-10"
+        class="absolute top-6 left-6 z-10"
         :tools="railTools"
         :active-tool="activeTool"
         @select="activeTool = $event"
       />
 
       <EditorSidePanel
-        class="absolute top-0 right-0 z-10"
+        class="absolute top-6 right-0 z-10"
         :active-tool="activeTool"
         :active-mode="activeMode"
         :plan-name="plan?.name ?? 'Untitled'"
