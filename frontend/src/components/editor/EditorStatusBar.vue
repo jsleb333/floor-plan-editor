@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Grid3x3, Magnet, Mouse, Ruler } from 'lucide-vue-next'
+import { Grid3x3, Magnet, Mouse, Ruler, TriangleAlert } from 'lucide-vue-next'
 import { computed } from 'vue'
 
 import { useDisplayPrecision } from '@/composables/useDisplayPrecision'
@@ -27,12 +27,15 @@ const props = defineProps<{
   activeCircuitName: string | null
   /** Active circuit colour swatch, paired with the name. */
   activeCircuitColor: string | null
+  /** Circuits at or past 80 % of their breaker (spec C4/§6.1); 0 hides the indicator. */
+  warningCount?: number
 }>()
 
 const emit = defineEmits<{
   'toggle-snap': [id: SnapToggleId]
   'cycle-scroll-mode': []
   'show-shortcuts': []
+  'open-circuits': []
 }>()
 
 const precisionIn = useDisplayPrecision()
@@ -58,6 +61,13 @@ const SCROLL_MODE_HINTS: Record<ScrollMode, string> = {
 const scrollModeTitle = computed(
   () =>
     `Scroll gesture: ${props.scrollMode} — ${SCROLL_MODE_HINTS[props.scrollMode]}. Click to change.`,
+)
+
+/** How many circuits the warning indicator stands for; 0 renders nothing. */
+const warningCount = computed(() => props.warningCount ?? 0)
+
+const warningLabel = computed(
+  () => `${warningCount.value} ${warningCount.value === 1 ? 'circuit' : 'circuits'} over 80%`,
 )
 </script>
 
@@ -103,6 +113,18 @@ const scrollModeTitle = computed(
     </span>
 
     <span v-if="notice" role="status" class="text-accent">{{ notice }}</span>
+
+    <button
+      v-if="warningCount > 0"
+      type="button"
+      class="hover:bg-canvas flex items-center gap-1 rounded px-1.5 py-0.5 text-amber-600 transition-colors"
+      :title="`${warningLabel} — show the circuits`"
+      :aria-label="warningLabel"
+      @click="emit('open-circuits')"
+    >
+      <TriangleAlert :size="12" aria-hidden="true" />
+      <span class="tabular-nums">{{ warningCount }}</span>
+    </button>
 
     <span v-if="activeCircuitName" class="flex items-center gap-1.5" aria-label="Active circuit">
       circuit:

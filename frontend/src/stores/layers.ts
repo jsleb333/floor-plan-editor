@@ -6,7 +6,7 @@ import type { Ref } from 'vue'
 export type CircuitAxis = 'wires' | 'devices'
 
 /**
- * Session-level layer visibility (spec §6: Layers tab).
+ * Session-level layer visibility (spec E7: the Inspector mode's overview).
  *
  * Structure covers walls, openings and stairs; devices cover electrical
  * pictograms; annotations cover labels and dimension lines; guides cover the

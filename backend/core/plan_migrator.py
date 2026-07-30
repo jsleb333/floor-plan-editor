@@ -40,6 +40,7 @@ class PlanMigrator:
             6: self._migrate_v6_to_v7,
             7: self._migrate_v7_to_v8,
             8: self._migrate_v8_to_v9,
+            9: self._migrate_v9_to_v10,
         }
 
     def migrate(self, raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -168,44 +169,70 @@ class PlanMigrator:
 
     @staticmethod
     def _migrate_v7_to_v8(document: dict[str, Any]) -> dict[str, Any]:
-        """Move wall connectivity off the walls and into ``joints`` (spec S1b/S3a).
-
-        The old per-wall ``junctions`` list could only express "my endpoint sits
-        on that wall", one-way and T-only. It is dropped rather than translated:
-        connectivity is derivable from geometry, so the editor rebuilds the full
-        relation set — corners and shared surfaces included — on first open and
-        stores that. Translating the old records would have carried the T-only
-        limitation forward.
+        """Add the v8 per-wall colour override (spec S1f).
 
         Args:
             document: A schema v7 document dict.
 
         Returns:
-            The same dict brought to schema version 8, with an empty ``joints``
-            list and no ``junctions`` key on any wall.
+            The same dict brought to schema version 8, with every wall left
+            without an explicit colour — each keeps taking the role default
+            derived from the plan's thickness presets. Wall dicts are copied
+            rather than edited in place, so the caller's pre-migration backup
+            stays pristine.
         """
-        document["walls"] = [
-            {key: value for key, value in wall.items() if key != "junctions"}
-            if isinstance(wall, dict)
-            else wall
-            for wall in document.get("walls", [])
-        ]
-        document.setdefault("joints", [])
+        walls = document.get("walls")
+        if isinstance(walls, list):
+            document["walls"] = [
+                {"color": None, **wall} if isinstance(wall, dict) else wall for wall in walls
+            ]
         document["schema_version"] = 8
         return document
 
     @staticmethod
     def _migrate_v8_to_v9(document: dict[str, Any]) -> dict[str, Any]:
-        """Add the v9 custom guide collection (spec S9), empty by default.
+        """Add the v9 persisted active-mode slot (spec P4/E10), empty by default.
 
         Args:
             document: A schema v8 document dict.
 
         Returns:
-            The same dict brought to schema version 9, with no guides — unlike
-            wall connectivity they are not derivable, since a guide only exists
-            because the user placed it.
+            The same dict brought to schema version 9, with no active mode
+            recorded — the editor falls back to its content-aware startup.
         """
-        document.setdefault("guides", [])
+        document.setdefault("active_mode", None)
         document["schema_version"] = 9
+        return document
+
+    @staticmethod
+    def _migrate_v9_to_v10(document: dict[str, Any]) -> dict[str, Any]:
+        """Move wall connectivity into ``joints`` and add the ``guides`` slot.
+
+        One step for two features (spec S1b/S3a wall network, spec S9 guides)
+        because they shipped together. The old per-wall ``junctions`` list could
+        only express "my endpoint sits on that wall", one-way and T-only; it is
+        dropped rather than translated — connectivity is derivable from
+        geometry, so the editor rebuilds the full relation set (corners and
+        shared surfaces included) on first open and stores that. Wall dicts are
+        copied rather than edited in place, so the caller's pre-migration
+        backup stays pristine.
+
+        Args:
+            document: A schema v9 document dict.
+
+        Returns:
+            The same dict brought to schema version 10, with empty ``joints``
+            and ``guides`` collections and no ``junctions`` key on any wall.
+        """
+        walls = document.get("walls")
+        if isinstance(walls, list):
+            document["walls"] = [
+                {key: value for key, value in wall.items() if key != "junctions"}
+                if isinstance(wall, dict)
+                else wall
+                for wall in walls
+            ]
+        document.setdefault("joints", [])
+        document.setdefault("guides", [])
+        document["schema_version"] = 10
         return document

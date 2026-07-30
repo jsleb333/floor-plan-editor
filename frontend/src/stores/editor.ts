@@ -48,6 +48,7 @@ export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 export type EditorCommand =
   | { type: 'setViewport'; viewport: Viewport }
   | { type: 'setActiveTool'; toolId: string }
+  | { type: 'setActiveMode'; modeId: string }
   | { type: 'setThicknessPresets'; presetsIn: number[] }
   | { type: 'setDisplayPrecision'; precisionIn: number | null }
   | { type: 'setPresetList'; name: PresetListName; valuesIn: number[] }
@@ -152,6 +153,8 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
       }
     case 'setActiveTool':
       return { ...document, active_tool: command.toolId }
+    case 'setActiveMode':
+      return { ...document, active_mode: command.modeId }
     case 'setThicknessPresets':
       return { ...document, thickness_presets_in: [...command.presetsIn] }
     case 'setDisplayPrecision':
@@ -263,8 +266,8 @@ function applyCommand(document: PlanDocument, command: EditorCommand): PlanDocum
 
 /**
  * Inverse of `command` against the document it is ABOUT to be applied to.
- * `null` marks a valid but non-undoable command (viewport, active-tool and
- * plan-settings changes save but never enter the history, spec E3/P4/§5.9);
+ * `null` marks a valid but non-undoable command (viewport, active mode/tool
+ * and plan-settings changes save but never enter the history, spec E3/P4/§5.9);
  * `undefined` marks a no-op whose target is missing, which the caller must
  * skip entirely.
  */
@@ -276,6 +279,8 @@ function invertCommand(
     case 'setViewport':
       return null
     case 'setActiveTool':
+      return null
+    case 'setActiveMode':
       return null
     case 'setThicknessPresets':
       return null

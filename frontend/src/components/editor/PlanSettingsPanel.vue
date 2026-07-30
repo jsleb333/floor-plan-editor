@@ -3,14 +3,11 @@ import { Pencil } from 'lucide-vue-next'
 import { nextTick, ref, watch } from 'vue'
 
 import DisplayPrecisionSelect from '@/components/DisplayPrecisionSelect.vue'
-import ThicknessPresetsEditor from '@/components/ThicknessPresetsEditor.vue'
 import { DEFAULT_DISPLAY_PRECISION_IN } from '@/utils/units'
 
 const props = defineProps<{
   planName: string
   planDescription: string
-  /** The document's wall thickness presets (spec §5.9 tier 2). */
-  thicknessPresetsIn: readonly number[]
   /** The document's precision override; `null` shows the 1/8" default (spec §5.9 tier 2). */
   displayPrecisionIn: number | null
 }>()
@@ -18,7 +15,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   rename: [name: string]
   'update-description': [description: string]
-  'set-thickness-presets': [presetsIn: number[]]
   'set-display-precision': [precisionIn: number]
 }>()
 
@@ -66,7 +62,7 @@ function commitDescription(): void {
   <section aria-label="Plan settings" class="flex flex-col gap-4 text-xs">
     <header>
       <h3 class="text-ink text-sm font-semibold">Plan settings</h3>
-      <p class="text-ink-muted mt-0.5">Name, description and drawing defaults for this plan.</p>
+      <p class="text-ink-muted mt-0.5">Name, description and display precision for this plan.</p>
     </header>
 
     <div>
@@ -110,15 +106,6 @@ function commitDescription(): void {
         @blur="commitDescription"
       />
     </label>
-
-    <div>
-      <span class="text-ink font-semibold">Wall thickness presets</span>
-      <p class="text-ink-muted mt-0.5 mb-1">Exterior first; the last is the interior default.</p>
-      <ThicknessPresetsEditor
-        :presets-in="thicknessPresetsIn"
-        @change="emit('set-thickness-presets', $event)"
-      />
-    </div>
 
     <label class="block">
       <span class="text-ink font-semibold">Display precision</span>

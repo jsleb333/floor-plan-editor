@@ -5,13 +5,16 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import WallsLayer from '@/components/editor/WallsLayer.vue'
 import { useEditorStore } from '@/stores/editor'
+import { EXTERIOR_WALL_COLOR, INTERIOR_WALL_COLOR } from '@/utils/wallColors'
 import { makeDocument, makeWall } from '../helpers/planFactory'
 
 /** The wall body fills; the bevel-wedge patch path is nonzero-filled, so it drops out. */
 function fills(wrapper: VueWrapper): DOMWrapper<Element>[] {
+  // Wall bodies: evenodd fill, never stroked. The selected/ghost overlays are
+  // also evenodd but carry class fills; the gap wedges are nonzero.
   return wrapper
-    .findAll('path.fill-wall')
-    .filter((path) => path.attributes('fill-rule') === 'evenodd')
+    .findAll('path[fill-rule="evenodd"]')
+    .filter((path) => path.attributes('stroke') === 'none')
 }
 
 describe('WallsLayer', () => {
@@ -40,7 +43,7 @@ describe('WallsLayer', () => {
     // The body is filled and the outline stroked separately, so abutting walls
     // can drop the edges they share (docs/WALL_NETWORK.md §7).
     expect(fills(wrapper)).toHaveLength(2)
-    expect(wrapper.findAll('path.stroke-wall-edge')).toHaveLength(2)
+    expect(wrapper.findAll('path[fill="none"]')).toHaveLength(2)
   })
 
   it('renders a closed loop as a single two-ring path with evenodd fill', () => {
@@ -81,6 +84,31 @@ describe('WallsLayer', () => {
     // exactly the selected one carries the accent outline.
     expect(fills(wrapper)).toHaveLength(2)
     expect(wrapper.findAll('path.stroke-accent-strong')).toHaveLength(1)
+  })
+
+  it('paints each wall its role colour: black for the shell, grey for a partition (spec S1f)', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      walls: [makeWall({ id: 'shell', thickness_in: 12 }), makeWall({ id: 'partition' })],
+    })
+
+    const wrapper = mount(WallsLayer, { props: { hairline: 0.5 } })
+    const bodies = fills(wrapper)
+    expect(bodies[0].attributes('fill')).toBe(EXTERIOR_WALL_COLOR)
+    expect(bodies[1].attributes('fill')).toBe(INTERIOR_WALL_COLOR)
+    // The merged-body outline strokes carry the same colour as their body.
+    const strokes = wrapper.findAll('path[fill="none"]')
+    expect(strokes[0].attributes('stroke')).toBe(EXTERIOR_WALL_COLOR)
+  })
+
+  it('paints a wall carrying a colour override with it, whatever its thickness (spec S1f)', () => {
+    const store = useEditorStore()
+    store.document = makeDocument({
+      walls: [makeWall({ id: 'shell', thickness_in: 12, color: '#b91c1c' })],
+    })
+
+    const wrapper = mount(WallsLayer, { props: { hairline: 0.5 } })
+    expect(fills(wrapper)[0].attributes('fill')).toBe('#b91c1c')
   })
 
   it('strokes the face tints and direction markers on a selected wall only (spec S1a)', () => {

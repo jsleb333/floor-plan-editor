@@ -1,4 +1,4 @@
-"""Tests for the PlanDocument model, focused on the preset_lists and guides fields."""
+"""Tests for the PlanDocument model (preset lists, active mode, guides), focused on the per-plan preset_lists and active_mode fields."""
 
 from backend.constants import DOOR_WIDTH_PRESET_LIST_NAME
 from backend.models.free_guide import FreeGuide
@@ -25,6 +25,39 @@ class TestPlanDocument:
         assert dumped["preset_lists"] == {DOOR_WIDTH_PRESET_LIST_NAME: [24.0, 30.0, 54.0]}
         assert PlanDocument.model_validate(dumped) == document
 
+    def test_preset_lists__when_key_is_absent_from_a_legacy_dump__still_validates(self) -> None:
+        """A document dict without the preset_lists key (as older backends stored) still validates, filling in the empty default without a migration step."""
+        legacy = PlanDocument().model_dump(mode="json")
+        del legacy["preset_lists"]
+
+        document = PlanDocument.model_validate(legacy)
+
+        assert document.preset_lists == {}
+
+    def test_active_mode__when_document_is_fresh__defaults_to_none(self) -> None:
+        """A fresh document has no active mode; the frontend falls back to its content-aware startup (spec P4/E10)."""
+        document = PlanDocument()
+
+        assert document.active_mode is None
+
+    def test_active_mode__when_set_and_dumped__roundtrips_through_validation(self) -> None:
+        """A persisted active mode, opaque to the backend, survives a dump/validate cycle unchanged."""
+        document = PlanDocument(active_mode="electrical")
+
+        dumped = document.model_dump(mode="json")
+
+        assert dumped["active_mode"] == "electrical"
+        assert PlanDocument.model_validate(dumped) == document
+
+    def test_active_mode__when_key_is_absent_from_a_legacy_dump__still_validates(self) -> None:
+        """A document dict without the active_mode key (as older backends stored) still validates, filling in the unset default without a migration step."""
+        legacy = PlanDocument().model_dump(mode="json")
+        del legacy["active_mode"]
+
+        document = PlanDocument.model_validate(legacy)
+
+        assert document.active_mode is None
+
     def test_guides__when_one_of_each_kind_is_stored__roundtrips_through_validation(self) -> None:
         """The guide union discriminates on kind, so the surface-anchored, point-anchored and free forms of an S9 guide all come back as the model they were dumped from."""
         document = PlanDocument(
@@ -49,12 +82,3 @@ class TestPlanDocument:
 
         assert [guide["kind"] for guide in dumped["guides"]] == ["surface", "point", "free"]
         assert PlanDocument.model_validate(dumped) == document
-
-    def test_preset_lists__when_key_is_absent_from_a_legacy_dump__still_validates(self) -> None:
-        """A document dict without the preset_lists key (as older backends stored) still validates, filling in the empty default without a migration step."""
-        legacy = PlanDocument().model_dump(mode="json")
-        del legacy["preset_lists"]
-
-        document = PlanDocument.model_validate(legacy)
-
-        assert document.preset_lists == {}

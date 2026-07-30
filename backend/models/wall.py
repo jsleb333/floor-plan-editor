@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from backend.constants import HEX_COLOR_PATTERN
 from backend.models.point import Point
 
 
@@ -18,6 +19,9 @@ class Wall(BaseModel):
         segments immune to edits (spec S3b). Connectivity to other walls is
         NOT stored here: it lives in ``PlanDocument.joints`` so a relation is
         symmetric and one place owns it (see ``docs/WALL_NETWORK.md``).
+        ``color`` is the per-wall override of the drawn wall body (spec S1f);
+        ``None`` means the wall takes the role default the frontend derives
+        from the plan's thickness presets (black exterior, grey interior).
     """
 
     id: str
@@ -26,3 +30,4 @@ class Wall(BaseModel):
     reference: Literal["center", "left", "right"] = "center"
     closed: bool = False
     locked_segments: list[int] = Field(default_factory=list)
+    color: str | None = Field(default=None, pattern=HEX_COLOR_PATTERN)

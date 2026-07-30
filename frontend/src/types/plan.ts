@@ -15,6 +15,8 @@ export interface Viewport {
  * the side the thickness is applied on. The rendered outline is derived, never
  * stored, and connectivity to other walls lives in `PlanDocument.joints` rather
  * than here, so a relation is symmetric and one place owns it.
+ * `color` (`#rrggbb`) overrides the drawn wall body; `null` takes the role
+ * default derived from the plan's thickness presets (spec S1f).
  */
 export interface Wall {
   id: string
@@ -23,6 +25,7 @@ export interface Wall {
   reference: 'center' | 'left' | 'right'
   closed: boolean
   locked_segments: number[]
+  color: string | null
 }
 
 /** Which end of a wall chain a joint attaches to. */
@@ -299,7 +302,10 @@ export interface Underlay {
 
 /**
  * The versioned plan document — everything the editor persists via autosave.
- * Schema version 9: adds the custom `guides` (spec S9), on top of the v8 move
+ * Schema version 10: moves wall connectivity into document-level `joints`
+ * (`docs/WALL_NETWORK.md`) and adds the custom `guides` (spec S9), on top of
+ * the v9 persisted `active_mode` (spec P4/E10), the v8 per-wall `color`
+ * override (spec S1f) and the v8 move
  * of wall connectivity off the walls into `joints`
  * (`docs/WALL_NETWORK.md`), the v7 per-plan `display_precision_in`
  * override (spec §5.9 tier 2), the v6 persisted `active_tool` (spec P4/E9), the v5
@@ -351,6 +357,8 @@ export interface PlanDocument {
   control_links: ControlLink[]
   /** Tool armed when the session was last saved, restored on open (spec P4/E9). */
   active_tool: string | null
+  /** Workspace mode last active, restored on open (spec P4/E10); frontend owns the valid ids. */
+  active_mode: string | null
 }
 
 /** The computed electrical state of one circuit (spec C4/W4). Mirrors backend `CircuitLoad`. */

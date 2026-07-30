@@ -10,10 +10,12 @@ import {
   resolveWallNetwork,
   sub,
   wallFacePolylines,
+  wallIdsOf,
   geometryInputOf,
 } from '@/utils/geometry'
 import type { ResolvedNetwork } from '@/utils/geometry'
 import { polylineToPath, ringsToPath } from '@/utils/svgPath'
+import { INTERIOR_WALL_COLOR, wallColor } from '@/utils/wallColors'
 
 /** Direction-arrow glyph pointing +x, tip at the origin; scaled by the hairline. */
 const ARROW_PATH = 'M 0 0 L -8 3.5 L -8 -3.5 Z'
@@ -40,6 +42,8 @@ interface WallPath {
   fill: string
   /** Only the outline edges no joined wall shares (`mergedBoundary.ts`). */
   stroke: string
+  /** The wall's own colour, for fill and outline alike: its override, else its role default (spec S1f). */
+  color: string
   /** Dimmed while a reference-side preview replaces this wall (spec S1a). */
   dimmed: boolean
 }
@@ -66,6 +70,7 @@ const previewNetwork = computed<ResolvedNetwork | null>(() => {
 
 const wallPaths = computed<WallPath[]>(() => {
   const resolved = network.value
+  const presetsIn = editorStore.document?.thickness_presets_in ?? []
   return (editorStore.document?.walls ?? [])
     .map((wall) => {
       const geometry = resolved.walls.get(wall.id)
@@ -73,16 +78,35 @@ const wallPaths = computed<WallPath[]>(() => {
         id: wall.id,
         fill: geometry ? ringsToPath(geometry.rings) : '',
         stroke: geometry ? serialize(geometry.strokes) : '',
+        color: wallColor(wall, presetsIn),
         dimmed: props.previewWall?.id === wall.id,
       }
     })
     .filter((path) => path.fill !== '')
 })
 
-/** Bevel wedges between two walls, filled so an acute join has no notch. */
-const gapPath = computed<string>(() =>
-  ringsToPath(network.value.gaps.map((gap) => [...gap.points])),
-)
+/**
+ * Bevel wedges between two walls, filled so an acute join has no notch. Each
+ * takes the colour of the first wall its joint names (spec S1f) — a wedge
+ * between two same-coloured walls is invisible, which is the common case.
+ */
+const gapPaths = computed<{ key: string; d: string; color: string }[]>(() => {
+  const document = editorStore.document
+  if (!document) return []
+  const presetsIn = document.thickness_presets_in
+  const wallsById = new Map(document.walls.map((wall) => [wall.id, wall]))
+  const jointWall = new Map(
+    document.joints.map((joint) => [joint.id, wallIdsOf(joint)[0]] as const),
+  )
+  return network.value.gaps.map((gap, index) => {
+    const wall = wallsById.get(jointWall.get(gap.jointId) ?? '')
+    return {
+      key: `${gap.jointId}:${index}`,
+      d: ringsToPath([[...gap.points]]),
+      color: wall ? wallColor(wall, presetsIn) : INTERIOR_WALL_COLOR,
+    }
+  })
+})
 
 /** Full outlines of the selected walls, drawn over the merged body as the highlight. */
 const selectedPaths = computed<{ id: string; d: string }[]>(() => {
@@ -170,17 +194,26 @@ const ghostPath = computed<string>(() => {
       :d="wall.fill"
       fill-rule="evenodd"
       stroke="none"
-      :class="['fill-wall', wall.dimmed ? 'opacity-40' : '']"
+      :fill="wall.color"
+      :class="wall.dimmed ? 'opacity-40' : ''"
     />
 
-    <path v-if="gapPath" :d="gapPath" fill-rule="nonzero" stroke="none" class="fill-wall" />
+    <path
+      v-for="gap in gapPaths"
+      :key="`gap-${gap.key}`"
+      :d="gap.d"
+      fill-rule="nonzero"
+      stroke="none"
+      :fill="gap.color"
+    />
 
     <path
       v-for="wall in wallPaths"
       :key="`stroke-${wall.id}`"
       :d="wall.stroke"
       fill="none"
-      :class="['stroke-wall-edge', wall.dimmed ? 'opacity-40' : '']"
+      :stroke="wall.color"
+      :class="wall.dimmed ? 'opacity-40' : ''"
       :stroke-width="hairline"
     />
 

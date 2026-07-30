@@ -12,9 +12,10 @@ to [REQUIREMENTS.md](REQUIREMENTS.md) (same conventions) and
 
 **Goals**
 
-- Teach the skills that are genuinely hard to discover: typed exact input,
-  the lock-and-type dimensioning workflow, reference sides, calibration,
-  wiring circuits.
+- Teach the skills that are genuinely hard to discover: the modes and their
+  chorded shortcuts (<kbd>E</kbd> <kbd>W</kbd> — REQUIREMENTS E10), typed
+  exact input, the lock-and-type dimensioning workflow, reference sides,
+  calibration, wiring circuits and the active-vs-isolated circuit split.
 - Verify by observing outcomes, not clicks: a step completes when the
   document or editor state proves the user did the thing.
 - Respect the app's own UX principles (REQUIREMENTS §6.2): docked, quiet,
@@ -63,10 +64,11 @@ satisfied by a segment measuring 120.00" no matter whether the user typed
 
 ### 3.2 The tutorial panel
 
-A collapsible card docked **above the tab strip** of the right panel
-(`EditorSidePanel.vue`) — not a fourth tab, because steps routinely direct
-the user *into* the Inspector/Circuits/Layers tabs, which must stay usable
-while the instructions remain visible. Contents:
+A collapsible card docked **above** the right panel (`EditorSidePanel.vue`)
+— never inside it, because steps routinely direct the user *into* a
+different mode (Structure/Electrical/Inspector) and that mode's contextual
+overview, which must stay usable while the instructions remain visible.
+Contents:
 
 - Chapter title + overall progress bar (thin, quiet).
 - The current step: title, short body (may embed `<kbd>` keys), and its
@@ -83,8 +85,9 @@ completions are announced via a polite `aria-live` region.
 
 A step may declare one anchor; the UI shows a subtle pulsing ring on it
 while the step is active. Anchor kinds: a tool-rail button (`ToolId`), a
-side-panel tab, a top-bar item (undo/export), or the status bar (for typed
-input steps). No floating callouts, no arrows across the canvas.
+mode-switcher segment (`ModeId`), a top-bar item (undo/export), or the
+status bar (for typed input steps). No floating callouts, no arrows across
+the canvas.
 
 ### 3.4 Functional requirements
 
@@ -119,6 +122,8 @@ exact-length checks.
 | 2 | task | Pan the canvas (space-drag, middle-drag or two-finger scroll) | `doc.viewport.center ≠ entry.viewport.center` |
 | 3 | task | Zoom with the wheel or a pinch | `doc.viewport.zoom ≠ entry.viewport.zoom` |
 | 4 | task | Zoom to fit (top bar or shortcut) | ui event `zoom-fit` |
+| 5 | task | Switch to Electrical mode (<kbd>E</kbd>, or the pill up top) — the rail and panel follow the mode — anchor: mode pill | `activeMode === 'electrical'` |
+| 6 | task | Switch back to Structure (<kbd>S</kbd>) — tool letters chain after a mode letter, so <kbd>S</kbd> <kbd>W</kbd> means "Structure, Wall" from anywhere | `activeMode === 'structure'` |
 
 ### Chapter 2 — Draw walls
 
@@ -128,7 +133,7 @@ exact-length checks.
 | 2 | task | Click out a chain of at least 3 segments | `doc.walls.some(w => w.vertices.length >= 4)` |
 | 3 | task | Type an exact length: make a segment exactly 10' — anchor: status bar | `someSegment(doc, len => abs(len - 120) < EPS)` |
 | 4 | task | Close a loop (click the ring at the start vertex) | `doc.walls.some(w => w.closed)` |
-| 5 | info | Reference sides (<kbd>Tab</kbd> while drawing), thickness presets in the Inspector | — |
+| 5 | info | Reference sides (<kbd>Tab</kbd> while drawing); thickness presets live in the tool options and the Structure mode overview | — |
 
 ### Chapter 3 — True-up with the tape measure
 
@@ -157,7 +162,7 @@ reference wall.
 | # | Kind | Step | Completion |
 |---|---|---|---|
 | 1 | info | What an underlay is; ours is out of scale and tilted on purpose | — |
-| 2 | task | Straighten it: select the underlay (<kbd>V</kbd>) and drag its round rotation handle, or type `0` in the Rotation field (Layers tab) — anchor: Layers tab | `abs(doc.underlay.transform.rotation_deg) < 0.5` |
+| 2 | task | Straighten it: select the underlay (<kbd>V</kbd>) and drag its round rotation handle, or type `0` in the Rotation field (Structure mode overview) — anchor: side panel | `abs(doc.underlay.transform.rotation_deg) < 0.5` |
 | 3 | task | Calibrate (<kbd>C</kbd>): trace the marked reference and type `10'` | `abs(doc.underlay.transform.scale - KNOWN_SCALE) / KNOWN_SCALE < 0.02` |
 | 4 | task | Adjust the underlay opacity in the Inspector | `doc.underlay.opacity ≠ entry.underlay.opacity` |
 
@@ -165,7 +170,7 @@ reference wall.
 
 | # | Kind | Step | Completion |
 |---|---|---|---|
-| 1 | task | Place a duplex outlet on a wall (<kbd>E</kbd>, pick from the palette) | `doc.devices.some(d => d.type === 'outlet' && d.attachment)` |
+| 1 | task | Place a duplex outlet on a wall (<kbd>E</kbd> <kbd>D</kbd> to enter Electrical mode and arm the Device tool, pick from the palette) | `doc.devices.some(d => d.type === 'outlet' && d.attachment)` |
 | 2 | task | Place a ceiling light anywhere | `doc.devices.some(d => d.type === 'ceiling_light')` |
 | 3 | task | Get three outlets on one wall — tip: <kbd>Ctrl+D</kbd> duplicates | `maxOutletsOnOneWall(doc) >= 3` |
 | 4 | task | Place a baseboard heater and set it to 750 W in the Inspector | `doc.devices.some(d => d.type === 'baseboard_heater' && d.load_w === 750)` |
@@ -175,21 +180,22 @@ reference wall.
 | # | Kind | Step | Completion |
 |---|---|---|---|
 | 1 | task | Place the electrical panel | `doc.devices.some(d => d.type === 'panel')` |
-| 2 | task | Create a circuit in the Circuits tab (pick a colour, 15 A) — anchor: Circuits tab | `doc.circuits.length > entry.circuits.length` |
-| 3 | task | Wire the panel to an outlet (<kbd>R</kbd>) | `validation.circuit_loads.some(c => c.connected_device_ids.length >= 1)` |
+| 2 | task | Create a circuit in the Electrical mode overview (pick a colour, 15 A) — anchor: Electrical mode | `doc.circuits.length > entry.circuits.length` |
+| 3 | task | Wire the panel to an outlet (<kbd>E</kbd> <kbd>W</kbd>) — the Wire tool's options are the circuit list itself | `validation.circuit_loads.some(c => c.connected_device_ids.length >= 1)` |
 | 4 | task | Daisy-chain a second outlet | `...connected_device_ids.length >= 2` |
 | 5 | task | Overload it: wire the baseboard in and watch the load bar warn | `validation.circuit_loads.some(c => c.status !== 'ok')` |
-| 6 | task | Isolate the circuit (click it in the Circuits tab) | `editor.isolatedCircuitId !== null` |
+| 6 | task | Create a second circuit, then make it active with <kbd>2</kbd> while the Wire tool is armed — clicking a row does the same; the status bar echoes where new wires will land | `doc.circuits.length >= 2 && editor.activeCircuitId === doc.circuits[1].id` |
+| 7 | task | Isolate the first circuit (its isolate button in the list) — isolation filters the canvas, the active row picks the drawing target; they are different controls | `editor.isolatedCircuitId !== null` |
 
 ### Chapter 8 — Save and export
 
 | # | Kind | Step | Completion |
 |---|---|---|---|
 | 1 | info | Autosave: you never press save — anchor: top-bar indicator | — |
-| 2 | task | Export the plan as SVG — anchor: export button | ui event `export-completed` |
+| 2 | task | Export the plan as SVG (top bar, or the Inspector mode overview) — anchor: export button | ui event `export-completed` |
 | 3 | info | Done! Where to go next: `?` overlay, the demo plan. Archive this practice plan whenever you like | — |
 
-≈ 29 steps, 10–15 minutes.
+≈ 32 steps, 10–15 minutes.
 
 ## 5. Technical design
 
@@ -201,7 +207,7 @@ component, one observer hook in the editor store.
 ```ts
 type TutorialAnchor =
   | { kind: 'tool'; tool: ToolId }
-  | { kind: 'tab'; tab: 'inspector' | 'circuits' | 'layers' }
+  | { kind: 'mode'; mode: ModeId }
   | { kind: 'topbar'; item: 'undo' | 'export' | 'save-indicator' }
   | { kind: 'statusbar' }
 
@@ -235,6 +241,7 @@ interface TutorialContext {
   document: PlanDocument         // current snapshot
   entryDocument: PlanDocument    // snapshot retained when the step became active (free: immutable)
   activeTool: ToolId
+  activeMode: ModeId
   validation: PlanValidation     // from useCircuitValidation
   editor: {
     selectedWallIds: ReadonlySet<string>
@@ -258,7 +265,8 @@ Shared predicate helpers (`someSegment`, collection counters,
 - Instantiated in `EditorPage.vue`; active only when the open plan id equals
   the stored practice-plan id (L5).
 - Re-evaluates the active step's predicate on: editor events (via the store
-  hook, §5.4), `documentVersion` change, `activeTool` change, and ui events.
+  hook, §5.4), `documentVersion` change, `activeTool` / `activeMode` change,
+  and ui events.
 - On step entry: retain `entryDocument`, then evaluate once immediately
   (auto-complete, L2). On completion: brief completed state, then advance.
 - Completion is recorded by step id and never revoked (L3).
@@ -312,7 +320,7 @@ to "not started".
   (§3.2). Props in, events out; no store access beyond the composable's
   returns.
 - Anchor highlighting: the page computes the active anchor; `ToolRail.vue`,
-  `EditorSidePanel.vue` and `EditorTopBar.vue` accept an optional
+  `ModeSwitcher.vue` and `EditorTopBar.vue` accept an optional
   `highlight` prop and render the pulse ring class. No new positioning
   logic, no portals.
 - Home-page entry card in `PlansHomePage.vue`.

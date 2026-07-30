@@ -23,9 +23,10 @@ class PlanDocument(BaseModel):
     """The versioned JSON document holding everything a plan contains.
 
     Role:
-        Unit of persistence and autosave. Schema version 9 carries the
+        Unit of persistence and autosave. Schema version 10 carries the
         viewport, the optional tracing underlay, the structure element
-        collections (walls, openings, stairs, labels, dimensions), the
+        collections (walls with their optional colour override — spec S1f —,
+        openings, stairs, labels, dimensions), the
         electrical devices with their plan-level default loads
         (``catalog_defaults``, keyed by device type value, spec section 5.9
         tier 2; empty means pure catalog defaults), the plan-level wall
@@ -40,17 +41,17 @@ class PlanDocument(BaseModel):
         lists never require a schema change), the electrical
         layout — the colour-coded ``circuits``, the ``wires`` connecting
         devices into them (spec section 5.6) and the documentary switch
-        ``control_links`` (spec D6), the wall ``joints`` recording how walls
-        connect (spec S1b/S3a, new in v8; an empty list on a plan that has
-        walls means "connectivity not derived yet" and the editor rebuilds it
-        from geometry) — and the ``active_tool`` last armed in
-        the editor, so a session restores where it left off (spec P4/E9;
-        the frontend owns the valid tool ids and falls back to Select on
-        unknown values). The tape-measure tool's ``guides`` (spec S9, new in
-        v9) are working geometry the user placed deliberately: surface- and
-        point-anchored ones store a relation the constraint solver maintains,
-        free ones store bare coordinates. Older documents are migrated forward
-        on read by
+        ``control_links`` (spec D6) — the ``active_tool`` last armed in the
+        editor (spec P4/E9; the frontend owns the valid tool ids and falls
+        back to Select on unknown values) and the ``active_mode`` last active
+        workspace mode (spec P4/E10; the frontend owns the valid mode ids —
+        ``structure`` | ``electrical`` | ``inspector`` — and resolves the mode
+        from the tool when the two disagree), so a session restores where it
+        left off. Version 10 moves wall connectivity into the document-level
+        ``joints`` (spec S1b/S3a, ``docs/WALL_NETWORK.md``) and adds the S9
+        custom ``guides`` — anchored guides store a relation to a wall
+        surface or end, never a bare coordinate. Older documents are
+        migrated forward on read by
         :class:`backend.core.plan_migrator.PlanMigrator`; incoming documents
         with an older shape still validate because every field added since
         v1 has a default.
@@ -79,3 +80,4 @@ class PlanDocument(BaseModel):
     wires: list[Wire] = Field(default_factory=list)
     control_links: list[ControlLink] = Field(default_factory=list)
     active_tool: str | None = None
+    active_mode: str | None = None

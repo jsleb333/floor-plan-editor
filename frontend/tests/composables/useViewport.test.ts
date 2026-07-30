@@ -86,6 +86,21 @@ describe('useViewport', () => {
       viewport.fitToRect({ x: 0, y: 0, width: 0, height: 100 })
       expect(viewport.getViewport()).toEqual({ center: { x: 1, y: 2 }, zoom: 3 })
     })
+
+    it('centres the rect within the unoccluded region when chrome insets are given', () => {
+      const viewport = makeViewport(800, 600)
+      const rect = { x: 0, y: 0, width: 360, height: 360 }
+
+      viewport.fitToRect(rect, 48, { left: 0, right: 200, top: 0, bottom: 0 })
+
+      // Limiting axis is horizontal: (800 - 200 - 96) / 360 = 1.4 px/in.
+      expect(viewport.zoom.value).toBeCloseTo(1.4 / BASE_PIXELS_PER_INCH, 10)
+      // The rect centre lands at the middle of the visible 600px strip, not
+      // at the viewport centre hiding under the 200px panel.
+      const centreOnScreen = viewport.worldToScreen({ x: 180, y: 180 })
+      expect(centreOnScreen.x).toBeCloseTo(300, 10)
+      expect(centreOnScreen.y).toBeCloseTo(300, 10)
+    })
   })
 
   it('produces an SVG transform matching the world-to-screen mapping', () => {

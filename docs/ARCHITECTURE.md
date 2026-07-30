@@ -211,7 +211,12 @@ The wall render pipeline, in order (identical in canvas and export):
    fallback past a 4× mitre limit). Open chains yield one ring with square
    butt caps; closed loops yield two rings rendered as a band.
 3. `ringsToPath` (`frontend/src/utils/svgPath.ts`) serializes rings to one
-   `M…Z` subpath each, drawn with `fill-rule="evenodd"`.
+   `M…Z` subpath each, drawn with `fill-rule="evenodd"` in the wall's own
+   colour, body and outline alike. `utils/wallColors.ts` resolves it: the
+   wall's `color` override when set, otherwise the ROLE default its thickness
+   implies against the plan's presets — black for the shell (at least as thick
+   as the exterior preset), grey for a partition (S1f). Canvas and export call
+   the one `wallColor`, and an opening reads in its host wall's colour.
 4. Openings do **not** cut the wall path: `OpeningsLayer.vue` paints a
    background-filled `openingWorldRect` over the wall band, then draws jambs
    and the door/window symbol on top. The interruption and jambs are
@@ -282,8 +287,19 @@ into named groups (`#underlay`, `#structure`, `#devices`,
 layer-editable in Inkscape/Illustrator (X2). Colours and stroke widths come
 from constants in `exportTheme.ts` (kept in sync with the Tailwind theme)
 instead of CSS — except device colours, which run through the same
-`deviceCircuitColor` rule the canvas uses (falling back to `EXPORT_INK`), so a
-printed device reads as the circuit it shows on screen. `pngExport.ts`
+`deviceCircuitColor` rule the canvas uses (falling back to `EXPORT_INK`), and
+wall colours, which run through `wallColor`, so both print as they draw.
+
+`legend.ts` adds an optional `#legend` panel (X5): `planLegend` derives what
+the sheet actually carries — the exported circuits with their ratings, the
+device types placed with their counts, the wall colours drawn — and
+`legendSize` measures the panel from character counts alone (no DOM), so
+`planViewBox` can reserve its column before anything is serialized and PNG
+rasterizes it at the plan's own scale. `exportLocale.ts` holds the editor's
+own words in English and Québec French; user text (circuit names, labels) is
+never translated, and French device names come from the catalog's `legendFr`.
+`svgPrimitives.ts` carries the escaping, rounding and pictogram-shape
+rendering both builders share. `pngExport.ts`
 rasterizes that same SVG string on an offscreen canvas (capped ~16 MP), and
 `jsonExport.ts` round-trips the raw `PlanDocument` — so all three exports share
 one geometry source.
