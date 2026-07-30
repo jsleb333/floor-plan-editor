@@ -33,7 +33,7 @@ function toolClasses(tool: ToolDefinition, activeTool: ToolId): string {
 <template>
   <nav
     aria-label="Tools"
-    class="border-line bg-surface shadow-panel m-3 max-h-[calc(100%-1.5rem)] overflow-y-auto rounded-full border p-1"
+    class="border-line bg-surface shadow-panel m-3 max-h-[calc(100%-3rem)] overflow-y-auto rounded-full border p-1"
   >
     <!-- Own positioning context for the sliding highlight, like the mode pill. -->
     <div class="relative flex flex-col">
