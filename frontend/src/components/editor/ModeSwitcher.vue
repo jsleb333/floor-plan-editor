@@ -27,25 +27,29 @@ const highlightStyle = computed(() => ({
 <template>
   <nav
     aria-label="Editor modes"
-    class="border-line bg-surface shadow-panel relative flex items-center rounded-full border p-1"
+    class="border-line bg-surface shadow-panel rounded-full border p-1"
   >
-    <span
-      class="bg-accent-soft absolute top-1 left-1 h-9 w-9 rounded-full transition-transform duration-300 ease-out motion-reduce:transition-none"
-      :style="highlightStyle"
-      aria-hidden="true"
-    />
-    <button
-      v-for="mode in MODES"
-      :key="mode.id"
-      type="button"
-      :title="`${mode.name} (${mode.shortcut.toUpperCase()})`"
-      :aria-label="mode.name"
-      :aria-pressed="mode.id === activeMode"
-      class="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors"
-      :class="mode.id === activeMode ? 'text-accent' : 'text-ink-muted hover:text-ink'"
-      @click="emit('select', mode.id)"
-    >
-      <component :is="mode.icon" :size="16" aria-hidden="true" />
-    </button>
+    <!-- Own positioning context for the sliding highlight, so the nav root
+         stays free for the parent's fallthrough placement classes. -->
+    <div class="relative flex items-center">
+      <span
+        class="bg-accent-soft absolute top-0 left-0 h-9 w-9 rounded-full transition-transform duration-300 ease-out motion-reduce:transition-none"
+        :style="highlightStyle"
+        aria-hidden="true"
+      />
+      <button
+        v-for="mode in MODES"
+        :key="mode.id"
+        type="button"
+        :title="`${mode.name} (${mode.shortcut.toUpperCase()})`"
+        :aria-label="mode.name"
+        :aria-pressed="mode.id === activeMode"
+        class="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+        :class="mode.id === activeMode ? 'text-accent' : 'text-ink-muted hover:text-ink'"
+        @click="emit('select', mode.id)"
+      >
+        <component :is="mode.icon" :size="16" aria-hidden="true" />
+      </button>
+    </div>
   </nav>
 </template>
