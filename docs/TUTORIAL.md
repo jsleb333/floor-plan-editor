@@ -12,9 +12,10 @@ to [REQUIREMENTS.md](REQUIREMENTS.md) (same conventions) and
 
 **Goals**
 
-- Teach the skills that are genuinely hard to discover: typed exact input,
-  the lock-and-type dimensioning workflow, reference sides, calibration,
-  wiring circuits.
+- Teach the skills that are genuinely hard to discover: the modes and their
+  chorded shortcuts (<kbd>E</kbd> <kbd>W</kbd> — REQUIREMENTS E10), typed
+  exact input, the lock-and-type dimensioning workflow, reference sides,
+  calibration, wiring circuits and the active-vs-isolated circuit split.
 - Verify by observing outcomes, not clicks: a step completes when the
   document or editor state proves the user did the thing.
 - Respect the app's own UX principles (REQUIREMENTS §6.2): docked, quiet,
@@ -121,6 +122,8 @@ exact-length checks.
 | 2 | task | Pan the canvas (space-drag, middle-drag or two-finger scroll) | `doc.viewport.center ≠ entry.viewport.center` |
 | 3 | task | Zoom with the wheel or a pinch | `doc.viewport.zoom ≠ entry.viewport.zoom` |
 | 4 | task | Zoom to fit (top bar or shortcut) | ui event `zoom-fit` |
+| 5 | task | Switch to Electrical mode (<kbd>E</kbd>, or the pill up top) — the rail and panel follow the mode — anchor: mode pill | `activeMode === 'electrical'` |
+| 6 | task | Switch back to Structure (<kbd>S</kbd>) — tool letters chain after a mode letter, so <kbd>S</kbd> <kbd>W</kbd> means "Structure, Wall" from anywhere | `activeMode === 'structure'` |
 
 ### Chapter 2 — Draw walls
 
@@ -130,7 +133,7 @@ exact-length checks.
 | 2 | task | Click out a chain of at least 3 segments | `doc.walls.some(w => w.vertices.length >= 4)` |
 | 3 | task | Type an exact length: make a segment exactly 10' — anchor: status bar | `someSegment(doc, len => abs(len - 120) < EPS)` |
 | 4 | task | Close a loop (click the ring at the start vertex) | `doc.walls.some(w => w.closed)` |
-| 5 | info | Reference sides (<kbd>Tab</kbd> while drawing), thickness presets in the Inspector | — |
+| 5 | info | Reference sides (<kbd>Tab</kbd> while drawing); thickness presets live in the tool options and the Structure mode overview | — |
 
 ### Chapter 3 — True-up with the tape measure
 
@@ -178,20 +181,21 @@ reference wall.
 |---|---|---|---|
 | 1 | task | Place the electrical panel | `doc.devices.some(d => d.type === 'panel')` |
 | 2 | task | Create a circuit in the Electrical mode overview (pick a colour, 15 A) — anchor: Electrical mode | `doc.circuits.length > entry.circuits.length` |
-| 3 | task | Wire the panel to an outlet (<kbd>E</kbd> <kbd>W</kbd>) | `validation.circuit_loads.some(c => c.connected_device_ids.length >= 1)` |
+| 3 | task | Wire the panel to an outlet (<kbd>E</kbd> <kbd>W</kbd>) — the Wire tool's options are the circuit list itself | `validation.circuit_loads.some(c => c.connected_device_ids.length >= 1)` |
 | 4 | task | Daisy-chain a second outlet | `...connected_device_ids.length >= 2` |
 | 5 | task | Overload it: wire the baseboard in and watch the load bar warn | `validation.circuit_loads.some(c => c.status !== 'ok')` |
-| 6 | task | Isolate the circuit (click it in the Electrical mode overview) | `editor.isolatedCircuitId !== null` |
+| 6 | task | Create a second circuit, then make it active with <kbd>2</kbd> while the Wire tool is armed — clicking a row does the same; the status bar echoes where new wires will land | `doc.circuits.length >= 2 && editor.activeCircuitId === doc.circuits[1].id` |
+| 7 | task | Isolate the first circuit (its isolate button in the list) — isolation filters the canvas, the active row picks the drawing target; they are different controls | `editor.isolatedCircuitId !== null` |
 
 ### Chapter 8 — Save and export
 
 | # | Kind | Step | Completion |
 |---|---|---|---|
 | 1 | info | Autosave: you never press save — anchor: top-bar indicator | — |
-| 2 | task | Export the plan as SVG — anchor: export button | ui event `export-completed` |
+| 2 | task | Export the plan as SVG (top bar, or the Inspector mode overview) — anchor: export button | ui event `export-completed` |
 | 3 | info | Done! Where to go next: `?` overlay, the demo plan. Archive this practice plan whenever you like | — |
 
-≈ 29 steps, 10–15 minutes.
+≈ 32 steps, 10–15 minutes.
 
 ## 5. Technical design
 
@@ -237,6 +241,7 @@ interface TutorialContext {
   document: PlanDocument         // current snapshot
   entryDocument: PlanDocument    // snapshot retained when the step became active (free: immutable)
   activeTool: ToolId
+  activeMode: ModeId
   validation: PlanValidation     // from useCircuitValidation
   editor: {
     selectedWallIds: ReadonlySet<string>
@@ -260,7 +265,8 @@ Shared predicate helpers (`someSegment`, collection counters,
 - Instantiated in `EditorPage.vue`; active only when the open plan id equals
   the stored practice-plan id (L5).
 - Re-evaluates the active step's predicate on: editor events (via the store
-  hook, §5.4), `documentVersion` change, `activeTool` change, and ui events.
+  hook, §5.4), `documentVersion` change, `activeTool` / `activeMode` change,
+  and ui events.
 - On step entry: retain `entryDocument`, then evaluate once immediately
   (auto-complete, L2). On completion: brief completed state, then advance.
 - Completion is recorded by step id and never revoked (L3).
