@@ -2,9 +2,12 @@ import {
   Blinds,
   BrickWall,
   ChartNoAxesColumnIncreasing,
+  ClipboardList,
   Crosshair,
   DoorOpen,
+  House,
   MousePointer2,
+  PlugZap,
   Ruler,
   RulerDimensionLine,
   Spline,
@@ -36,13 +39,14 @@ export interface ModeDefinition {
   name: string
   /** Single-key shortcut, lowercase; chains into the mode's tool letters (spec E10). */
   shortcut: string
+  icon: Component
 }
 
 /** Modes in tool-rail / mode-pill order (spec E10, §6.1). */
 export const MODES: readonly ModeDefinition[] = [
-  { id: 'structure', name: 'Structure', shortcut: 's' },
-  { id: 'electrical', name: 'Electrical', shortcut: 'e' },
-  { id: 'inspector', name: 'Inspector', shortcut: 'i' },
+  { id: 'structure', name: 'Structure', shortcut: 's', icon: House },
+  { id: 'electrical', name: 'Electrical', shortcut: 'e', icon: PlugZap },
+  { id: 'inspector', name: 'Inspector', shortcut: 'i', icon: ClipboardList },
 ]
 
 export interface ToolDefinition {
