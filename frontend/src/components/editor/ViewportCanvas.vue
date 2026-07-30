@@ -322,7 +322,9 @@ onBeforeUnmount(() => {
       </g>
     </svg>
 
-    <svg aria-hidden="true" class="bg-surface/90 pointer-events-none absolute inset-x-0 top-0 h-6">
+    <!-- Explicit w-full/h-full: an absolutely-positioned svg ignores the
+         inset-* stretch and falls back to its intrinsic 300x150 size. -->
+    <svg aria-hidden="true" class="bg-surface/90 pointer-events-none absolute inset-x-0 top-0 h-6 w-full">
       <g v-for="tick in ticksX.major" :key="`x-${tick.position}`">
         <line
           :x1="tick.position"
@@ -349,7 +351,7 @@ onBeforeUnmount(() => {
       <line x1="0" x2="100%" y1="23.5" y2="23.5" class="stroke-line" stroke-width="1" />
     </svg>
 
-    <svg aria-hidden="true" class="bg-surface/90 pointer-events-none absolute inset-y-0 left-0 w-6">
+    <svg aria-hidden="true" class="bg-surface/90 pointer-events-none absolute inset-y-0 left-0 h-full w-6">
       <g v-for="tick in ticksY.major" :key="`y-${tick.position}`">
         <line
           x1="14"
