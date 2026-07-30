@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
 
 import { useViewport } from '@/composables/useViewport'
-import type { Rect } from '@/composables/useViewport'
+import type { FitInsets, Rect } from '@/composables/useViewport'
 import { useViewportGestures } from '@/composables/useViewportGestures'
 import type { ScrollMode } from '@/composables/useViewportGestures'
 import type { Point, Viewport } from '@/types/plan'
@@ -188,9 +188,9 @@ watch([viewport.center, viewport.zoom], () => {
  * rect (one device, a horizontal wall) is grown around its centre so the fit
  * stays sane.
  */
-function fitTo(rect: Rect | null): void {
+function fitTo(rect: Rect | null, insets?: FitInsets): void {
   if (!rect) {
-    viewport.fitToRect(DEFAULT_EXTENTS, FIT_PADDING_PX)
+    viewport.fitToRect(DEFAULT_EXTENTS, FIT_PADDING_PX, insets)
     return
   }
   const width = Math.max(rect.width, MIN_FIT_EXTENT_IN)
@@ -203,6 +203,7 @@ function fitTo(rect: Rect | null): void {
       height,
     },
     FIT_PADDING_PX,
+    insets,
   )
 }
 
