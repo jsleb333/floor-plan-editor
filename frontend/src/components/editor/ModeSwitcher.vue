@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { MODES } from '@/components/editor/tools'
-import type { ModeDefinition, ModeId } from '@/components/editor/tools'
+import { computed } from 'vue'
 
-defineProps<{
+import { MODES } from '@/components/editor/tools'
+import type { ModeId } from '@/components/editor/tools'
+
+const props = defineProps<{
   activeMode: ModeId
 }>()
 
@@ -10,28 +12,40 @@ const emit = defineEmits<{
   select: [mode: ModeId]
 }>()
 
-function modeClasses(mode: ModeDefinition, activeMode: ModeId): string {
-  if (mode.id === activeMode) return 'bg-accent-soft text-accent'
-  return 'text-ink-muted hover:bg-canvas hover:text-ink'
-}
+/** Index of the active segment; drives the sliding highlight's translation. */
+const activeIndex = computed(() => MODES.findIndex((mode) => mode.id === props.activeMode))
+
+/**
+ * The highlight is one segment wide, so each step slides it by exactly its
+ * own width — which is why the segments carry no gap between them.
+ */
+const highlightStyle = computed(() => ({
+  transform: `translateX(${activeIndex.value * 100}%)`,
+}))
 </script>
 
 <template>
   <nav
     aria-label="Editor modes"
-    class="border-line bg-surface shadow-panel flex items-center gap-0.5 rounded-full border p-1"
+    class="border-line bg-surface shadow-panel relative flex items-center rounded-full border p-1"
   >
+    <span
+      class="bg-accent-soft absolute top-1 left-1 h-9 w-9 rounded-full transition-transform duration-300 ease-out motion-reduce:transition-none"
+      :style="highlightStyle"
+      aria-hidden="true"
+    />
     <button
       v-for="mode in MODES"
       :key="mode.id"
       type="button"
       :title="`${mode.name} (${mode.shortcut.toUpperCase()})`"
+      :aria-label="mode.name"
       :aria-pressed="mode.id === activeMode"
-      class="rounded-full px-3 py-1 text-xs font-medium transition-colors"
-      :class="modeClasses(mode, activeMode)"
+      class="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+      :class="mode.id === activeMode ? 'text-accent' : 'text-ink-muted hover:text-ink'"
       @click="emit('select', mode.id)"
     >
-      {{ mode.name }}
+      <component :is="mode.icon" :size="16" aria-hidden="true" />
     </button>
   </nav>
 </template>

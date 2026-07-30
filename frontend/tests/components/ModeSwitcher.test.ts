@@ -10,10 +10,10 @@ function mountSwitcher(activeMode: ModeId): VueWrapper {
 }
 
 describe('ModeSwitcher', () => {
-  it('offers one segment per mode, in mode order (spec E10)', () => {
+  it('offers one icon segment per mode, in mode order (spec E10)', () => {
     const wrapper = mountSwitcher('structure')
 
-    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(
+    expect(wrapper.findAll('button').map((button) => button.attributes('aria-label'))).toEqual(
       MODES.map((mode) => mode.name),
     )
   })
@@ -33,13 +33,27 @@ describe('ModeSwitcher', () => {
       .findAll('button')
       .filter((button) => button.attributes('aria-pressed') === 'true')
 
-    expect(pressed.map((button) => button.text())).toEqual(['Electrical'])
+    expect(pressed.map((button) => button.attributes('aria-label'))).toEqual(['Electrical'])
+  })
+
+  it('slides the highlight to the active segment', () => {
+    const structure = mountSwitcher('structure')
+    const inspector = mountSwitcher('inspector')
+
+    expect(structure.find('span[aria-hidden="true"]').attributes('style')).toContain(
+      'translateX(0%)',
+    )
+    expect(inspector.find('span[aria-hidden="true"]').attributes('style')).toContain(
+      'translateX(200%)',
+    )
   })
 
   it('emits select with the picked mode', async () => {
     const wrapper = mountSwitcher('structure')
 
-    const inspector = wrapper.findAll('button').find((button) => button.text() === 'Inspector')
+    const inspector = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('aria-label') === 'Inspector')
     await inspector?.trigger('click')
 
     expect(wrapper.emitted('select')).toEqual([['inspector']])

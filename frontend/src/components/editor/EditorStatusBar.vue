@@ -74,7 +74,7 @@ const warningLabel = computed(
 <template>
   <footer
     aria-label="Status bar"
-    class="border-line bg-surface shadow-panel rounded-card text-ink-muted m-3 flex h-8 shrink-0 items-center gap-4 border px-3 text-xs"
+    class="border-line bg-surface text-ink-muted flex h-8 shrink-0 items-center gap-4 border-t px-3 text-xs"
   >
     <div class="flex items-center gap-1" aria-label="Snap toggles">
       <span class="text-ink-faint mr-1">snap:</span>
