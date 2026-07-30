@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { assetUrl } from '@/api/assets'
@@ -17,6 +17,7 @@ import GuidesLayer from '@/components/editor/GuidesLayer.vue'
 import EditorStatusBar from '@/components/editor/EditorStatusBar.vue'
 import EditorTopBar from '@/components/editor/EditorTopBar.vue'
 import LabelsLayer from '@/components/editor/LabelsLayer.vue'
+import ModeSwitcher from '@/components/editor/ModeSwitcher.vue'
 import OpeningsLayer from '@/components/editor/OpeningsLayer.vue'
 import SelectionOverlay from '@/components/editor/SelectionOverlay.vue'
 import ShortcutOverlay from '@/components/editor/ShortcutOverlay.vue'
@@ -28,8 +29,15 @@ import ViewportCanvas from '@/components/editor/ViewportCanvas.vue'
 import WallToolOverlay from '@/components/editor/WallToolOverlay.vue'
 import WallsLayer from '@/components/editor/WallsLayer.vue'
 import WiresLayer from '@/components/editor/WiresLayer.vue'
-import { TOOLS, armedDeviceTypeFor, startupToolFor } from '@/components/editor/tools'
-import type { ToolId } from '@/components/editor/tools'
+import {
+  MODES,
+  TOOLS,
+  armedDeviceTypeFor,
+  modeForTool,
+  startupStateFor,
+  toolsForMode,
+} from '@/components/editor/tools'
+import type { ModeId, ToolId } from '@/components/editor/tools'
 import { useCalibrateTool } from '@/composables/useCalibrateTool'
 import { useCircuitValidation } from '@/composables/useCircuitValidation'
 import { useDeviceTool } from '@/composables/useDeviceTool'
@@ -109,14 +117,35 @@ const ARROW_NUDGES: Record<string, { dx: number; dy: number }> = {
 /** How long a transient status-bar notice stays visible (spec §6.2, quiet feedback). */
 const STATUS_NOTICE_MS = 4000
 
+/**
+ * Screen pixels the floating chrome occludes per side (spec §6.1), fed to
+ * zoom-to-fit: left = ruler strip (24px) + rail (12px margin + 44px pill +
+ * 12px gap); right = side panel (12px + 288px + 12px); top = ruler (24px) +
+ * mode pill (12px + 44px). Mirrors the chrome's Tailwind sizing (h-6/w-6
+ * rulers, m-3, w-72, h-9 segments + p-1).
+ */
+const FIT_CHROME_INSETS = { left: 92, right: 312, top: 80, bottom: 0 }
+
+/**
+ * Opacity structure renders at in Electrical mode (spec E10, context dimming),
+ * so devices and wires read first. Dimmed elements stay selectable and
+ * snappable — opacity never touches hit testing.
+ */
+const STRUCTURE_DIM_OPACITY = 0.4
+
+/** Digits the Wire tool reads as "make circuit N active" (spec W1). */
+const CIRCUIT_DIGIT_KEY = /^[1-9]$/
+
 const route = useRoute()
 const editorStore = useEditorStore()
 const layersStore = useLayersStore()
 const deviceMruStore = useDeviceMruStore()
 const { plan, document: planDocument, saveState, saveError } = storeToRefs(editorStore)
-const { validation } = useCircuitValidation()
+const { validation, warningCount } = useCircuitValidation()
 
 const loadState = ref<LoadState>({ status: 'loading' })
+/** The workspace mode: it scopes the tool rail and the chorded letters (spec E10). */
+const activeMode = ref<ModeId>('structure')
 const activeTool = ref<ToolId>('select')
 const cursorWorld = ref<Point | null>(null)
 const currentViewport = ref<Viewport | null>(null)
@@ -126,6 +155,12 @@ const canvas = ref<InstanceType<typeof ViewportCanvas> | null>(null)
 
 const planId = computed(() => planIdFromRoute(route))
 const zoomPercent = computed(() => Math.round((currentViewport.value?.zoom ?? 1) * 100))
+/** The tools the rail offers in the active mode (spec E10, §6.1). */
+const railTools = computed(() => toolsForMode(activeMode.value))
+/** Structure fades behind the electrical layout while wiring (spec E10). */
+const structureOpacity = computed(() =>
+  activeMode.value === 'electrical' ? STRUCTURE_DIM_OPACITY : 1,
+)
 const thicknessPresetsIn = computed<readonly number[]>(
   () => planDocument.value?.thickness_presets_in ?? [],
 )
@@ -180,8 +215,6 @@ const armedDeviceDraft = computed<DeviceDraft>(() => {
 })
 /** The switch a control link is being armed from (pick-target mode, spec D6), else null. */
 const armedControlLinkSwitchId = ref<string | null>(null)
-/** When set, asks the side panel to switch tabs (e.g. wire tool opens Circuits, §6.1). */
-const requestedTab = ref<'inspector' | 'circuits' | 'layers' | null>(null)
 /**
  * Transient would-be wall while the inspector's reference-side options or
  * swap button are hovered (spec S1a) — previewed on the canvas, never stored
@@ -280,6 +313,7 @@ const {
   inputBuffer: wallInputBuffer,
   reference: wallReference,
   thicknessIn: wallThicknessIn,
+  color: wallColorOverride,
   isDrawing: wallDrawing,
 } = wallTool
 
@@ -323,12 +357,8 @@ const wireTool = useWireTool({
   devices: documentDevices,
   walls: documentWalls,
   commit: (wire) => editorStore.mutate({ type: 'addWire', wire }),
-  onRequireCircuit: () => {
-    requestedTab.value = null
-    void nextTick(() => {
-      requestedTab.value = 'circuits'
-    })
-  },
+  onRequireCircuit: () =>
+    showStatusNotice('Create a circuit first — the Wire tool lists them in the panel.'),
 })
 
 const deviceTool = useDeviceTool({
@@ -489,7 +519,11 @@ async function load(): Promise<void> {
     currentViewport.value = loaded.document.viewport
     emptyStateDismissed.value = false
     loadState.value = { status: 'ready' }
-    applyStartupTool(startupToolFor(loaded.document))
+    const startup = startupStateFor(loaded.document)
+    // Restoring a session is not a user mode switch: the mode is adopted
+    // directly, keeping `setMode`'s selection reset out of the way.
+    activeMode.value = startup.mode
+    applyStartupTool(startup.tool)
   } catch (error) {
     loadState.value = {
       status: 'error',
@@ -511,6 +545,20 @@ function applyStartupTool(tool: ToolId): void {
     return
   }
   activeTool.value = tool
+}
+
+/**
+ * Switches workspace mode (spec E10). The switch lands on Select with an
+ * empty selection so the new mode opens on its overview, and drops any
+ * circuit isolation: an isolated canvas whose isolate toggle lives in a mode
+ * the user just left is a trap.
+ */
+function setMode(mode: ModeId): void {
+  if (activeMode.value === mode) return
+  activeMode.value = mode
+  activeTool.value = 'select'
+  editorStore.clearSelection()
+  editorStore.clearIsolation()
 }
 
 function showStatusNotice(message: string): void {
@@ -749,14 +797,6 @@ function handleChangeDevice(): void {
   deviceTool.handleKey('Escape')
 }
 
-function handleUpdateUnderlay(underlay: Underlay): void {
-  editorStore.mutate({ type: 'setUnderlay', underlay })
-}
-
-function handleRemoveUnderlay(): void {
-  editorStore.mutate({ type: 'setUnderlay', underlay: null })
-}
-
 function handleRecalibrate(): void {
   if (documentUnderlay.value) activeTool.value = 'calibrate'
 }
@@ -800,6 +840,7 @@ function handleZoomFit(): void {
           height: bounds.maxY - bounds.minY,
         }
       : null,
+    FIT_CHROME_INSETS,
   )
 }
 
@@ -828,6 +869,24 @@ function handleSelectToolKey(event: KeyboardEvent): boolean {
   const nudge = ARROW_NUDGES[event.key]
   if (nudge) return selectTool.nudge(nudge.dx, nudge.dy, event.shiftKey)
   return false
+}
+
+/**
+ * Digits 1–9 make circuit N active while the Wire tool is armed (spec W1),
+ * echoed by the status bar's circuit chip. A digit past the end of the list is
+ * still consumed — the wire tool has no other reading for it — with a notice
+ * saying there is nothing there.
+ */
+function handleWireCircuitDigit(key: string): boolean {
+  if (!CIRCUIT_DIGIT_KEY.test(key)) return false
+  const circuit = documentCircuits.value[Number(key) - 1]
+  if (!circuit) {
+    showStatusNotice(`No circuit ${key}`)
+    return true
+  }
+  editorStore.setActiveCircuit(circuit.id)
+  showStatusNotice(`Active circuit — ${circuit.name}`)
+  return true
 }
 
 /**
@@ -867,6 +926,7 @@ function handleActiveToolKey(event: KeyboardEvent): boolean {
       }
       return false
     case 'wire':
+      if (handleWireCircuitDigit(event.key)) return true
       if (wireTool.handleKey(event.key)) return true
       if (event.key === 'Escape') {
         activeTool.value = 'select'
@@ -953,6 +1013,9 @@ useToolShortcuts(
     activeTool.value = id
   },
   {
+    modes: MODES,
+    activeMode,
+    onSelectMode: setMode,
     suppress: (event) =>
       (activeTool.value === 'wall' &&
         (wallDrawing.value || wallInputBuffer.value !== '') &&
@@ -1023,17 +1086,26 @@ watch(activeTool, (tool, previous) => {
     deviceArmedType.value = armedDeviceTypeFor(documentDevices.value, deviceMruStore.recent)
   }
   if (previous === 'wire' && tool !== 'wire') wireTool.deactivate()
-  if (tool === 'wire' && previous !== 'wire' && editorStore.activeCircuitId === null) {
-    requestedTab.value = null
-    void nextTick(() => {
-      requestedTab.value = 'circuits'
-    })
-  }
   if (previous === 'calibrate' && tool !== 'calibrate') calibrateTool.deactivate()
+  // A tool armed from outside its mode pulls the mode along (spec E10) — e.g.
+  // the underlay inspector's Recalibrate button arming Calibrate while
+  // Electrical is active. A follow, not a user switch: the selection stands.
+  const definition = TOOLS.find((candidate) => candidate.id === tool)
+  if (definition && !definition.modes.includes(activeMode.value)) {
+    activeMode.value = modeForTool(tool)
+  }
   // Persist the tool choice into the document (spec P4). Like the viewport,
   // it rides the debounced autosave and never enters the undo history.
   if (planDocument.value && planDocument.value.active_tool !== tool) {
     editorStore.mutate({ type: 'setActiveTool', toolId: tool })
+  }
+})
+
+// Persist the mode alongside the tool (spec P4/E10): same debounced autosave,
+// same absence from the undo history.
+watch(activeMode, (mode) => {
+  if (planDocument.value && planDocument.value.active_mode !== mode) {
+    editorStore.mutate({ type: 'setActiveMode', modeId: mode })
   }
 })
 
@@ -1057,7 +1129,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="bg-surface text-ink flex h-screen flex-col overflow-hidden">
+  <div class="bg-canvas text-ink flex h-screen flex-col overflow-hidden">
     <EditorTopBar
       :plan-name="plan?.name ?? 'Untitled'"
       :save-state="saveState"
@@ -1069,10 +1141,10 @@ onBeforeUnmount(() => {
       @export="showExportDialog = true"
     />
 
-    <div class="flex min-h-0 flex-1">
-      <ToolRail :tools="TOOLS" :active-tool="activeTool" @select="activeTool = $event" />
-
-      <main class="relative min-w-0 flex-1" aria-label="Canvas">
+    <!-- The canvas is full-bleed; the rail and side panel float OVER it
+         (spec §6.1), so zoom-to-fit compensates via FIT_CHROME_INSETS. -->
+    <div class="relative min-h-0 flex-1">
+      <main class="absolute inset-0" aria-label="Canvas">
         <ViewportCanvas
           v-if="loadState.status === 'ready' && initialViewport"
           ref="canvas"
@@ -1088,9 +1160,13 @@ onBeforeUnmount(() => {
             <UnderlayLayer :hairline="hairline" :size="underlayImageSize" />
           </template>
           <template #default="{ hairline }">
-            <StairsLayer :hairline="hairline" :preview="stairsPreview" />
-            <WallsLayer :hairline="hairline" :preview-wall="wallReferencePreview" />
-            <OpeningsLayer :hairline="hairline" :preview="openingPreview" />
+            <!-- Structure dims behind the electrical layout (spec E10); the
+                 dimming is visual only — hit testing is untouched. -->
+            <g :opacity="structureOpacity">
+              <StairsLayer :hairline="hairline" :preview="stairsPreview" />
+              <WallsLayer :hairline="hairline" :preview-wall="wallReferencePreview" />
+              <OpeningsLayer :hairline="hairline" :preview="openingPreview" />
+            </g>
             <ControlLinksLayer
               :hairline="hairline"
               :armed-center="controlLinkArmedCenter"
@@ -1169,6 +1245,12 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
+        <ModeSwitcher
+          class="absolute top-9 left-1/2 z-10 -translate-x-1/2"
+          :active-mode="activeMode"
+          @select="setMode"
+        />
+
         <EditorEmptyState v-if="showEmptyState" @start-drawing="emptyStateDismissed = true" />
 
         <p
@@ -1180,14 +1262,26 @@ onBeforeUnmount(() => {
         </p>
       </main>
 
-      <EditorSidePanel
+      <!-- The chrome floats inside the 24px ruler frame (top-6/left-6), so
+           the rulers stay readable at the true canvas edges. -->
+      <ToolRail
+        class="absolute top-6 left-6 z-10"
+        :tools="railTools"
         :active-tool="activeTool"
+        @select="activeTool = $event"
+      />
+
+      <EditorSidePanel
+        class="absolute top-6 right-0 z-10"
+        :active-tool="activeTool"
+        :active-mode="activeMode"
         :plan-name="plan?.name ?? 'Untitled'"
         :plan-description="plan?.description ?? ''"
         :display-precision-in="documentDisplayPrecisionIn"
         :wall-thickness-presets-in="thicknessPresetsIn"
         :wall-thickness-in="wallThicknessIn"
         :wall-reference="wallReference"
+        :wall-color="wallColorOverride"
         :opening-width-in="openingWidthIn"
         :opening-width-presets-in="openingWidthPresetsIn"
         :opening-style="openingStyle"
@@ -1209,7 +1303,6 @@ onBeforeUnmount(() => {
         :circuits="documentCircuits"
         :control-links="documentControlLinks"
         :armed-control-link-switch-id="armedControlLinkSwitchId"
-        :requested-tab="requestedTab"
         :selected-underlay="editorStore.selectedUnderlay"
         :underlay-image-size="underlayImageSize"
         :device-armed-type="deviceArmedType"
@@ -1221,6 +1314,7 @@ onBeforeUnmount(() => {
         @set-display-precision="handleSetDisplayPrecision"
         @set-wall-thickness="wallTool.setThickness($event)"
         @set-wall-reference="wallTool.setReference($event)"
+        @set-wall-color="wallTool.setColor($event)"
         @set-opening-width="openingTool.setWidth($event)"
         @set-opening-style="openingTool.setStyle($event)"
         @set-opening-hinge="openingTool.setHinge($event)"
@@ -1244,9 +1338,8 @@ onBeforeUnmount(() => {
         @arm-device="handleArmDevice"
         @update-device-draft="handleUpdateDeviceDraft"
         @change-device="handleChangeDevice"
-        @update-underlay="handleUpdateUnderlay"
         @recalibrate="handleRecalibrate"
-        @remove-underlay="handleRemoveUnderlay"
+        @export="showExportDialog = true"
         @delete-selection="handleDeleteSelection"
         @flash-segments="handleFlashSegments"
       />
@@ -1264,9 +1357,11 @@ onBeforeUnmount(() => {
       :notice="statusNotice"
       :active-circuit-name="activeTool === 'wire' ? (activeCircuit?.name ?? null) : null"
       :active-circuit-color="activeTool === 'wire' ? (activeCircuit?.color ?? null) : null"
+      :warning-count="warningCount"
       @toggle-snap="toggleSnap"
       @cycle-scroll-mode="cycleScrollMode"
       @show-shortcuts="showShortcuts = true"
+      @open-circuits="setMode('electrical')"
     />
 
     <ExportDialog

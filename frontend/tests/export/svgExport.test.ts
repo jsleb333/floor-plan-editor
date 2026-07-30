@@ -4,10 +4,11 @@ import {
   DEVICE_STROKE_IN,
   EXPORT_INK,
   EXPORT_INK_MUTED,
-  EXPORT_WALL_EDGE,
   GUIDE_DASH_IN,
   GUIDE_STROKE_IN,
 } from '@/export/exportTheme'
+import { legendSize, planLegend } from '@/export/legend'
+import type { LegendSize } from '@/export/legend'
 import {
   buildPlanSvg,
   embedUnderlay,
@@ -18,6 +19,7 @@ import {
 import type { DoorStyle, Guide, PlanDocument, Point } from '@/types/plan'
 import { DOOR_DASH_IN, deviceWorldPlacement, doorFigure, wallOutline } from '@/utils/geometry'
 import { doorStrokeToPath, ringsToPath } from '@/utils/svgPath'
+import { EXTERIOR_WALL_COLOR, INTERIOR_WALL_COLOR } from '@/utils/wallColors'
 
 import {
   makeCircuit,
@@ -37,6 +39,13 @@ const RED = '#dc2626'
 const BLUE = '#2563eb'
 /** Where the free-standing panel sits in these documents. */
 const PANEL: Point = { x: 0, y: -20 }
+
+/** The legend panel size of a document, failing loudly when it has nothing to legend. */
+function legendSizeOf(document: PlanDocument, language: 'en' | 'fr' = 'en'): LegendSize {
+  const size = legendSize(planLegend(document, { language }), language)
+  if (!size) throw new Error('expected a legend size')
+  return size
+}
 
 /** A document carrying one of every element, all resolvable, for whole-file assertions. */
 function makeRichDocument(overrides: Partial<PlanDocument> = {}): PlanDocument {
@@ -111,6 +120,24 @@ describe('planViewBox', () => {
       height: 27.5,
     })
   })
+
+  it('reserves the legend column and, if taller, the legend height (spec X5)', () => {
+    const document = makeRichDocument()
+    const plain = planViewBox(document)
+    const withLegend = planViewBox(document, { includeLegend: true })
+    const size = legendSizeOf(document)
+
+    expect(withLegend.minX).toBe(plain.minX)
+    expect(withLegend.minY).toBe(plain.minY)
+    expect(withLegend.width).toBe(plain.width + size.widthIn + 12)
+    expect(withLegend.height).toBe(Math.max(plain.height, size.heightIn + 24))
+  })
+
+  it('reserves nothing for a legend a plan has nothing to fill (spec X5)', () => {
+    const empty = makeDocument()
+
+    expect(planViewBox(empty, { includeLegend: true })).toEqual(planViewBox(empty))
+  })
 })
 
 describe('buildPlanSvg', () => {
@@ -143,6 +170,43 @@ describe('buildPlanSvg', () => {
     )
     expect(expected).not.toBe('')
     expect(svg).toContain(`d="${expected}"`)
+  })
+
+  it('fills and outlines each wall in its own colour, and its openings with it (spec S1f)', () => {
+    const document = makeDocument({
+      walls: [
+        makeWall({ id: 'shell', thickness_in: 12, closed: false }),
+        makeWall({
+          id: 'partition',
+          vertices: [
+            { x: 0, y: 60 },
+            { x: 120, y: 60 },
+          ],
+        }),
+      ],
+      openings: [makeOpening({ wall_id: 'partition' })],
+    })
+    const svg = buildPlanSvg(document)
+
+    // Body fill and merged-boundary outline are separate paths, one colour each.
+    expect(svg).toContain(`fill="${EXTERIOR_WALL_COLOR}" fill-rule="evenodd" stroke="none"`)
+    expect(svg).toContain(`fill="none" stroke="${EXTERIOR_WALL_COLOR}"`)
+    expect(svg).toContain(`fill="${INTERIOR_WALL_COLOR}" fill-rule="evenodd" stroke="none"`)
+    expect(svg).toContain(`fill="none" stroke="${INTERIOR_WALL_COLOR}"`)
+    // The jambs and the door leaf of an opening read in their host wall's colour.
+    expect(svg).toContain(
+      `<line x1="44" y1="58.25" x2="44" y2="61.75" stroke="${INTERIOR_WALL_COLOR}"`,
+    )
+  })
+
+  it('honours a wall colour override over the role default (spec S1f)', () => {
+    const svg = buildPlanSvg(
+      makeDocument({ walls: [makeWall({ thickness_in: 12, color: '#b91c1c' })] }),
+    )
+
+    expect(svg).toContain('fill="#b91c1c" fill-rule="evenodd" stroke="none"')
+    expect(svg).toContain('fill="none" stroke="#b91c1c"')
+    expect(svg).not.toContain(EXTERIOR_WALL_COLOR)
   })
 
   it('serialises a footprint device as its true-size rectangle plus the inscribed glyph', () => {
@@ -317,7 +381,7 @@ describe('buildPlanSvg', () => {
     })
     const svg = buildPlanSvg(document)
 
-    expect(svg).toContain(`<path d="M 44 0 L 12 0" fill="none" stroke="${EXPORT_WALL_EDGE}"`)
+    expect(svg).toContain(`<path d="M 44 0 L 12 0" fill="none" stroke="${INTERIOR_WALL_COLOR}"`)
     expect(svg).toContain(`stroke-dasharray="${DOOR_DASH_IN.join(' ')}"`)
     expect(svg.match(/stroke-dasharray/g)).toHaveLength(1)
   })
@@ -335,6 +399,35 @@ describe('buildPlanSvg', () => {
     for (const style of ['double', 'sliding', 'bifold', 'double_bifold', 'pocket'] as const) {
       expect(interruptionOf(style)).toEqual(swing)
     }
+  })
+
+  it('draws no legend unless asked, then one panel inside the reserved column (spec X5)', () => {
+    const document = makeRichDocument()
+
+    expect(buildPlanSvg(document)).not.toContain('<g id="legend"')
+
+    const svg = buildPlanSvg(document, { includeLegend: true })
+    const viewBox = planViewBox(document, { includeLegend: true })
+    const size = legendSizeOf(document)
+    const x = viewBox.minX + viewBox.width - 12 - size.widthIn
+    expect(svg).toContain(`<g id="legend" transform="translate(${x} ${viewBox.minY + 12})">`)
+    expect(svg).toContain('>Legend<')
+  })
+
+  it('legends in the requested language, and only the circuits it exported (spec X5)', () => {
+    const document = makeRichDocument({
+      circuits: [makeCircuit({ id: 'c1' }), makeCircuit({ id: 'c2', name: 'Réseau' })],
+    })
+
+    const svg = buildPlanSvg(document, {
+      includeLegend: true,
+      legendLanguage: 'fr',
+      circuitIds: ['c1'],
+    })
+
+    expect(svg).toContain('>Légende<')
+    expect(svg).toContain('>Appareils<')
+    expect(svg).not.toContain('Réseau')
   })
 
   it('excludes the annotations group when includeAnnotations is false', () => {

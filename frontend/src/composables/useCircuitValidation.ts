@@ -18,15 +18,15 @@ export interface UseCircuitValidationReturn {
   validation: ComputedRef<PlanValidation>
   /** Per-circuit load keyed by circuit id, for O(1) lookup in list rows. */
   loadByCircuit: ComputedRef<Map<string, CircuitLoad>>
-  /** How many circuits are in `warning` or `over` state (the Circuits tab badge, §6.1). */
+  /** How many circuits are in `warning` or `over` state (the status bar's ⚠ badge, §6.1). */
   warningCount: ComputedRef<number>
 }
 
 /**
  * Live circuit validation mirrored from the open plan document (spec §8). The
  * server endpoint stays the source of truth, but this drives the Circuits panel
- * and the tab warning badge without a round trip, recomputing whenever the
- * document changes.
+ * and the status bar's warning badge without a round trip, recomputing
+ * whenever the document changes.
  */
 export function useCircuitValidation(): UseCircuitValidationReturn {
   const editorStore = useEditorStore()

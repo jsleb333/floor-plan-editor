@@ -25,6 +25,7 @@ export function makeWall(overrides: Partial<Wall> = {}): Wall {
     reference: 'center',
     closed: false,
     locked_segments: [],
+    color: null,
     ...overrides,
   }
 }
@@ -170,6 +171,7 @@ export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocumen
     wires: [],
     control_links: [],
     active_tool: null,
+    active_mode: null,
     ...overrides,
   }
 }

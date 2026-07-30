@@ -24,8 +24,9 @@ export interface UseUnderlayRotationReturn {
 }
 
 /**
- * Draft-input machine for the underlay Rotation field (spec U3), shared by the
- * Inspector and the Layers panel so both entry points behave identically. The
+ * Draft-input machine for the underlay Rotation field (spec U3), used by the
+ * one underlay panel that hosts it wherever it appears — Calibrate tool
+ * options, Structure overview, underlay selection. The
  * typed angle is normalized into (-180, 180] and applied about the image
  * CENTRE so the picture pivots in place; without the natural size the origin
  * is the only anchor available.

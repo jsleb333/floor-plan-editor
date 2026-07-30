@@ -2,7 +2,7 @@
 import { X } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 
-import { TOOLS } from '@/components/editor/tools'
+import { MODES, toolsForMode } from '@/components/editor/tools'
 
 const emit = defineEmits<{
   close: []
@@ -20,15 +20,28 @@ interface ShortcutGroup {
   note?: string
 }
 
-const toolShortcuts = computed<Shortcut[]>(() =>
-  TOOLS.filter((tool) => tool.enabled).map((tool) => ({
-    keys: [tool.shortcut.toUpperCase()],
-    label: tool.name,
+/** The mode letters themselves, the head of every chord (spec E10). */
+const modeShortcuts = computed<Shortcut[]>(() =>
+  MODES.map((mode) => ({ keys: [mode.shortcut.toUpperCase()], label: mode.name })),
+)
+
+/** One group per mode, listing the letters that mode's rail answers to (spec E10). */
+const modeToolGroups = computed<ShortcutGroup[]>(() =>
+  MODES.map((mode) => ({
+    title: `${mode.name} tools`,
+    shortcuts: toolsForMode(mode.id)
+      .filter((tool) => tool.enabled)
+      .map((tool) => ({ keys: [tool.shortcut.toUpperCase()], label: tool.name })),
   })),
 )
 
 const groups = computed<ShortcutGroup[]>(() => [
-  { title: 'Tools', shortcuts: toolShortcuts.value },
+  {
+    title: 'Modes',
+    shortcuts: modeShortcuts.value,
+    note: 'Tool letters are scoped to the active mode, and a mode letter chains into them — E then W arms Wire from anywhere.',
+  },
+  ...modeToolGroups.value,
   {
     title: 'Editing',
     shortcuts: [

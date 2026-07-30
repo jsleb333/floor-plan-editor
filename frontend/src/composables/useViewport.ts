@@ -13,6 +13,20 @@ export interface Size {
   height: number
 }
 
+/**
+ * Screen pixels occluded per side by chrome floating OVER the canvas (the
+ * tool rail, the side panel, the mode pill), so fits frame content within
+ * the visible region rather than the full viewport.
+ */
+export interface FitInsets {
+  left: number
+  right: number
+  top: number
+  bottom: number
+}
+
+const NO_INSETS: FitInsets = { left: 0, right: 0, top: 0, bottom: 0 }
+
 export interface Rect {
   x: number
   y: number
@@ -42,7 +56,7 @@ export interface UseViewportReturn {
   /** Sets an absolute zoom, anchored at `screenAnchor` (default: screen centre). */
   setZoom: (target: number, screenAnchor?: Point) => void
   /** Fits a world rectangle into the viewport with a screen padding in pixels. */
-  fitToRect: (rect: Rect, padding?: number) => void
+  fitToRect: (rect: Rect, padding?: number, insets?: FitInsets) => void
   getViewport: () => Viewport
   setViewport: (viewport: Viewport) => void
 }
@@ -102,13 +116,20 @@ export function useViewport(initial?: Viewport): UseViewportReturn {
     zoomAtPoint(clampZoom(target) / zoom.value, anchor)
   }
 
-  function fitToRect(rect: Rect, padding = 48): void {
-    const availableWidth = viewportSize.value.width - 2 * padding
-    const availableHeight = viewportSize.value.height - 2 * padding
+  function fitToRect(rect: Rect, padding = 48, insets: FitInsets = NO_INSETS): void {
+    const availableWidth = viewportSize.value.width - insets.left - insets.right - 2 * padding
+    const availableHeight = viewportSize.value.height - insets.top - insets.bottom - 2 * padding
     if (availableWidth <= 0 || availableHeight <= 0 || rect.width <= 0 || rect.height <= 0) return
     const targetScale = Math.min(availableWidth / rect.width, availableHeight / rect.height)
     zoom.value = clampZoom(targetScale / BASE_PIXELS_PER_INCH)
-    center.value = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
+    // Centre the rect within the UNOCCLUDED region: the world point at the
+    // viewport centre shifts toward the heavier inset by half the imbalance,
+    // converted to world units at the final (possibly clamped) scale.
+    const s = zoom.value * BASE_PIXELS_PER_INCH
+    center.value = {
+      x: rect.x + rect.width / 2 + (insets.right - insets.left) / (2 * s),
+      y: rect.y + rect.height / 2 + (insets.bottom - insets.top) / (2 * s),
+    }
   }
 
   const transform = computed(() => {

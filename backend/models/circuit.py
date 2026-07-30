@@ -4,8 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
-HEX_COLOR_PATTERN = r"^#[0-9a-fA-F]{6}$"
+from backend.constants import HEX_COLOR_PATTERN
 
 
 class Circuit(BaseModel):

@@ -72,9 +72,9 @@ export function useCalibrateTool(options: UseCalibrateToolOptions): UseCalibrate
     const b = second.value ?? (a ? cursor.value : null)
     let warning: string | null = null
     if (!underlay.value) {
-      warning = 'No underlay to calibrate — import an image in the Layers tab first.'
+      warning = 'No underlay to calibrate — import an image from the panel first.'
     } else if (!underlay.value.visible) {
-      warning = 'The underlay is hidden — show it in the Layers tab to aim the segment.'
+      warning = 'The underlay is hidden — show it in the panel to aim the segment.'
     }
     return {
       a,
