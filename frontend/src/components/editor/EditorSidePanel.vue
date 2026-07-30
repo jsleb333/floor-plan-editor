@@ -384,7 +384,7 @@ const showModeOverview = computed(() => props.activeTool === 'select' && !hasIns
 <template>
   <aside
     aria-label="Editor panel"
-    class="border-line bg-surface shadow-panel rounded-card m-3 flex max-h-[calc(100%-1.5rem)] w-72 shrink-0 flex-col self-start overflow-hidden border"
+    class="border-line bg-surface shadow-panel rounded-card m-3 flex max-h-[calc(100%-1.5rem)] w-72 flex-col overflow-hidden border"
   >
     <div class="flex-1 overflow-y-auto p-4">
       <!-- 1. Tool options on top while a tool with options is armed (spec E8/§6.1). -->

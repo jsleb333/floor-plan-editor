@@ -647,10 +647,12 @@ tool's options is added as a one-click preset for the rest of the plan.
 
 ### 6.1 Layout — mode pill, tool rail, contextual panel
 
-Fixed, predictable homes for everything. Chrome is drawn as **fixed-position
-floating panels** — rounded, shadowed, margined off the edges — that still
-reserve layout space, so the canvas never hides beneath them and zoom-to-fit
-needs no occlusion math. Nothing is draggable; nothing overlaps anything
+Fixed, predictable homes for everything. The canvas is **full-bleed**: it
+extends beneath the chrome, which is drawn as **fixed-position floating
+panels** — rounded, shadowed, margined off the edges — that size themselves
+to their content. Zoom-to-fit compensates for the overlap with per-side
+occlusion insets matching the chrome, so a fitted plan lands in the visible
+region, not under a panel. Nothing is draggable; nothing overlaps anything
 else's home. Surfaces are solid for now (a translucent "glass" treatment is
 a later tuning pass, gated on the E5 frame budget and a
 `prefers-reduced-transparency` fallback).

@@ -113,6 +113,14 @@ const ARROW_NUDGES: Record<string, { dx: number; dy: number }> = {
 const STATUS_NOTICE_MS = 4000
 
 /**
+ * Screen pixels the floating chrome occludes per side (spec §6.1), fed to
+ * zoom-to-fit: rail (12px margin + 44px pill + 12px gap), side panel
+ * (12px + 288px + 12px), mode pill (12px + 44px). Mirrors the chrome's
+ * Tailwind sizing (m-3, w-72, h-9 segments + p-1).
+ */
+const FIT_CHROME_INSETS = { left: 68, right: 312, top: 56, bottom: 0 }
+
+/**
  * Opacity structure renders at in Electrical mode (spec E10, context dimming),
  * so devices and wires read first. Dimmed elements stay selectable and
  * snappable — opacity never touches hit testing.
@@ -794,6 +802,7 @@ function handleZoomFit(): void {
           height: bounds.maxY - bounds.minY,
         }
       : null,
+    FIT_CHROME_INSETS,
   )
 }
 
@@ -1086,10 +1095,10 @@ onBeforeUnmount(() => {
       @export="showExportDialog = true"
     />
 
-    <div class="flex min-h-0 flex-1">
-      <ToolRail :tools="railTools" :active-tool="activeTool" @select="activeTool = $event" />
-
-      <main class="relative min-w-0 flex-1" aria-label="Canvas">
+    <!-- The canvas is full-bleed; the rail and side panel float OVER it
+         (spec §6.1), so zoom-to-fit compensates via FIT_CHROME_INSETS. -->
+    <div class="relative min-h-0 flex-1">
+      <main class="absolute inset-0" aria-label="Canvas">
         <ViewportCanvas
           v-if="loadState.status === 'ready' && initialViewport"
           ref="canvas"
@@ -1201,7 +1210,15 @@ onBeforeUnmount(() => {
         </p>
       </main>
 
+      <ToolRail
+        class="absolute top-0 left-0 z-10"
+        :tools="railTools"
+        :active-tool="activeTool"
+        @select="activeTool = $event"
+      />
+
       <EditorSidePanel
+        class="absolute top-0 right-0 z-10"
         :active-tool="activeTool"
         :active-mode="activeMode"
         :plan-name="plan?.name ?? 'Untitled'"
