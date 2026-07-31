@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173",
+    "dev:browser": "vite --port 5173 --mode browser",
     "build": "vue-tsc -b && vite build",
+    "build:browser": "vue-tsc -b && vite build --mode browser",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",

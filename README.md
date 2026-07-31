@@ -90,6 +90,26 @@ cd frontend && npm run build   # outputs frontend/dist
 poe api                        # serves API + SPA on http://127.0.0.1:47825
 ```
 
+## Static build
+
+Besides the FastAPI-backed app above, the frontend can also be built as a
+fully static site with no backend at all. Plans and underlay images are
+stored in the visitor's own browser (IndexedDB) instead of on a server —
+each visitor gets a private workspace, and it keeps working offline once
+loaded. This is what's deployed to GitHub Pages at
+<https://jsleb333.github.io/floor-plan-editor/>, automatically on every push
+to `main` (see [.github/workflows/pages.yml](.github/workflows/pages.yml)).
+
+```bash
+cd frontend
+npm run dev:browser     # local dev server, IndexedDB persistence
+npm run build:browser   # production build, outputs frontend/dist
+```
+
+Because data lives in a single browser profile, it's tied to that browser —
+it won't sync across devices and can be lost if site data is cleared.
+Use JSON export regularly to keep a durable copy of a plan.
+
 ## Configuration
 
 Settings are loaded from environment variables prefixed with `FLOORPLAN_`
