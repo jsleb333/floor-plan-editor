@@ -1,15 +1,16 @@
+import { browserPlansPort } from '@/persistence/browser/browserPlansAdapter'
 import type { PlanCreateOptions, PlanMetadataPatch, PlansPort } from '@/persistence/ports'
 import { restPlansPort } from '@/persistence/rest/restPlansAdapter'
 import type { Plan, PlanDocument, PlanSummary } from '@/types/plan'
 
 /** Chosen at BUILD time; anything other than 'browser' means the REST backend. */
-// The browser (IndexedDB) adapter lands in a later phase; both branches are
-// `restPlansPort` for now, but the ternary reads `import.meta.env.VITE_PERSISTENCE`
-// literally at this site so Vite's `define` substitution + esbuild folding +
-// Rollup DCE can drop the unused adapter from the static build once it exists —
-// cross-module constant propagation is not guaranteed to do the same.
+// The ternary reads `import.meta.env.VITE_PERSISTENCE` literally at this site so
+// Vite's `define` substitution + esbuild folding + Rollup DCE drop the unused
+// adapter — cross-module constant propagation is not guaranteed to do the same.
+// Keep it inline: hoisting the comparison into a named constant is what breaks
+// the REST build's ability to shed the whole IndexedDB subtree.
 const port: PlansPort =
-  import.meta.env.VITE_PERSISTENCE === 'browser' ? restPlansPort : restPlansPort
+  import.meta.env.VITE_PERSISTENCE === 'browser' ? browserPlansPort : restPlansPort
 
 export function listPlans(): Promise<PlanSummary[]> {
   return port.listPlans()
