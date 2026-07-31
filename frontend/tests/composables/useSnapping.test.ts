@@ -677,3 +677,48 @@ describe('useSnapping custom guides (S9)', () => {
     expect(result.guideId).toBeNull()
   })
 })
+
+describe('useSnapping on a closed loop (S3a/S9)', () => {
+  /** A closed 3.5"-thick rectangular loop drawn as one chain, spine 0,0 → 120,0 → 120,120 → 0,120. */
+  const LOOP = makeWall({
+    id: 'loop',
+    closed: true,
+    vertices: [
+      { x: 0, y: 0 },
+      { x: 120, y: 0 },
+      { x: 120, y: 120 },
+      { x: 0, y: 120 },
+    ],
+  })
+
+  it('offers the closing side face as a surface target, like every other side', () => {
+    const snapping = makeSnapping([LOOP], { grid: false, angle: false, surfaces: true })
+
+    // The closing segment runs from vertex 3 (0,120) back to vertex 0 (0,0);
+    // its outer face is the line x = -1.75. Aim 1" outside it, off-centre so
+    // the segment midpoint (a point target, which rightly wins) stays out of
+    // range and the line tier decides.
+    const result = snapping.resolve({ x: -2.75, y: 30 }, null, false)
+
+    expect(result.point.x).toBeCloseTo(-1.75)
+    expect(result.target).toEqual({
+      kind: 'surface',
+      wallId: 'loop',
+      side: expect.any(String),
+      segmentIndex: 3,
+    })
+  })
+
+  it('treats the closing side exactly like a declared side of the same loop', () => {
+    const snapping = makeSnapping([LOOP], { grid: false, angle: false, surfaces: true })
+
+    // Same aim at the geometrically identical EAST side (segment 1, x = 121.75),
+    // which has always worked; the closing side must match its behaviour.
+    const east = snapping.resolve({ x: 122.75, y: 30 }, null, false)
+    const closing = snapping.resolve({ x: -2.75, y: 30 }, null, false)
+
+    expect(east.target?.kind).toBe('surface')
+    expect(closing.target?.kind).toBe(east.target?.kind)
+    expect(closing.marker).toBe(east.marker)
+  })
+})

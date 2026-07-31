@@ -458,7 +458,9 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
       const lastSegment = Math.max(spine.length - 2, 0)
 
       for (const side of ['left', 'right'] as const) {
-        const face = resolved[side]
+        // A ring's face wraps: append the first point so the closing side is a
+        // target like every other (the spine `ring` above does the same).
+        const face = resolved.closed ? [...resolved[side], resolved[side][0]] : resolved[side]
         if (face.length < 2) continue
 
         for (const end of ['start', 'end'] as const) {
