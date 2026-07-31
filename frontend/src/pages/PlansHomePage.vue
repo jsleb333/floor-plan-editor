@@ -12,6 +12,12 @@ import { usePlansStore } from '@/stores/plans'
 import type { Plan } from '@/types/plan'
 import { formatRelativeTime } from '@/utils/relativeTime'
 
+/**
+ * Whether plans live only in this browser (the static build). Folded to `false`
+ * at build time in the REST build, where the caveat below is simply untrue.
+ */
+const browserOnlyStorage = import.meta.env.VITE_PERSISTENCE === 'browser'
+
 const router = useRouter()
 const plansStore = usePlansStore()
 
@@ -205,6 +211,16 @@ onMounted(async () => {
         >
           Create your first plan
         </button>
+        <!-- The static build has no server behind it, and the first visit is
+             the honest moment to say where the plans will actually live. -->
+        <p
+          v-if="browserOnlyStorage"
+          class="text-ink-faint mx-auto mt-8 max-w-sm text-xs leading-relaxed"
+        >
+          Plans are stored in this browser only. Clearing site data, or opening the app on another
+          browser or device, leaves them behind — export a plan as JSON to keep a copy you can
+          import anywhere.
+        </p>
       </section>
 
       <section

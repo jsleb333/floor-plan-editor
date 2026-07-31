@@ -27,6 +27,8 @@ backend/
 
 frontend/src/
   api/           # Centralized fetch client, one module per domain
+  persistence/   # Storage ports + REST and IndexedDB adapters (chosen at build time)
+  schema/        # Zod document schemas, schema version and migrations
   types/         # Shared TypeScript domain types
   pages/         # Route-level components
   components/    # Editor + panel components
@@ -188,6 +190,10 @@ frontend/src/
   App.vue              # Root layout (nav, router-view)
   router.ts            # Route definitions (lazy-loaded pages)
   api/                 # API client modules, one per domain
+  persistence/         # Storage ports (`ports.ts`) + `rest/` and `browser/`
+                       # (IndexedDB) adapters; the backend is picked at build
+                       # time from `VITE_PERSISTENCE`
+  schema/              # Zod document schemas, schema version and migrations
   types/               # Shared TypeScript interfaces and types
   pages/               # Route-level components (one per route)
   components/          # Reusable UI components

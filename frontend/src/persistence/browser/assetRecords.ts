@@ -1,11 +1,20 @@
 import { ASSETS_STORE, openDb } from '@/persistence/browser/db'
-import { requestResult, runTransaction } from '@/persistence/browser/idb'
+import { requestResult, runTransaction, withQuotaMessage } from '@/persistence/browser/idb'
 
 /**
  * Raw storage operations over the asset store, the browser counterpart of
  * `FileAssetRepository`. Assets are immutable: written once, read many, never
  * updated in place.
  */
+
+/**
+ * The 507 message for an image. An underlay photo is the only write in the app
+ * large enough to exhaust a quota on its own, so it is the one write that gets
+ * to say so instead of blaming the plan it was going to be traced onto.
+ */
+const IMAGE_QUOTA_MESSAGE =
+  'Not enough browser storage left for this image. ' +
+  'Export a plan to a file, or delete archived plans to free space.'
 
 /**
  * A row of the `assets` store. The image is kept as a `Blob` rather than as
@@ -29,8 +38,10 @@ export interface AssetRecord {
  */
 export async function insertAsset(record: AssetRecord): Promise<void> {
   const db = await openDb()
-  await runTransaction(db, ASSETS_STORE, 'readwrite', (transaction) =>
-    requestResult(transaction.objectStore(ASSETS_STORE).add(record)),
+  await withQuotaMessage(IMAGE_QUOTA_MESSAGE, () =>
+    runTransaction(db, ASSETS_STORE, 'readwrite', (transaction) =>
+      requestResult(transaction.objectStore(ASSETS_STORE).add(record)),
+    ),
   )
 }
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { TriangleAlert, X } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -235,9 +236,21 @@ let statusNoticeTimer: ReturnType<typeof setTimeout> | null = null
  * hint never comes back for the session, even if the plan empties again.
  */
 const emptyStateDismissed = ref(false)
+/** Whether the user closed the notice for the CURRENT autosave failure. */
+const saveErrorDismissed = ref(false)
 
 /** Whether the plan already contains a closed wall loop (spec S1d). */
 const hasClosedLoop = computed(() => documentWalls.value.some((wall) => wall.closed))
+
+/**
+ * The autosave-failure notice (spec P3). "save failed" in the top bar, with the
+ * reason hidden in a `title` tooltip, is far too quiet for the one message that
+ * means the work on screen exists nowhere else — and the browser build makes it
+ * likelier, since a full quota fails every save from then on. The notice is a
+ * strip above the canvas rather than an overlay on it, so it can never sit over
+ * the floating rail, panel or mode switcher.
+ */
+const showSaveErrorNotice = computed(() => saveState.value === 'error' && !saveErrorDismissed.value)
 
 /** The E9 empty-state hint: only over a truly empty plan (no walls, no underlay). */
 const showEmptyState = computed(
@@ -1095,6 +1108,12 @@ watch(activeMode, (mode) => {
   }
 })
 
+// A dismissal covers the failure the user read, never the next one: any change
+// of state or message is something they have not been told yet.
+watch([saveState, saveError], () => {
+  saveErrorDismissed.value = false
+})
+
 // The first pending wall vertex or an underlay import retires the empty-state
 // hint for good (spec E9) — undoing back to an empty plan won't resurrect it.
 watch(wallDrawing, (drawing) => {
@@ -1126,6 +1145,26 @@ onBeforeUnmount(() => {
       @zoom-reset="canvas?.zoomTo100()"
       @export="showExportDialog = true"
     />
+
+    <div
+      v-if="showSaveErrorNotice"
+      role="alert"
+      class="border-line bg-danger-soft text-danger flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs"
+    >
+      <TriangleAlert :size="14" class="shrink-0" aria-hidden="true" />
+      <p class="min-w-0 flex-1">
+        <strong class="font-semibold">Autosave failed.</strong>
+        {{ saveError ?? 'The plan could not be saved.' }}
+      </p>
+      <button
+        type="button"
+        class="hover:bg-danger/10 shrink-0 rounded p-1 transition-colors"
+        aria-label="Dismiss the autosave warning"
+        @click="saveErrorDismissed = true"
+      >
+        <X :size="14" aria-hidden="true" />
+      </button>
+    </div>
 
     <!-- The canvas is full-bleed; the rail and side panel float OVER it
          (spec §6.1), so zoom-to-fit compensates via FIT_CHROME_INSETS. -->

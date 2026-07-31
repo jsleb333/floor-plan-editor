@@ -24,6 +24,23 @@ import { ApiError } from '@/api/client'
 /** Storage quota exhausted; the browser's analogue of the server running out of disk. */
 const INSUFFICIENT_STORAGE_STATUS = 507
 
+/**
+ * What the user can actually do about a full quota, and the only two things
+ * that work: a JSON export moves a plan out of the browser entirely, and
+ * permanently deleting an archived plan is the one action that gives storage
+ * back (it takes the plan's underlay image with it, see
+ * `@/persistence/browser/assetGarbageCollector`).
+ */
+const QUOTA_ADVICE = 'Export it to a file, or delete archived plans to free space.'
+
+/**
+ * The 507 message for a plan write. Every write in this app is a plan write
+ * unless it says otherwise through {@link withQuotaMessage}, and the browser's
+ * own `QuotaExceededError` text ("The quota has been exceeded.") tells the user
+ * nothing they can act on, so it is replaced rather than appended to.
+ */
+const PLAN_QUOTA_MESSAGE = `Not enough browser storage left to save this plan. ${QUOTA_ADVICE}`
+
 /** A uniqueness constraint was violated — a duplicate id, i.e. a write that lost a race. */
 const CONFLICT_STATUS = 409
 
@@ -62,14 +79,32 @@ export function mapIdbError(error: unknown): ApiError {
   const message = errorMessage(error)
   switch (errorName(error)) {
     case 'QuotaExceededError':
-      return new ApiError(
-        INSUFFICIENT_STORAGE_STATUS,
-        `Browser storage is full, so the change could not be saved: ${message}`,
-      )
+      return new ApiError(INSUFFICIENT_STORAGE_STATUS, PLAN_QUOTA_MESSAGE)
     case 'ConstraintError':
       return new ApiError(CONFLICT_STATUS, `Local storage rejected a duplicate entry: ${message}`)
     default:
       return new ApiError(INTERNAL_STATUS, `Local storage failed: ${message}`)
+  }
+}
+
+/**
+ * Runs a storage write that is not a plan document, restating a full quota in
+ * terms of what it was actually storing.
+ *
+ * The advice a 507 carries only helps if it names the thing that did not fit:
+ * "export this plan" is nonsense when the write was a 30 MiB photo. Every other
+ * status passes through untouched, mapped exactly as it would have been.
+ *
+ * @param message The 507 message for this write, advice included.
+ * @param body The write to run.
+ */
+export async function withQuotaMessage<T>(message: string, body: () => Promise<T>): Promise<T> {
+  try {
+    return await body()
+  } catch (error) {
+    const mapped = mapIdbError(error)
+    if (mapped.status !== INSUFFICIENT_STORAGE_STATUS) throw mapped
+    throw new ApiError(INSUFFICIENT_STORAGE_STATUS, message)
   }
 }
 

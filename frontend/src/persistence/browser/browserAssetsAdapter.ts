@@ -1,5 +1,8 @@
 import { ApiError } from '@/api/client'
+import { collectOrphanAssets } from '@/persistence/browser/assetGarbageCollector'
 import { insertAsset, readAsset } from '@/persistence/browser/assetRecords'
+import type { AssetRecord } from '@/persistence/browser/assetRecords'
+import { requestPersistentStorage } from '@/persistence/browser/storagePersistence'
 import type { AssetsPort, AssetUrlHandle } from '@/persistence/ports'
 import type { Asset } from '@/types/asset'
 
@@ -18,12 +21,34 @@ import type { Asset } from '@/types/asset'
 const NOT_FOUND_STATUS = 404
 const PAYLOAD_TOO_LARGE_STATUS = 413
 const UNSUPPORTED_MEDIA_TYPE_STATUS = 415
+const INSUFFICIENT_STORAGE_STATUS = 507
 
 /** The image types an underlay may be, mirroring `ASSET_EXTENSIONS_BY_CONTENT_TYPE`. */
 const SUPPORTED_CONTENT_TYPES: readonly string[] = ['image/jpeg', 'image/png']
 
 /** Upload ceiling in bytes, mirroring the backend's `max_asset_size_bytes` default. */
 const MAX_ASSET_SIZE_BYTES = 30 * 1024 * 1024
+
+/**
+ * Stores an image, and on a full quota reclaims what previous plans left behind
+ * and tries once more.
+ *
+ * A quota failure is the only failure worth a second attempt here, and only
+ * because the app itself is usually the reason for it: an underlay replaced by
+ * a re-import, or a plan deleted while its photo stayed. Retrying a sweep that
+ * freed nothing would just fail identically, so the original 507 — the one
+ * carrying advice the user can act on — is raised instead.
+ */
+async function storeWithQuotaRecovery(record: AssetRecord): Promise<void> {
+  try {
+    await insertAsset(record)
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== INSUFFICIENT_STORAGE_STATUS) throw error
+    const reclaimed = await collectOrphanAssets()
+    if (reclaimed.length === 0) throw error
+    await insertAsset(record)
+  }
+}
 
 /**
  * Stores an underlay image under a fresh id.
@@ -35,7 +60,8 @@ const MAX_ASSET_SIZE_BYTES = 30 * 1024 * 1024
  * @throws {ApiError} 415 when the file is not a JPEG or a PNG; 413 when it is
  *   over the size limit, which is worth keeping even with no server to protect
  *   because it is what stops one photo from consuming the origin quota every
- *   plan shares; 507 when the image does not fit in that quota anyway.
+ *   plan shares; 507 when the image does not fit in that quota even after the
+ *   orphan sweep.
  */
 async function uploadAsset(file: File): Promise<Asset> {
   if (!SUPPORTED_CONTENT_TYPES.includes(file.type)) {
@@ -58,7 +84,11 @@ async function uploadAsset(file: File): Promise<Asset> {
     size_bytes: file.size,
     created_at: new Date().toISOString(),
   }
-  await insertAsset({ ...asset, blob: file })
+  await storeWithQuotaRecovery({ ...asset, blob: file })
+  // The bytes that just landed are the most expensive thing in this origin's
+  // storage and the one thing the user cannot redraw. Fire-and-forget, so a
+  // permission prompt never delays the import that triggered it.
+  void requestPersistentStorage()
   return asset
 }
 
