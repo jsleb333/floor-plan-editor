@@ -13,3 +13,13 @@ export function loadImageSize(url: string): Promise<ImageSize> {
     image.src = url
   })
 }
+
+/** Natural pixel size of a local file, measured through a temporary object URL. */
+export async function measureImageFile(file: File): Promise<ImageSize> {
+  const url = URL.createObjectURL(file)
+  try {
+    return await loadImageSize(url)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}

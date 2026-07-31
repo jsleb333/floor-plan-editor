@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { assetUrl } from '@/persistence/rest/restAssetsAdapter'
 import { UNDERLAY_ELEMENT_ID, useEditorStore } from '@/stores/editor'
 import type { Underlay } from '@/types/plan'
 import type { ImageSize } from '@/utils/imageSize'
@@ -9,6 +8,8 @@ import type { ImageSize } from '@/utils/imageSize'
 const props = defineProps<{
   /** World-unit stroke width rendering as ~1px on screen. */
   hairline: number
+  /** URL bound to the underlay bytes, owned by the caller (`useUnderlayImage`). */
+  href: string
   /** Natural pixel size of the underlay image; nothing renders until it is known. */
   size: ImageSize | null
 }>()
@@ -19,8 +20,6 @@ const underlay = computed<Underlay | null>(() => {
   void editorStore.documentVersion
   return editorStore.document?.underlay ?? null
 })
-
-const href = computed(() => (underlay.value ? assetUrl(underlay.value.image_ref) : ''))
 
 const transform = computed(() => {
   const t = underlay.value?.transform

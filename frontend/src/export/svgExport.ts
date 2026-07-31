@@ -1,4 +1,4 @@
-import { assetUrl } from '@/persistence/rest/restAssetsAdapter'
+import { readAssetBlob } from '@/persistence/assets'
 import { DEVICE_PICTOGRAMS } from '@/devices/pictograms'
 import type {
   Circuit,
@@ -78,8 +78,8 @@ import {
  * the paper plan as the circuit colour it shows on screen (spec C2).
  * Coordinates are real inches; layers are named `<g>` groups. The underlay is
  * embedded as a data URI ONLY when a caller resolves it first via
- * `embedUnderlay` and passes it in — the pure builder never touches the
- * network, so a default export can never leak `/api/assets` (spec U4).
+ * `embedUnderlay` and passes it in — the pure builder never touches storage,
+ * so a default export can never leak an asset reference (spec U4).
  */
 
 /** A resolved underlay ready to inline: its bytes as a data URI plus pixel size. */
@@ -642,9 +642,12 @@ export function buildPlanSvg(document: PlanDocument, options: SvgExportOptions =
 }
 
 /**
- * Fetches an underlay asset and resolves it to an inlinable data URI (spec U4).
+ * Reads an underlay asset and resolves it to an inlinable data URI (spec U4).
  * The caller supplies the natural pixel size (the editor already loaded it);
- * this only performs the fetch + base64 encode, keeping it testable.
+ * this only performs the read + base64 encode, keeping it testable. A data URI
+ * is mandatory rather than an object URL: `pngExport` rasterises the SVG by
+ * loading it AS an image, where every external reference — `blob:` included —
+ * is blocked and only `data:` survives.
  *
  * @param underlay The document underlay (its `image_ref` names the asset).
  * @param pixelSize The image's natural pixel dimensions.
@@ -653,11 +656,7 @@ export async function embedUnderlay(
   underlay: Underlay,
   pixelSize: { width: number; height: number },
 ): Promise<UnderlayEmbed> {
-  const response = await fetch(assetUrl(underlay.image_ref))
-  if (!response.ok) {
-    throw new Error(`Failed to load underlay image (status ${response.status})`)
-  }
-  const blob = await response.blob()
+  const blob = await readAssetBlob(underlay.image_ref)
   const dataUri = await blobToDataUri(blob)
   return { dataUri, pixelWidth: pixelSize.width, pixelHeight: pixelSize.height }
 }

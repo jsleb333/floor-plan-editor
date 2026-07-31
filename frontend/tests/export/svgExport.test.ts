@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   DEVICE_STROKE_IN,
@@ -33,6 +33,16 @@ import {
   makeWall,
   makeWire,
 } from '../helpers/planFactory'
+
+vi.mock('@/persistence/assets', () => ({
+  uploadAsset: vi.fn(),
+  resolveAssetUrl: vi.fn(),
+  readAssetBlob: vi.fn(),
+}))
+
+import { readAssetBlob } from '@/persistence/assets'
+
+const readAssetBlobMock = vi.mocked(readAssetBlob)
 
 /** The default circuit colour of `makeCircuit`, and a contrasting second one. */
 const RED = '#dc2626'
@@ -484,6 +494,7 @@ describe('buildPlanSvg', () => {
     const document = makeRichDocument({ underlay: makeUnderlay() })
     const svg = buildPlanSvg(document)
     expect(svg).not.toContain('/api/assets')
+    expect(svg).not.toContain('blob:')
     expect(svg).not.toContain('<image')
     expect(svg).not.toContain('id="underlay"')
   })
@@ -499,36 +510,34 @@ describe('buildPlanSvg', () => {
     expect(svg).toContain('<g id="underlay"')
     expect(svg).toContain('<image href="data:image/png;base64,AAAA"')
     expect(svg).not.toContain('/api/assets')
+    expect(svg).not.toContain('blob:')
   })
 })
 
 describe('embedUnderlay', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
+  beforeEach(() => {
+    vi.clearAllMocks()
   })
 
-  it('fetches the asset and returns its bytes as a data URI with the given pixel size', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      blob: async () => new Blob(['image-bytes'], { type: 'image/png' }),
-    })
-    vi.stubGlobal('fetch', fetchMock)
+  it('reads the asset bytes and returns them as a data URI with the given pixel size', async () => {
+    readAssetBlobMock.mockResolvedValue(new Blob(['image-bytes'], { type: 'image/png' }))
 
     const embed = await embedUnderlay(makeUnderlay({ image_ref: 'asset-42' }), {
       width: 640,
       height: 480,
     })
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/assets/asset-42')
+    expect(readAssetBlobMock).toHaveBeenCalledWith('asset-42')
     expect(embed.dataUri.startsWith('data:')).toBe(true)
     expect(embed.pixelWidth).toBe(640)
     expect(embed.pixelHeight).toBe(480)
   })
 
-  it('throws a clear error when the asset fetch fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
+  it('propagates the failure when the asset bytes cannot be read', async () => {
+    readAssetBlobMock.mockRejectedValue(new Error('Failed to load asset missing'))
+
     await expect(embedUnderlay(makeUnderlay(), { width: 1, height: 1 })).rejects.toThrow(
-      /underlay image/,
+      /Failed to load asset/,
     )
   })
 })

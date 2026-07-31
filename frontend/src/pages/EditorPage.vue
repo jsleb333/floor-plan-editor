@@ -3,7 +3,6 @@ import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { assetUrl } from '@/persistence/rest/restAssetsAdapter'
 import AlignmentGuidesOverlay from '@/components/editor/AlignmentGuidesOverlay.vue'
 import CalibrateOverlay from '@/components/editor/CalibrateOverlay.vue'
 import ControlLinksLayer from '@/components/editor/ControlLinksLayer.vue'
@@ -52,6 +51,7 @@ import type { AlignmentGuidesView, SnapToggleId } from '@/composables/useSnappin
 import { useStairsTool } from '@/composables/useStairsTool'
 import { useTapeTool } from '@/composables/useTapeTool'
 import { useToolSelection } from '@/composables/useToolSelection'
+import { useUnderlayImage } from '@/composables/useUnderlayImage'
 import { isTypingTarget, useToolShortcuts } from '@/composables/useToolShortcuts'
 import { BASE_PIXELS_PER_INCH } from '@/composables/useViewport'
 import { useWireTool } from '@/composables/useWireTool'
@@ -83,8 +83,6 @@ import { controlLinkKind } from '@/utils/circuits'
 import { deviceWorldPlacement } from '@/utils/geometry'
 import type { GuideLine } from '@/utils/geometry'
 import { deviceAtPoint } from '@/utils/hitTest'
-import { loadImageSize } from '@/utils/imageSize'
-import type { ImageSize } from '@/utils/imageSize'
 import {
   PRESET_LIST_NAMES,
   resolve as resolvePresetList,
@@ -188,7 +186,9 @@ const documentDisplayPrecisionIn = computed<number | null>(
   () => planDocument.value?.display_precision_in ?? null,
 )
 const documentUnderlay = computed<Underlay | null>(() => planDocument.value?.underlay ?? null)
-const underlayImageSize = ref<ImageSize | null>(null)
+const { href: underlayHref, size: underlayImageSize } = useUnderlayImage(
+  computed(() => documentUnderlay.value?.image_ref ?? null),
+)
 const pixelsPerInch = computed(() => (currentViewport.value?.zoom ?? 1) * BASE_PIXELS_PER_INCH)
 const selectedWalls = computed(() => editorStore.selectedWalls)
 const selectedOpenings = computed(() => editorStore.selectedOpenings)
@@ -1054,22 +1054,6 @@ watch(planId, (id, previous) => {
   if (id && id !== previous) void load()
 })
 
-watch(
-  () => documentUnderlay.value?.image_ref ?? null,
-  async (imageRef) => {
-    if (!imageRef) {
-      underlayImageSize.value = null
-      return
-    }
-    try {
-      underlayImageSize.value = await loadImageSize(assetUrl(imageRef))
-    } catch {
-      underlayImageSize.value = null
-    }
-  },
-  { immediate: true },
-)
-
 watch(activeTool, (tool, previous) => {
   if (tool === 'wall' && previous !== 'wall') wallTool.arm()
   if (previous === 'wall' && tool !== 'wall') wallTool.deactivate()
@@ -1159,7 +1143,7 @@ onBeforeUnmount(() => {
           @canvas-double-click="handleCanvasDoubleClick"
         >
           <template #underlay="{ hairline }">
-            <UnderlayLayer :hairline="hairline" :size="underlayImageSize" />
+            <UnderlayLayer :hairline="hairline" :href="underlayHref" :size="underlayImageSize" />
           </template>
           <template #default="{ hairline }">
             <!-- Structure dims behind the electrical layout (spec E10); the
