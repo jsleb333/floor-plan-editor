@@ -4,7 +4,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ApiError } from '@/api/client'
 import { DOCUMENT_BACKUPS_STORE, openDb } from '@/persistence/browser/db'
-import { addIfAbsent, mapIdbError, requestResult, runTransaction } from '@/persistence/browser/idb'
+import {
+  addIfAbsent,
+  mapIdbError,
+  requestResult,
+  runTransaction,
+  withQuotaMessage,
+} from '@/persistence/browser/idb'
 import { resetBrowserDb } from '../../helpers/browserDb'
 
 describe('mapIdbError', () => {
@@ -13,7 +19,15 @@ describe('mapIdbError', () => {
 
     expect(error).toBeInstanceOf(ApiError)
     expect(error.status).toBe(507)
-    expect(error.message).toContain('no room left')
+    expect(error.message).toContain('Not enough browser storage left to save this plan')
+  })
+
+  it('replaces the browser’s quota wording with something the user can act on', () => {
+    const error = mapIdbError(new DOMException('no room left', 'QuotaExceededError'))
+
+    expect(error.message).not.toContain('no room left')
+    expect(error.message).toContain('Export it to a file')
+    expect(error.message).toContain('delete archived plans')
   })
 
   it('maps a violated uniqueness constraint to 409', () => {
@@ -105,5 +119,32 @@ describe('runTransaction', () => {
       requestResult<number>(transaction.objectStore(DOCUMENT_BACKUPS_STORE).count()),
     )
     expect(backups).toBe(0)
+  })
+})
+
+describe('withQuotaMessage', () => {
+  it('restates a quota failure for the write that hit it', async () => {
+    const error = await withQuotaMessage('No room for this image.', () =>
+      Promise.reject(new DOMException('no room left', 'QuotaExceededError')),
+    ).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(507)
+    expect((error as ApiError).message).toBe('No room for this image.')
+  })
+
+  it('leaves every other failure exactly as mapIdbError classified it', async () => {
+    const error = await withQuotaMessage('No room for this image.', () =>
+      Promise.reject(new DOMException('duplicate key', 'ConstraintError')),
+    ).catch((e: unknown) => e)
+
+    expect((error as ApiError).status).toBe(409)
+    expect((error as ApiError).message).toContain('duplicate key')
+  })
+
+  it('passes a successful write straight through', async () => {
+    await expect(withQuotaMessage('unused', () => Promise.resolve('stored'))).resolves.toBe(
+      'stored',
+    )
   })
 })

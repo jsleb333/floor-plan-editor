@@ -422,6 +422,50 @@ says it does not reach a source). `deviceCircuitColor(device, membership)` is
 the one colour rule the canvas and the SVG export share: first circuit in
 document order, `null` for a source or a device on no circuit.
 
+### Two persistence backends
+
+Everything above the port seam is backend-agnostic. `persistence/ports.ts`
+declares `PlansPort` and `AssetsPort`; `persistence/plans.ts` and
+`persistence/assets.ts` pick an implementation from
+`import.meta.env.VITE_PERSISTENCE` **at build time** (the comparison is written
+inline at each of those two sites on purpose, so Rollup can drop the unused
+subtree — the REST bundle contains no `indexedDB` at all):
+
+| Build | Command | Adapter |
+|---|---|---|
+| REST (default) | `npm run build` | `persistence/rest/` → the FastAPI backend |
+| Static | `npm run build:browser` | `persistence/browser/` → IndexedDB, no server |
+
+Like client-side circuit validation, this is the same rule living in two
+languages: `persistence/browser/` reproduces `PlanService` — the same revision
+arithmetic, the same statuses (404, 409 on a stale revision, 409 on a
+permanent-delete of a live plan), the same repair-and-back-up read — because
+callers branch on those statuses and cannot tell the adapters apart. Change a
+rule on one side, change it on the other. `tests/fixtures/plan_migration/` is
+the cross-language contract for the read side: each fixture holds a document
+and the document it must read forward to, and both
+`tests/core/test_plan_migration_corpus.py` and
+`frontend/tests/schema/planMigrationCorpus.test.ts` parametrize over every file
+in that directory, so a migration added to only one implementation fails the
+other suite.
+
+Two concerns the browser build owns alone, because they have no server-side
+counterpart:
+
+- **Quota.** A `QuotaExceededError` maps to `ApiError(507)` with a message
+  naming an action the user can take (`persistence/browser/idb.ts`;
+  `withQuotaMessage` lets a non-plan write say what it was actually storing).
+  It reaches the user through the surfaces that already exist:
+  `editor.saveError`, rendered by the autosave-failure strip in
+  `EditorPage.vue`, `useUnderlayImport`'s error ref, and the home page's.
+- **Orphan assets.** The backend never deletes an asset, because disk is cheap;
+  the browser must, or a re-imported underlay leaks tens of megabytes of shared
+  quota forever. `persistence/browser/assetGarbageCollector.ts` sweeps after a
+  permanent plan delete and as a retry-once recovery on a quota-failed upload.
+  Read its docstring before touching it: every uncertainty resolves to "keep the
+  image", because deleting a referenced one destroys a traced photo that no
+  undo, reload or export brings back.
+
 ### Stores overview
 
 | Store | Scope |

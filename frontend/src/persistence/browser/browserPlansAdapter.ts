@@ -1,6 +1,8 @@
 import { ApiError } from '@/api/client'
+import { collectOrphanAssets } from '@/persistence/browser/assetGarbageCollector'
 import { assetExists } from '@/persistence/browser/assetRecords'
 import { createDefaultPlanDocument } from '@/persistence/browser/planDocumentDefaults'
+import { requestPersistentStorage } from '@/persistence/browser/storagePersistence'
 import {
   backUpAndWriteDocument,
   deletePlanRows,
@@ -132,6 +134,11 @@ async function createPlan(name: string, options: PlanCreateOptions = {}): Promis
   const document = createDefaultPlanDocument(options)
   const record = newPlanRecord(name, options.description ?? '', new Date().toISOString())
   await insertPlan(record, document)
+  // The user now has something in this browser worth protecting from eviction,
+  // which is the first moment asking for persistence means anything. Never
+  // awaited: a permission the browser may decide to prompt for cannot sit in
+  // front of a plan the user already created.
+  void requestPersistentStorage()
   return { ...record, document }
 }
 
@@ -213,7 +220,14 @@ async function restorePlan(id: string): Promise<Plan> {
 }
 
 /**
- * Permanently removes an archived plan.
+ * Permanently removes an archived plan, and with it the underlay image the plan
+ * was the last to reference.
+ *
+ * Reclaiming the image is what makes this the action the 507 message tells the
+ * user to take: a plan's rows are kilobytes, its traced photo is tens of
+ * megabytes, and deleting the plan without it would free nothing they can feel.
+ * The sweep runs after the deletion has committed and cannot fail it — see
+ * `collectOrphanAssets` for why it never rejects.
  *
  * @throws {ApiError} 409 when the plan is not archived: data is never destroyed
  *   without the soft-delete step in front of it.
@@ -224,6 +238,7 @@ async function deletePlan(id: string): Promise<void> {
     throw new ApiError(CONFLICT_STATUS, `Plan '${id}' must be archived before permanent deletion.`)
   }
   await deletePlanRows(id)
+  await collectOrphanAssets()
 }
 
 export const browserPlansPort: PlansPort = {
