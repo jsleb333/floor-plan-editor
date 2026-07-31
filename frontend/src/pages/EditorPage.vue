@@ -171,6 +171,7 @@ const documentLabels = computed<readonly Label[]>(() => planDocument.value?.labe
 const documentDimensions = computed<readonly Dimension[]>(
   () => planDocument.value?.dimensions ?? [],
 )
+const documentGuides = computed<readonly Guide[]>(() => planDocument.value?.guides ?? [])
 const documentDevices = computed<readonly Device[]>(() => planDocument.value?.devices ?? [])
 const documentWires = computed<readonly Wire[]>(() => planDocument.value?.wires ?? [])
 const documentCircuits = computed<readonly Circuit[]>(() => planDocument.value?.circuits ?? [])
@@ -437,6 +438,7 @@ const dimensionTool = useDimensionTool({
 const tapeTool = useTapeTool({
   snapping,
   walls: documentWalls,
+  guides: documentGuides,
   commit: (guide) => editorStore.mutate({ type: 'addGuide', guide }),
   displayPrecisionIn,
 })

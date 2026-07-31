@@ -60,6 +60,13 @@ export interface SnapSettings {
 export type SnapMarkerKind = 'close' | 'endpoint' | 'midpoint' | 'projection' | 'surface' | 'guide'
 
 /**
+ * Which way a custom guide was captured (spec S9), since the marker alone cannot
+ * say: `line` is a drop onto one guide's infinite line — a direction to measure
+ * from — and `point` is a crossing it takes part in, which is a position.
+ */
+export type GuideHitKind = 'line' | 'point'
+
+/**
  * What existing geometry a wall snap captured, so the tool can record the right
  * relation (`docs/WALL_NETWORK.md` §6).
  *
@@ -117,6 +124,11 @@ export interface SnapResult {
    * other snap. For a crossing it is the FIRST guide of the pair.
    */
   guideId: string | null
+  /**
+   * How that guide was captured, or `null` when no guide was: a hit on its LINE
+   * is a direction the tape can measure from, a crossing is a plain point (S9).
+   */
+  guideHit: GuideHitKind | null
 }
 
 /** The snapped point plus its engaged S1e guides, ready for the guides overlay. */
@@ -184,6 +196,8 @@ interface WallSnapCandidate {
   target: SnapTarget | null
   /** Set only by the guide candidates (spec S9), which is also what marks them as guides. */
   guideId?: string
+  /** Which guide tier the candidate came from; set exactly when `guideId` is. */
+  guideHit?: GuideHitKind
 }
 
 /**
@@ -225,6 +239,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         attachment: null,
         target: null,
         guideId: null,
+        guideHit: null,
       }
     }
 
@@ -266,6 +281,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
             attachment: null,
             target: null,
             guideId: null,
+            guideHit: null,
           }
         }
       }
@@ -281,6 +297,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
             attachment: null,
             target: null,
             guideId: null,
+            guideHit: null,
           }
         }
       }
@@ -294,6 +311,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         attachment: null,
         target: null,
         guideId: null,
+        guideHit: null,
       }
     }
 
@@ -309,6 +327,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
           attachment: null,
           target: null,
           guideId: null,
+          guideHit: null,
         }
       }
     }
@@ -325,6 +344,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
           attachment: null,
           target: null,
           guideId: null,
+          guideHit: null,
         }
       }
     }
@@ -339,6 +359,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         attachment: null,
         target: null,
         guideId: null,
+        guideHit: null,
       }
     }
     return {
@@ -350,6 +371,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
       attachment: null,
       target: null,
       guideId: null,
+      guideHit: null,
     }
   }
 
@@ -510,13 +532,19 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
     for (const line of guides) {
       const crossHit = nearestCrossingWithFaces(line, cursor, threshold)
       if (crossHit && closer(guideCrossing, crossHit.distance)) {
-        guideCrossing = { ...crossHit, attachment: null, target: null, guideId: line.guideId }
+        guideCrossing = {
+          ...crossHit,
+          attachment: null,
+          target: null,
+          guideId: line.guideId,
+          guideHit: 'point',
+        }
       }
       const hit = ray
         ? rayCrossingLine(line, ray, cursor, threshold)
         : dropOntoLine(line, cursor, threshold)
       if (!hit || !closer(guideHit, hit.distance)) continue
-      guideHit = { ...hit, attachment: null, target: null, guideId: line.guideId }
+      guideHit = { ...hit, attachment: null, target: null, guideId: line.guideId, guideHit: 'line' }
     }
 
     for (const crossing of guideCrossings(guides)) {
@@ -528,6 +556,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
         attachment: null,
         target: null,
         guideId: crossing.a,
+        guideHit: 'point',
       }
     }
 
@@ -547,6 +576,7 @@ export function useSnapping(options: UseSnappingOptions): UseSnappingReturn {
       attachment: winner.attachment,
       target: winner.target,
       guideId: winner.guideId ?? null,
+      guideHit: winner.guideHit ?? null,
     }
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { Ref } from 'vue'
 
 import { useSnapping } from '@/composables/useSnapping'
@@ -11,6 +11,7 @@ import {
   distance,
   dot,
   resolveGuideLine,
+  resolveGuideLines,
   resolveWallNetwork,
   scale,
   sub,
@@ -22,10 +23,18 @@ interface Harness {
   tool: UseTapeToolReturn
   committed: Guide[]
   walls: Ref<readonly Wall[]>
+  guides: Ref<readonly Guide[]>
 }
 
 interface HarnessOverrides {
   walls?: Wall[]
+  /** Guides in the document, which the snap engine also resolves and snaps to. */
+  guides?: Guide[]
+  /**
+   * Guides the SNAP engine still offers but the document no longer holds —
+   * which is how a stale guide id reaches the tool.
+   */
+  staleGuides?: Guide[]
   grid?: boolean
   angle?: boolean
 }
@@ -43,10 +52,19 @@ const SHELL = makeWall({
 /** Tape tool over an in-memory snap engine (pixelsPerInch 1 → threshold 10"). */
 function makeTool(overrides: HarnessOverrides = {}): Harness {
   const walls: Ref<readonly Wall[]> = ref(overrides.walls ?? [])
+  const guides: Ref<readonly Guide[]> = ref(overrides.guides ?? [])
   const network = ref(resolveWallNetwork(walls.value, []))
+  const guideLines = computed(() =>
+    resolveGuideLines(
+      [...guides.value, ...(overrides.staleGuides ?? [])],
+      walls.value,
+      network.value,
+    ),
+  )
   const snapping = useSnapping({
     walls,
     network,
+    guideLines,
     pixelsPerInch: ref(1),
     settings: {
       grid: ref(overrides.grid ?? true),
@@ -55,8 +73,8 @@ function makeTool(overrides: HarnessOverrides = {}): Harness {
     },
   })
   const committed: Guide[] = []
-  const tool = useTapeTool({ snapping, walls, commit: (guide) => committed.push(guide) })
-  return { tool, committed, walls }
+  const tool = useTapeTool({ snapping, walls, guides, commit: (guide) => committed.push(guide) })
+  return { tool, committed, walls, guides }
 }
 
 /** The committed guide resolved to its world line, as the document would resolve it. */
@@ -357,6 +375,175 @@ describe('useTapeTool idle state', () => {
     expect(tool.inputBuffer.value).toBe('')
     expect(tool.isMeasuring.value).toBe(false)
     expect(committed).toHaveLength(0)
+  })
+})
+
+/** A guide on the shell's lower surface, 24" out: the world line y = 30. */
+const SHELL_GUIDE: Guide = {
+  id: 'g1',
+  kind: 'surface',
+  wall_id: 'shell',
+  segment_index: 0,
+  side: 'right',
+  offset_in: 24,
+}
+
+/** A free horizontal guide at y = 100, anchored to nothing. */
+const FREE_GUIDE: Guide = { id: 'f1', kind: 'free', origin: { x: 0, y: 100 }, angle_deg: 0 }
+
+describe('useTapeTool measuring from an existing guide', () => {
+  it('a click on a wall-anchored guide places a parallel one on the same surface', () => {
+    const harness = makeTool({ walls: [SHELL], guides: [SHELL_GUIDE] })
+    const { tool, committed } = harness
+    // 2" off the guide's line at y = 30, far from every wall target.
+    tool.onClick({ x: 60, y: 32 })
+    expect(tool.preview.value?.mode).toBe('offset')
+    expect(tool.preview.value?.start).toEqual({ x: 60, y: 30 })
+    // The chip reads the 12" from the SOURCE guide at y = 30, not the 36" from
+    // the wall surface at y = 6. The drag runs out past the wall's end, clear of
+    // the S1e diagonals through its corners, which blanket the area beside it.
+    tool.setCursor({ x: 300, y: 42 })
+    expect(tool.preview.value?.chip?.text).toBe('1\'0"')
+
+    const seen = seenPoint(tool)
+    tool.onClick({ x: 300, y: 42 })
+
+    expect(committed).toHaveLength(1)
+    const guide = committed[0]
+    expect(guide).toMatchObject({
+      kind: 'surface',
+      wall_id: 'shell',
+      segment_index: 0,
+      side: 'right',
+    })
+    if (guide.kind !== 'surface') throw new Error('expected a surface guide')
+    expect(guide.offset_in).toBeCloseTo(36)
+    // The inherited anchor is only worth having if it resolves where the user
+    // dropped it: the round trip through the wall relation says it does.
+    expect(offLine(lineOf(harness, guide), seen)).toBeCloseTo(0)
+  })
+
+  it('a typed offset is measured from the source guide, not from the wall', () => {
+    const harness = makeTool({ walls: [SHELL], guides: [SHELL_GUIDE] })
+    const { tool, committed } = harness
+    tool.onClick({ x: 60, y: 32 })
+    tool.setCursor({ x: 300, y: 42 })
+    type(tool, '12')
+    expect(tool.handleKey('Enter')).toBe(true)
+
+    const guide = committed[0]
+    if (guide.kind !== 'surface') throw new Error('expected a surface guide')
+    expect(guide.offset_in).toBe(36)
+    expect(offLine(lineOf(harness, guide), { x: 0, y: 42 })).toBeCloseTo(0)
+  })
+
+  it('dragging back toward the wall subtracts from the source offset', () => {
+    const harness = makeTool({ walls: [SHELL], guides: [SHELL_GUIDE] })
+    const { tool, committed } = harness
+    tool.onClick({ x: 60, y: 32 })
+    tool.setCursor({ x: 300, y: 18 })
+    const seen = seenPoint(tool)
+    tool.onClick({ x: 300, y: 18 })
+
+    const guide = committed[0]
+    if (guide.kind !== 'surface') throw new Error('expected a surface guide')
+    expect(guide.offset_in).toBeCloseTo(12)
+    expect(guide.offset_in).toBeLessThan(24)
+    expect(offLine(lineOf(harness, guide), seen)).toBeCloseTo(0)
+  })
+
+  it('a click on a free guide places a free parallel at the dragged distance', () => {
+    const harness = makeTool({ guides: [FREE_GUIDE] })
+    const { tool, committed } = harness
+    tool.onClick({ x: 60, y: 102 })
+    expect(tool.preview.value?.mode).toBe('offset')
+
+    tool.setCursor({ x: 60, y: 160 })
+    const seen = seenPoint(tool)
+    tool.onClick({ x: 60, y: 160 })
+
+    const guide = committed[0]
+    if (guide.kind !== 'free') throw new Error('expected a free guide')
+    // Parallel to its source, through the point it was dropped on.
+    expect(guide.angle_deg).toBeCloseTo(0)
+    expect(offLine(lineOf(harness, guide), seen)).toBeCloseTo(0)
+    expect(seen.y).not.toBeCloseTo(100)
+  })
+
+  it('a guide that has left the document measures from the point instead', () => {
+    const { tool, committed } = makeTool({ staleGuides: [FREE_GUIDE] })
+    tool.onClick({ x: 60, y: 102 })
+    expect(tool.preview.value?.mode).toBe('free')
+
+    tool.setCursor({ x: 60, y: 160 })
+    tool.onClick({ x: 60, y: 160 })
+
+    expect(committed).toEqual([
+      { id: expect.any(String), kind: 'free', origin: { x: 60, y: 100 }, angle_deg: 90 },
+    ])
+  })
+})
+
+describe('useTapeTool Tab between the guide forms', () => {
+  it('swaps a surface capture between the parallel and through-point forms', () => {
+    const { tool, committed } = makeTool({ walls: [SHELL] })
+    tool.onClick({ x: 60, y: 8 })
+    tool.setCursor({ x: 60, y: 36 })
+    type(tool, '36')
+
+    expect(tool.handleKey('Tab')).toBe(true)
+    expect(tool.preview.value?.mode).toBe('angle')
+    // The forms take different units, so the half-typed offset must not carry.
+    expect(tool.inputBuffer.value).toBe('')
+
+    type(tool, '45')
+    expect(tool.handleKey('Tab')).toBe(true)
+    expect(tool.preview.value?.mode).toBe('offset')
+    expect(tool.inputBuffer.value).toBe('')
+
+    expect(tool.handleKey('Tab')).toBe(true)
+    expect(tool.preview.value?.mode).toBe('angle')
+    tool.onClick({ x: 60, y: 36 })
+
+    // A surface has no corner to anchor to, so the angle form commits a free
+    // guide through the point the first click snapped to.
+    expect(committed).toEqual([
+      { id: expect.any(String), kind: 'free', origin: { x: 60, y: 6 }, angle_deg: 90 },
+    ])
+  })
+
+  it('does nothing and is not consumed when the capture has no offset base', () => {
+    const { tool } = makeTool({ walls: [SHELL] })
+    tool.onClick({ x: 199, y: 1 })
+    type(tool, '4')
+
+    expect(tool.handleKey('Tab')).toBe(false)
+    expect(tool.preview.value?.mode).toBe('angle')
+    expect(tool.inputBuffer.value).toBe('4')
+  })
+
+  it('turns a guide crossing into a parallel of the guide it crosses', () => {
+    const crossing: Guide = { id: 'g2', kind: 'free', origin: { x: 100, y: 0 }, angle_deg: 90 }
+    const harness = makeTool({ walls: [SHELL], guides: [SHELL_GUIDE, crossing] })
+    const { tool, committed } = harness
+    // The two guides cross at (100, 30); a crossing is a POINT capture, so the
+    // click measures an angle from it as it always has.
+    tool.onClick({ x: 102, y: 32 })
+    expect(tool.preview.value?.start).toEqual({ x: 100, y: 30 })
+    expect(tool.preview.value?.mode).toBe('free')
+
+    expect(tool.handleKey('Tab')).toBe(true)
+    expect(tool.preview.value?.mode).toBe('offset')
+
+    tool.setCursor({ x: 140, y: 60 })
+    const seen = seenPoint(tool)
+    tool.onClick({ x: 140, y: 60 })
+
+    const guide = committed[0]
+    if (guide.kind !== 'surface') throw new Error('expected a surface guide')
+    expect(guide.wall_id).toBe('shell')
+    expect(guide.offset_in).toBeCloseTo(24 + (seen.y - 30))
+    expect(offLine(lineOf(harness, guide), seen)).toBeCloseTo(0)
   })
 })
 

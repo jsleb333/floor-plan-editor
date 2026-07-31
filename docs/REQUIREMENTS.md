@@ -382,8 +382,22 @@ follow their devices; only interior control points are absolute.
     that point** at the dragged angle, constrained to 0°/45°/90° unless Alt
     is held (S1 angle conventions); typing a value sets the angle in degrees
     exactly. Anchored to the point: it follows the corner through edits.
+  - **Click an existing guide's line, drag, click** — measures **from that
+    guide** and places one **parallel** to it: the chip reads the distance
+    between them and typing a value sets it exactly. The new guide inherits
+    what its source is anchored to — parallel to a wall-anchored guide it is
+    stored on the same surface at the further offset and follows the wall
+    with it; parallel to a free guide it is a free line at the same angle. A
+    guide **crossing** is a point rather than a line: clicking one measures
+    from that point, like every other point capture.
   - **Click empty space, drag, click** — places a **free** infinite
     construction line, same angle behaviour, anchored to nothing.
+  - **Tab, with a placement pending**, swaps the guide between its
+    **parallel** and **through-the-first-point** forms wherever both exist: a
+    clicked surface or guide line offers an offset, and Tab reads the drag as
+    an angle instead (and back). A captured corner or empty space has no
+    offset to measure and Tab does nothing there. The typed value clears on
+    each swap, the units having changed.
   - **Click two points and press Esc** (or click a second point when the
     first captured nothing to anchor to) — the tool acted as a pure
     **measuring tape**: the distance chip was the deliverable and nothing is
