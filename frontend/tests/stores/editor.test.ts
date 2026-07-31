@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/client'
-import { getPlan, savePlanDocument, updatePlanMetadata } from '@/api/plans'
+import { getPlan, savePlanDocument, updatePlanMetadata } from '@/persistence/plans'
 import { useEditorStore } from '@/stores/editor'
 import type { FreeGuide, Joint, PointGuide, SurfaceGuide } from '@/types/plan'
 import { CIRCUIT_PALETTE } from '@/utils/circuits'
@@ -21,7 +21,7 @@ import {
   makeWire,
 } from '../helpers/planFactory'
 
-vi.mock('@/api/plans')
+vi.mock('@/persistence/plans')
 
 describe('useEditorStore autosave', () => {
   beforeEach(() => {

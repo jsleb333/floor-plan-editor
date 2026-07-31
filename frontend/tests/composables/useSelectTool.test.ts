@@ -2,10 +2,10 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref } from 'vue'
 
-import { getPlan, savePlanDocument } from '@/api/plans'
 import { useSelectTool } from '@/composables/useSelectTool'
 import type { UseSelectToolReturn } from '@/composables/useSelectTool'
 import type { SnapSettings } from '@/composables/useSnapping'
+import { getPlan, savePlanDocument } from '@/persistence/plans'
 import { UNDERLAY_ELEMENT_ID, useEditorStore } from '@/stores/editor'
 import type { Guide, PlanDocument, Wall } from '@/types/plan'
 import type { ImageSize } from '@/utils/imageSize'
@@ -24,7 +24,7 @@ import {
   makeWire,
 } from '../helpers/planFactory'
 
-vi.mock('@/api/plans')
+vi.mock('@/persistence/plans')
 
 const NO_MODIFIERS = { shift: false, alt: false }
 const SHIFT = { shift: true, alt: false }

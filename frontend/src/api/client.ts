@@ -1,6 +1,13 @@
 const BASE_URL = '/api'
 
-/** Error thrown by the API client for any non-2xx response. */
+/**
+ * Error thrown by the API client for any non-2xx response.
+ *
+ * This is the shared persistence error contract, not an HTTP-only detail: a
+ * future non-HTTP adapter (e.g. IndexedDB) throws it too, with a status-shaped
+ * code standing in for the HTTP status callers already branch on (404/409).
+ * Do not fold this into the REST adapter when it moves.
+ */
 export class ApiError extends Error {
   readonly status: number
   readonly detail: string

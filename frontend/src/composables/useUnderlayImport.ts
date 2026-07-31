@@ -1,7 +1,8 @@
 import { ref } from 'vue'
 import type { Ref } from 'vue'
 
-import { assetUrl, uploadAsset } from '@/api/assets'
+import { uploadAsset } from '@/persistence/assets'
+import { assetUrl } from '@/persistence/rest/restAssetsAdapter'
 import { useEditorStore } from '@/stores/editor'
 import { loadImageSize } from '@/utils/imageSize'
 import { DEFAULT_UNDERLAY_OPACITY, initialUnderlayTransform } from '@/utils/underlay'
