@@ -668,6 +668,22 @@ describe('useSnapping custom guides (S9)', () => {
     expect(result.marker).toBeNull()
   })
 
+  it('reports which tier captured the guide, so a tool can tell a line from a point', () => {
+    const snapping = makeSnapping([], {
+      ...RAW,
+      guides: [VERTICAL_GUIDE, guideLine('g2', [0, 100], [1, 0])],
+    })
+    // A drop onto one line is a direction to measure from...
+    const online = snapping.resolve({ x: 52, y: 30 }, null, false)
+    expect(online.guideHit).toBe('line')
+    // ...where the pair crosses is a position, whatever the shared marker says.
+    const crossing = snapping.resolve({ x: 52, y: 106 }, null, false)
+    expect(crossing.marker).toBe(online.marker)
+    expect(crossing.guideHit).toBe('point')
+    // Nothing else in the engine claims a guide.
+    expect(snapping.resolve({ x: 300, y: 300 }, null, false).guideHit).toBeNull()
+  })
+
   it('an empty guide list is how a caller hides guides: nothing captures', () => {
     const snapping = makeSnapping([], { ...RAW, guides: [] })
     const result = snapping.resolve({ x: 52, y: 30 }, null, false)

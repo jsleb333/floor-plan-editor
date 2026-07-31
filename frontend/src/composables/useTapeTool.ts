@@ -7,6 +7,7 @@ import {
   angleOf,
   distance,
   dot,
+  normalize,
   perpendicular,
   resolveGuideLine,
   scale,
@@ -28,11 +29,15 @@ const PENDING_GUIDE_ID = 'tape-pending'
 const DEFAULT_DIRECTION: Point = { x: 1, y: 0 }
 
 /**
- * What the first click captured, which is what the tool measures (spec S9):
- * an offset from a wall surface, an angle through an anchored point, or a free
- * angle through a point anchored to nothing.
+ * The form the pending guide currently takes (spec S9): an offset parallel to
+ * what was clicked, an angle through an anchored point, or a free angle through
+ * a point anchored to nothing. The first click picks it and Tab swaps it where
+ * the capture offers both.
  */
 export type TapeMode = 'idle' | 'offset' | 'angle' | 'free'
+
+/** The two forms a placement can take once the first click has landed. */
+type PendingForm = Exclude<TapeMode, 'idle'>
 
 /** The live readout beside the cursor: one headline value, one optional secondary. */
 export interface TapeChip {
@@ -70,6 +75,12 @@ export interface UseTapeToolOptions {
    * through, so the guide lands on the line the user was shown.
    */
   walls: Ref<readonly Wall[]>
+  /**
+   * The document's guides, so a click that captured one can be resolved back to
+   * the guide it came from: clicking a guide measures FROM it (spec S9), and
+   * what the placement inherits depends on what its source is anchored to.
+   */
+  guides: Ref<readonly Guide[]>
   /** Receives each placed guide; the caller dispatches the store command. */
   commit: (guide: Guide) => void
   /** Display precision for the distance readouts (spec §5.9 tier 2); 1/8" when omitted. */
@@ -87,7 +98,8 @@ export interface UseTapeToolReturn {
   onClick: (world: Point) => void
   /**
    * Routes a key press to the tool; returns true when consumed (the caller must
-   * then preventDefault/stopPropagation). Handles Enter, Escape, Backspace, Alt
+   * then preventDefault/stopPropagation). Handles Enter, Escape, Backspace, Alt,
+   * Tab — which swaps the pending guide's form when the capture offers both —
    * and the exact-input buffer characters of the active mode.
    */
   handleKey: (key: string) => boolean
@@ -104,41 +116,60 @@ interface SurfaceRelation {
   side: WallSide
 }
 
-/** The clicked surface as a world line, plus which way a positive offset displaces it. */
-interface PendingSurface {
-  relation: SurfaceRelation
-  /** A point on the surface itself — the zero-offset guide's own resolved point. */
+/**
+ * The line a parallel placement measures from — a clicked wall surface, or a
+ * clicked guide's own line — plus what a commit on it records.
+ */
+interface ParallelBase {
+  /** A point on the base line itself: where the drag reads zero. */
   point: Point
-  /** Unit direction of the surface, which is the host segment's direction. */
+  /** Unit direction of the base line; the placed guide runs parallel to it. */
   dir: Point
-  /** Unit normal a positive `offset_in` displaces along: away from the wall body. */
+  /** Unit normal the drag is signed along: the way the recorded offset grows. */
   outward: Point
+  /**
+   * The wall relation a commit records, when the base is wall-anchored: the
+   * drag adds to `baseOffsetIn` and the placement inherits the anchor, so it
+   * follows the wall exactly like the surface or guide it was measured from.
+   * A base with no relation commits a free parallel instead.
+   */
+  surface: { relation: SurfaceRelation; baseOffsetIn: number } | null
 }
 
 /**
- * The placement in progress. Which variant it is was decided by the first
- * click and never changes: in S9 the plan content drives the tool.
+ * The placement in progress. The first click decides what is AVAILABLE — a
+ * parallel base, a point anchor, or neither — and `form` says which of the two
+ * is being placed right now, which is the only thing Tab changes (spec S9).
  */
-type Pending =
-  | { mode: 'offset'; start: Point; surface: PendingSurface }
-  | { mode: 'angle'; start: Point; anchor: WallEndRef }
-  | { mode: 'free'; start: Point }
+interface Pending {
+  form: PendingForm
+  /** The first click's snapped point. */
+  start: Point
+  /** The line a parallel placement measures from, when the click captured one. */
+  base: ParallelBase | null
+  /** The form Tab returns to from a parallel: an angle, or the free tape. */
+  pointForm: Exclude<PendingForm, 'offset'>
+  /** The wall end an angle placement anchors to; without one it commits a free guide. */
+  anchor: WallEndRef | null
+}
 
 /**
  * Tape measure and guide placement (spec S9): the tool measures, and a guide is
  * the byproduct of where the two clicks land. The FIRST click classifies —
- * a wall surface starts an offset placement parallel to it, a wall corner or
- * surface terminus starts an angle placement anchored to that point, empty
- * space starts a free one — the cursor then drags the value with a live chip,
- * a typed value (feet-inches for an offset, degrees for an angle) sets it
- * exactly, and Escape abandons the placement, leaving only the reading.
+ * a wall surface starts an offset placement parallel to it, an existing guide's
+ * line does the same measured from that guide, a wall corner or surface
+ * terminus starts an angle placement anchored to that point, empty space starts
+ * a free one — the cursor then drags the value with a live chip, a typed value
+ * (feet-inches for an offset, degrees for an angle) sets it exactly, Tab swaps
+ * between the parallel and through-point forms where the capture offers both,
+ * and Escape abandons the placement, leaving only the reading.
  *
- * Headless by design: all inputs are injected (snap engine, walls, commit
- * callback) and interaction arrives via methods, so the machine is testable
- * without a DOM or a component tree.
+ * Headless by design: all inputs are injected (snap engine, walls, guides,
+ * commit callback) and interaction arrives via methods, so the machine is
+ * testable without a DOM or a component tree.
  */
 export function useTapeTool(options: UseTapeToolOptions): UseTapeToolReturn {
-  const { snapping, walls, commit } = options
+  const { snapping, walls, guides, commit } = options
 
   const pending: ShallowRef<Pending | null> = shallowRef(null)
   const cursor: ShallowRef<Point | null> = shallowRef(null)
@@ -173,13 +204,14 @@ export function useTapeTool(options: UseTapeToolOptions): UseTapeToolReturn {
 
     const at = point ?? current.start
     const precision = options.displayPrecisionIn?.value
-    if (current.mode === 'offset') {
-      const offsetIn = offsetAt(current.surface, at)
+    const base = parallelBaseOf(current)
+    if (base) {
+      const offsetIn = offsetAt(base, at)
       return {
         mode: 'offset',
         start: current.start,
         point,
-        line: offsetLine(current.surface, offsetIn),
+        line: offsetLine(base, offsetIn),
         chip: { at, text: formatFeetInches(Math.abs(offsetIn), precision), secondary: null },
         measurement: null,
         marker,
@@ -189,7 +221,7 @@ export function useTapeTool(options: UseTapeToolOptions): UseTapeToolReturn {
     const dir = directionTo(current.start, point)
     const angleText = formatAngleDeg(angleOf(dir) * RAD_TO_DEG)
     const line = { point: current.start, dir }
-    if (current.mode === 'angle') {
+    if (current.form === 'angle') {
       return {
         mode: 'angle',
         start: current.start,
@@ -235,24 +267,27 @@ export function useTapeTool(options: UseTapeToolOptions): UseTapeToolReturn {
     return dir
   }
 
-  /** Signed perpendicular distance from the clicked surface to `point`, positive outward. */
-  function offsetAt(surface: PendingSurface, point: Point): number {
-    return dot(sub(point, surface.point), surface.outward)
+  /** The base a placement is measuring from right now, or `null` in a point form. */
+  function parallelBaseOf(current: Pending): ParallelBase | null {
+    return current.form === 'offset' ? current.base : null
   }
 
-  function offsetLine(surface: PendingSurface, offsetIn: number): { point: Point; dir: Point } {
-    return { point: add(surface.point, scale(surface.outward, offsetIn)), dir: surface.dir }
+  /** Signed perpendicular distance from the base line to `point`, positive outward. */
+  function offsetAt(base: ParallelBase, point: Point): number {
+    return dot(sub(point, base.point), base.outward)
+  }
+
+  function offsetLine(base: ParallelBase, offsetIn: number): { point: Point; dir: Point } {
+    return { point: add(base.point, scale(base.outward, offsetIn)), dir: base.dir }
   }
 
   /**
-   * The clicked surface as a line, resolved through a zero-offset guide on that
-   * very relation — so the offset the user drags is measured from the exact line
-   * the committed guide will resolve to, whatever the wall's reference side and
-   * thickness do to it.
+   * The clicked surface as a base line, resolved through a zero-offset guide on
+   * that very relation — so the offset the user drags is measured from the exact
+   * line the committed guide will resolve to, whatever the wall's reference side
+   * and thickness do to it.
    */
-  function pendingSurfaceOf(
-    target: Extract<SnapTarget, { kind: 'surface' }>,
-  ): PendingSurface | null {
+  function surfaceBase(target: Extract<SnapTarget, { kind: 'surface' }>): ParallelBase | null {
     const relation: SurfaceRelation = {
       wall_id: target.wallId,
       segment_index: target.segmentIndex,
@@ -268,10 +303,49 @@ export function useTapeTool(options: UseTapeToolOptions): UseTapeToolReturn {
     // from the body either way (`guideLine.ts`).
     const normal = perpendicular(line.dir)
     return {
-      relation,
       point: line.point,
       dir: line.dir,
       outward: target.side === 'left' ? normal : scale(normal, -1),
+      surface: { relation, baseOffsetIn: 0 },
+    }
+  }
+
+  /**
+   * A clicked guide as a base line (spec S9): clicking a guide measures FROM it,
+   * and the placement inherits what that guide is anchored to — a wall-anchored
+   * source hands down its relation, so the new guide follows the wall too.
+   *
+   * `null` for a stale id, whose guide has left the document since the snap
+   * engine saw it; the click then measures from the point like any other.
+   */
+  function guideBase(guideId: string): ParallelBase | null {
+    const source = guides.value.find((guide) => guide.id === guideId)
+    if (!source) return null
+    const line = resolveGuideLine(source, walls.value)
+    if (!line) return null
+    if (source.kind !== 'surface') {
+      return { point: line.point, dir: line.dir, outward: perpendicular(line.dir), surface: null }
+    }
+    // The source's own offset axis, read off the resolver by resolving the same
+    // guide 1" further out: the wall's reference side and drawing direction
+    // already decided which way its `offset_in` grows, and deriving that again
+    // here would be a second copy of the rule, free to disagree.
+    const shifted = resolveGuideLine({ ...source, offset_in: source.offset_in + 1 }, walls.value)
+    if (!shifted) return null
+    const outward = normalize(sub(shifted.point, line.point))
+    if (outward.x === 0 && outward.y === 0) return null
+    return {
+      point: line.point,
+      dir: line.dir,
+      outward,
+      surface: {
+        relation: {
+          wall_id: source.wall_id,
+          segment_index: source.segment_index,
+          side: source.side,
+        },
+        baseOffsetIn: source.offset_in,
+      },
     }
   }
 
@@ -280,41 +354,74 @@ export function useTapeTool(options: UseTapeToolOptions): UseTapeToolReturn {
     const start = { ...snap.point }
     const target = snap.target
     if (target?.kind === 'surface') {
-      const surface = pendingSurfaceOf(target)
+      const base = surfaceBase(target)
       // An unresolvable surface (a degenerate segment) leaves nothing to be
       // parallel to, so the click measures from the point instead.
-      if (surface) {
-        pending.value = { mode: 'offset', start, surface }
+      if (base) {
+        pending.value = { form: 'offset', start, base, pointForm: 'angle', anchor: null }
         return
       }
     } else if (target?.kind === 'wall-end' || target?.kind === 'surface-end') {
       // A guide through a point has no side: both surfaces of a captured
       // terminus belong to the same wall end.
-      pending.value = { mode: 'angle', start, anchor: { wall_id: target.wallId, end: target.end } }
+      pending.value = {
+        form: 'angle',
+        start,
+        base: null,
+        pointForm: 'angle',
+        anchor: { wall_id: target.wallId, end: target.end },
+      }
       return
+    } else if (snap.guideId) {
+      // A captured guide (spec S9): its LINE is a direction to measure from, so
+      // the click starts a parallel; a crossing is a position, and measures from
+      // the point as before — Tab still turns it parallel to the guide it crosses.
+      const base = guideBase(snap.guideId)
+      if (base) {
+        const onLine = snap.guideHit === 'line'
+        pending.value = {
+          form: onLine ? 'offset' : 'free',
+          start,
+          base,
+          pointForm: onLine ? 'angle' : 'free',
+          anchor: null,
+        }
+        return
+      }
     }
-    pending.value = { mode: 'free', start }
+    pending.value = { form: 'free', start, base: null, pointForm: 'free', anchor: null }
   }
 
   /**
    * The guide a pending placement commits to. `value` is the placed quantity in
-   * that mode's own unit: inches of offset, or degrees of angle.
+   * the current form's own unit: inches of offset, or degrees of angle.
    */
   function guideOf(current: Pending, value: number): Guide {
     const id = crypto.randomUUID()
-    switch (current.mode) {
-      case 'offset':
-        return { id, kind: 'surface', ...current.surface.relation, offset_in: value }
-      case 'angle':
-        return { id, kind: 'point', anchor: { ...current.anchor }, angle_deg: value }
-      case 'free':
-        return { id, kind: 'free', origin: { ...current.start }, angle_deg: value }
+    const base = parallelBaseOf(current)
+    if (base) {
+      if (base.surface) {
+        const { relation, baseOffsetIn } = base.surface
+        return { id, kind: 'surface', ...relation, offset_in: baseOffsetIn + value }
+      }
+      // A parallel measured from an unanchored guide has no wall to follow, so
+      // it records the line itself: the dragged-to line, at the source's angle.
+      return {
+        id,
+        kind: 'free',
+        origin: add(base.point, scale(base.outward, value)),
+        angle_deg: angleOf(base.dir) * RAD_TO_DEG,
+      }
     }
+    if (current.anchor)
+      return { id, kind: 'point', anchor: { ...current.anchor }, angle_deg: value }
+    return { id, kind: 'free', origin: { ...current.start }, angle_deg: value }
   }
 
   /** The quantity the preview is showing for `point` — what a commit takes as-is. */
   function draggedValue(current: Pending, point: Point | null): number {
-    if (current.mode === 'offset') return offsetAt(current.surface, point ?? current.start)
+    const base = parallelBaseOf(current)
+    if (base) return offsetAt(base, point ?? current.start)
     return angleOf(directionTo(current.start, point)) * RAD_TO_DEG
   }
 
@@ -328,13 +435,30 @@ export function useTapeTool(options: UseTapeToolOptions): UseTapeToolReturn {
    */
   function typedValue(current: Pending, point: Point | null): number | null {
     if (inputBuffer.value === '') return null
-    if (current.mode === 'offset') {
+    const base = parallelBaseOf(current)
+    if (base) {
       const magnitude = parseFeetInches(inputBuffer.value)
       if (magnitude === null || magnitude < 0) return null
-      return offsetAt(current.surface, point ?? current.start) < 0 ? -magnitude : magnitude
+      return offsetAt(base, point ?? current.start) < 0 ? -magnitude : magnitude
     }
     const degrees = Number(inputBuffer.value)
     return Number.isFinite(degrees) ? degrees : null
+  }
+
+  /**
+   * Tab: swaps the pending guide between its parallel form and its
+   * through-point form (spec S9). Only a capture with a parallel base has two
+   * forms to swap; without one there is nothing to toggle and the key is left
+   * to the caller.
+   */
+  function toggleForm(): boolean {
+    const current = pending.value
+    if (!current?.base) return false
+    pending.value = { ...current, form: current.form === 'offset' ? current.pointForm : 'offset' }
+    // The forms take different units — feet-inches and degrees — so a
+    // half-typed value must not survive the swap (spec S2).
+    inputBuffer.value = ''
+    return true
   }
 
   function place(value: number): void {
@@ -359,6 +483,7 @@ export function useTapeTool(options: UseTapeToolOptions): UseTapeToolReturn {
       altHeld.value = true
       return true
     }
+    if (key === 'Tab') return toggleForm()
     const current = pending.value
     if (key === 'Escape') {
       if (inputBuffer.value !== '') {
@@ -385,7 +510,7 @@ export function useTapeTool(options: UseTapeToolOptions): UseTapeToolReturn {
       return true
     }
     if (!current) return false
-    if (current.mode === 'offset') {
+    if (current.form === 'offset') {
       if (!isBufferKey(key)) return false
       if (key === ' ' && inputBuffer.value === '') return false
     } else if (!ANGLE_CHAR_PATTERN.test(key)) {

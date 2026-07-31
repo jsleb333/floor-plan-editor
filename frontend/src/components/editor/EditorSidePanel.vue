@@ -52,6 +52,7 @@ const TOOL_HINTS: Partial<Record<ToolId, { title: string; lines: string[] }>> = 
     lines: [
       'Click a wall face, a corner or empty space, then move: the chip reads the live distance.',
       'Click again to place a guide; type a value for an exact offset or angle; Esc measures without placing.',
+      'Click an existing guide to measure from it and place a parallel one; Tab swaps the pending guide between parallel and through-point.',
     ],
   },
   door: {
