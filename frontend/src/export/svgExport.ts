@@ -1,4 +1,4 @@
-import { assetUrl } from '@/api/assets'
+import { assetUrl } from '@/persistence/rest/restAssetsAdapter'
 import { DEVICE_PICTOGRAMS } from '@/devices/pictograms'
 import type {
   Circuit,

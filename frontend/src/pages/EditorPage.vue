@@ -3,7 +3,7 @@ import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { assetUrl } from '@/api/assets'
+import { assetUrl } from '@/persistence/rest/restAssetsAdapter'
 import AlignmentGuidesOverlay from '@/components/editor/AlignmentGuidesOverlay.vue'
 import CalibrateOverlay from '@/components/editor/CalibrateOverlay.vue'
 import ControlLinksLayer from '@/components/editor/ControlLinksLayer.vue'

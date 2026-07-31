@@ -6,18 +6,19 @@ import PlanCreateCard from '@/components/PlanCreateCard.vue'
 
 import { makePlan } from '../helpers/planFactory'
 
-vi.mock('@/api/plans', () => ({
+vi.mock('@/persistence/plans', () => ({
   createPlan: vi.fn(),
   updatePlanMetadata: vi.fn(),
 }))
 
-vi.mock('@/api/assets', () => ({
+vi.mock('@/persistence/assets', () => ({
   uploadAsset: vi.fn(),
-  assetUrl: (id: string) => `/api/assets/${id}`,
+  resolveAssetUrl: vi.fn(),
+  readAssetBlob: vi.fn(),
 }))
 
-import { uploadAsset } from '@/api/assets'
-import { createPlan } from '@/api/plans'
+import { uploadAsset } from '@/persistence/assets'
+import { createPlan } from '@/persistence/plans'
 
 const createPlanMock = vi.mocked(createPlan)
 const uploadAssetMock = vi.mocked(uploadAsset)

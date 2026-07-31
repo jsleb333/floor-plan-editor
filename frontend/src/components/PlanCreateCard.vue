@@ -2,8 +2,8 @@
 import { ChevronRight, ImagePlus, X } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { uploadAsset } from '@/api/assets'
-import type { PlanCreateOptions } from '@/api/plans'
+import { uploadAsset } from '@/persistence/assets'
+import type { PlanCreateOptions } from '@/persistence/plans'
 import DisplayPrecisionSelect from '@/components/DisplayPrecisionSelect.vue'
 import ThicknessPresetsEditor from '@/components/ThicknessPresetsEditor.vue'
 import { usePlansStore } from '@/stores/plans'

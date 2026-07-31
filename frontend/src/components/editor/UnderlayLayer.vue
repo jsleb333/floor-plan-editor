@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { assetUrl } from '@/api/assets'
+import { assetUrl } from '@/persistence/rest/restAssetsAdapter'
 import { UNDERLAY_ELEMENT_ID, useEditorStore } from '@/stores/editor'
 import type { Underlay } from '@/types/plan'
 import type { ImageSize } from '@/utils/imageSize'

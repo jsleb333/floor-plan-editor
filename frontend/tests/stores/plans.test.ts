@@ -5,7 +5,7 @@ import { usePlansStore } from '@/stores/plans'
 
 import { makeDocument, makePlan, makeWall } from '../helpers/planFactory'
 
-vi.mock('@/api/plans', () => ({
+vi.mock('@/persistence/plans', () => ({
   listPlans: vi.fn(),
   createPlan: vi.fn(),
   getPlan: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock('@/api/plans', () => ({
   deletePlan: vi.fn(),
 }))
 
-import { createPlan, getPlan, savePlanDocument, updatePlanMetadata } from '@/api/plans'
+import { createPlan, getPlan, savePlanDocument, updatePlanMetadata } from '@/persistence/plans'
 
 const getPlanMock = vi.mocked(getPlan)
 const createPlanMock = vi.mocked(createPlan)

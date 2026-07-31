@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/client'
-import { assetUrl, uploadAsset } from '@/api/assets'
+import { assetUrl, restAssetsPort, uploadAsset } from '@/persistence/rest/restAssetsAdapter'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -60,5 +60,36 @@ describe('uploadAsset', () => {
       status: 415,
       message: 'Only JPEG and PNG images are supported.',
     })
+  })
+})
+
+describe('readAssetBlob', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('fetches the asset URL and returns its bytes as a blob', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('image-bytes', {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' },
+      }),
+    )
+
+    const result = await restAssetsPort.readAssetBlob('abc-123')
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/assets/abc-123')
+    expect(result.type).toBe('image/png')
+    expect(await result.text()).toBe('image-bytes')
+  })
+
+  it('throws an ApiError when the fetch response is not ok', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 404 }))
+
+    const error = await restAssetsPort.readAssetBlob('missing').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(404)
+    expect((error as ApiError).message).toBe('Failed to load asset missing')
   })
 })

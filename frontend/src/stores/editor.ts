@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
-import { ApiError } from '@/api/client'
-import { getPlan, savePlanDocument, updatePlanMetadata } from '@/api/plans'
-import type { PlanMetadataPatch } from '@/api/plans'
+import { getPlan, savePlanDocument, updatePlanMetadata } from '@/persistence/plans'
+import { ApiError } from '@/persistence/ports'
+import type { PlanMetadataPatch } from '@/persistence/plans'
 import type {
   Circuit,
   ControlLink,

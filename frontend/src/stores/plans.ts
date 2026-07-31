@@ -11,8 +11,8 @@ import {
   restorePlan,
   savePlanDocument,
   updatePlanMetadata,
-} from '@/api/plans'
-import type { PlanCreateOptions, PlanMetadataPatch } from '@/api/plans'
+} from '@/persistence/plans'
+import type { PlanCreateOptions, PlanMetadataPatch } from '@/persistence/plans'
 import type { Plan, PlanDocument, PlanSummary } from '@/types/plan'
 
 function toSummary(plan: Plan): PlanSummary {
