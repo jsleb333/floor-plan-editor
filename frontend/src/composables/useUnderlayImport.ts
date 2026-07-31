@@ -2,9 +2,8 @@ import { ref } from 'vue'
 import type { Ref } from 'vue'
 
 import { uploadAsset } from '@/persistence/assets'
-import { assetUrl } from '@/persistence/rest/restAssetsAdapter'
 import { useEditorStore } from '@/stores/editor'
-import { loadImageSize } from '@/utils/imageSize'
+import { measureImageFile } from '@/utils/imageSize'
 import { DEFAULT_UNDERLAY_OPACITY, initialUnderlayTransform } from '@/utils/underlay'
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png']
@@ -38,7 +37,7 @@ export function useUnderlayImport(): UseUnderlayImportReturn {
     uploading.value = true
     try {
       const asset = await uploadAsset(file)
-      const size = await loadImageSize(assetUrl(asset.id))
+      const size = await measureImageFile(file)
       const centre = editorStore.document?.viewport.center ?? { x: 0, y: 0 }
       editorStore.mutate({
         type: 'setUnderlay',
