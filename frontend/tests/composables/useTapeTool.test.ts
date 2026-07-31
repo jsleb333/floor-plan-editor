@@ -6,9 +6,16 @@ import { useSnapping } from '@/composables/useSnapping'
 import { useTapeTool } from '@/composables/useTapeTool'
 import type { UseTapeToolReturn } from '@/composables/useTapeTool'
 import type { Guide, Point, Wall } from '@/types/plan'
-import { add, distance, dot, resolveGuideLine, scale, sub } from '@/utils/geometry'
+import {
+  add,
+  distance,
+  dot,
+  resolveGuideLine,
+  resolveWallNetwork,
+  scale,
+  sub,
+} from '@/utils/geometry'
 import type { GuideLine } from '@/utils/geometry'
-import { resolveWallNetwork } from '@/utils/geometry'
 import { makeWall } from '../helpers/planFactory'
 
 interface Harness {
@@ -350,5 +357,49 @@ describe('useTapeTool idle state', () => {
     expect(tool.inputBuffer.value).toBe('')
     expect(tool.isMeasuring.value).toBe(false)
     expect(committed).toHaveLength(0)
+  })
+})
+
+describe('useTapeTool on a closed loop', () => {
+  it('places a parallel guide off the closing side, like every other side (the reported defect)', () => {
+    // A closed rectangular loop drawn as one chain: the closing segment (vertex
+    // 3 back to vertex 0) used to offer no surface target, so the tape fell
+    // through to a free point+angle guide instead of a parallel one.
+    const loop = makeWall({
+      id: 'loop',
+      closed: true,
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 120, y: 0 },
+        { x: 120, y: 120 },
+        { x: 0, y: 120 },
+      ],
+    })
+    const { tool, committed } = makeTool({ walls: [loop] })
+
+    // First click just outside the closing side's face (x = -1.75), off-centre.
+    // The drop is made with Alt held: at this harness scale the S1e alignment
+    // lines through the loop's eight face corners blanket the area and would
+    // (correctly) capture the click and shift the offset with the chip in
+    // agreement — Alt is the documented way to place free of the magnets.
+    tool.onClick({ x: -2.75, y: 30 })
+    tool.setAlt(true)
+    tool.setCursor({ x: -30, y: 45 })
+    tool.onClick({ x: -30, y: 45 })
+
+    expect(committed).toHaveLength(1)
+    const guide = committed[0]
+    expect(guide.kind).toBe('surface')
+    if (guide.kind === 'surface') {
+      expect(guide.wall_id).toBe('loop')
+      expect(guide.segment_index).toBe(3)
+      expect(guide.offset_in).toBeCloseTo(28.25)
+      // The committed relation resolves to a vertical line through the point
+      // the user dropped it on.
+      const line = resolveGuideLine(guide, [loop])
+      expect(line).not.toBeNull()
+      expect(Math.abs(line?.dir.x ?? 1)).toBeCloseTo(0)
+      expect(line?.point.x).toBeCloseTo(-30)
+    }
   })
 })

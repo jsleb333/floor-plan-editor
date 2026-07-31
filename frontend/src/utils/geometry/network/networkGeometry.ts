@@ -51,6 +51,12 @@ export interface ResolvedWall {
    * joined wall, so connected walls read as one body (`mergedBoundary.ts`).
    */
   strokes: Point[][]
+  /**
+   * True for a ring: the face polylines wrap (last point joins the first), so
+   * anything iterating them as segments must close the loop or it silently
+   * loses the closing side.
+   */
+  closed: boolean
   ends: { start: ResolvedEnd | null; end: ResolvedEnd | null }
 }
 
@@ -182,6 +188,7 @@ function assembleWall(
     right: faces.right,
     rings,
     strokes: [],
+    closed,
     ends,
   }
 }
@@ -246,8 +253,16 @@ function collectFaces(resolved: ReadonlyMap<string, ResolvedWall>): FaceSegment[
   for (const wall of resolved.values()) {
     for (const side of ['left', 'right'] as const) {
       const points = wall[side]
-      for (let i = 0; i < points.length - 1; i++) {
-        segments.push({ wallId: wall.wallId, side, a: points[i], b: points[i + 1] })
+      // A ring's closing segment (last point back to the first) is a face like
+      // any other; iterating the polyline open would silently drop it.
+      const count = wall.closed ? points.length : points.length - 1
+      for (let i = 0; i < count; i++) {
+        segments.push({
+          wallId: wall.wallId,
+          side,
+          a: points[i],
+          b: points[(i + 1) % points.length],
+        })
       }
     }
   }
