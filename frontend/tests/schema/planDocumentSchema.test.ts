@@ -7,11 +7,16 @@ import { describe, expect, it } from 'vitest'
 import {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_THICKNESS_PRESETS_IN,
+  InvalidSchemaVersionError,
+  LEGACY_SCHEMA_VERSION,
   ORPHANED_WALL_REFERENCE_CODE,
+  UnsupportedSchemaVersionError,
   readPlanDocument,
 } from '@/schema/planDocumentSchema'
 import { CIRCUIT_PALETTE, validatePlan } from '@/utils/circuits'
 import { PRESET_LIST_NAMES, resolve as resolvePresetList } from '@/utils/presetLists'
+
+import { makeDocument } from '../helpers/planFactory'
 
 const currentDir = dirname(fileURLToPath(import.meta.url))
 /** The bundled demo plan, a genuine schema-v5 document (two directories above `frontend/`). */
@@ -83,7 +88,6 @@ describe('readPlanDocument document defaults', () => {
 
   it('falls back on every scalar field rather than failing the read', () => {
     const { document } = readPlanDocument({
-      schema_version: 'ten',
       viewport: 'somewhere',
       underlay: 42,
       catalog_defaults: ['outlet'],
@@ -444,7 +448,61 @@ describe('readPlanDocument on the bundled demo document', () => {
     expect(document.walls.every((wall) => !('junctions' in wall))).toBe(true)
   })
 
-  it('leaves the stored schema version alone: reading is not migrating', () => {
-    expect(document.schema_version).toBe(5)
+  it('stamps the current schema version: reading an old document IS migrating it', () => {
+    expect(document.schema_version).toBe(CURRENT_SCHEMA_VERSION)
+    expect(readPlanDocument(raw).fromVersion).toBe(5)
+    expect(readPlanDocument(raw).migrated).toBe(true)
+  })
+})
+
+describe('readPlanDocument schema version resolution', () => {
+  it('reads a document that carries no version as the legacy first version', () => {
+    const { document, fromVersion, migrated } = readPlanDocument({ walls: [] })
+
+    expect(fromVersion).toBe(LEGACY_SCHEMA_VERSION)
+    expect(migrated).toBe(true)
+    expect(document.schema_version).toBe(CURRENT_SCHEMA_VERSION)
+  })
+
+  it('reports an already-current document as not migrated', () => {
+    const { fromVersion, migrated } = readPlanDocument({
+      schema_version: CURRENT_SCHEMA_VERSION,
+      walls: [],
+    })
+
+    expect(fromVersion).toBe(CURRENT_SCHEMA_VERSION)
+    expect(migrated).toBe(false)
+  })
+
+  it('reads a document built by the test factory as already current', () => {
+    const { document, issues, fromVersion, migrated } = readPlanDocument(makeDocument())
+
+    expect(issues).toEqual([])
+    expect(fromVersion).toBe(CURRENT_SCHEMA_VERSION)
+    expect(migrated).toBe(false)
+    expect(document).toEqual(makeDocument())
+  })
+
+  it('truncates a fractional version to the shape it claims', () => {
+    expect(readPlanDocument({ schema_version: 5.9 }).fromVersion).toBe(5)
+    expect(readPlanDocument({ schema_version: 10.5 }).fromVersion).toBe(CURRENT_SCHEMA_VERSION)
+  })
+
+  it('clamps a version below the first one rather than refusing the document', () => {
+    expect(readPlanDocument({ schema_version: 0 }).fromVersion).toBe(LEGACY_SCHEMA_VERSION)
+    expect(readPlanDocument({ schema_version: -3 }).fromVersion).toBe(LEGACY_SCHEMA_VERSION)
+  })
+
+  it('refuses a document written by a newer build: documents are never downgraded', () => {
+    expect(() => readPlanDocument({ schema_version: CURRENT_SCHEMA_VERSION + 1 })).toThrow(
+      UnsupportedSchemaVersionError,
+    )
+    expect(() => readPlanDocument({ schema_version: 99 })).toThrow(/never downgraded/)
+  })
+
+  it('refuses a version that is not a finite number: it is the one field with no default', () => {
+    for (const schema_version of ['9', null, true, {}, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => readPlanDocument({ schema_version })).toThrow(InvalidSchemaVersionError)
+    }
   })
 })

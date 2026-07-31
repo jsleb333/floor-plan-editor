@@ -1,8 +1,10 @@
 """End-to-end tests of the plans API over the real app and a temporary database."""
 
+import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import aiosqlite
 import pytest
 from backend.app.main import create_app
 from httpx import ASGITransport, AsyncClient
@@ -587,3 +589,21 @@ class TestPlanRoutes:
 
         assert response.status_code == 200
         assert response.json()["archived_at"] is None
+
+    async def test_get_plan__when_stored_schema_version_is_not_a_number__returns_422(
+        self, client: AsyncClient, tmp_path: Path
+    ) -> None:
+        """A stored document whose version was hand-edited into a string cannot be read at all; the read must report it as unprocessable content rather than crash with a 500."""
+        created = await self._create_plan(client)
+        broken = {**created["document"], "schema_version": "10"}
+        async with aiosqlite.connect(tmp_path / "test.db") as connection:
+            await connection.execute(
+                "UPDATE plans SET document = ? WHERE id = ?",
+                (json.dumps(broken), created["id"]),
+            )
+            await connection.commit()
+
+        response = await client.get(f"/api/plans/{created['id']}")
+
+        assert response.status_code == 422
+        assert "not a number" in response.json()["detail"]

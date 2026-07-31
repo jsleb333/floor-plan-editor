@@ -1,0 +1,71 @@
+{
+  "name": "v8-entry-keeps-wall-color",
+  "description": "Entering at v8, after per-wall colours shipped: an explicit colour is content and survives, and the only slot still missing is the active mode.",
+  "input": {
+    "schema_version": 8,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "walls": [
+      {
+        "id": "wall-1",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 120.0, "y": 0.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "color": "#ff0000",
+        "junctions": []
+      }
+    ],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "underlay": null,
+    "devices": [],
+    "catalog_defaults": {},
+    "circuits": [],
+    "wires": [],
+    "control_links": [],
+    "active_tool": "wall",
+    "display_precision_in": null
+  },
+  "expected_document": {
+    "schema_version": 10,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "underlay": null,
+    "walls": [
+      {
+        "id": "wall-1",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 120.0, "y": 0.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "color": "#ff0000"
+      }
+    ],
+    "joints": [],
+    "guides": [],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "devices": [],
+    "catalog_defaults": {},
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "display_precision_in": null,
+    "preset_lists": {},
+    "circuits": [],
+    "wires": [],
+    "control_links": [],
+    "active_tool": "wall",
+    "active_mode": null
+  }
+}

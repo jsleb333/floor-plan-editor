@@ -6,6 +6,8 @@ import { useRouter } from 'vue-router'
 import PlanCard from '@/components/PlanCard.vue'
 import PlanCreateCard from '@/components/PlanCreateCard.vue'
 import { importPlanJson } from '@/export/jsonExport'
+import type { ImportedPlan } from '@/export/jsonExport'
+import { UnsupportedSchemaVersionError } from '@/schema/planDocumentSchema'
 import { usePlansStore } from '@/stores/plans'
 import type { Plan } from '@/types/plan'
 import { formatRelativeTime } from '@/utils/relativeTime'
@@ -15,6 +17,7 @@ const plansStore = usePlansStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
+const notice = ref<string | null>(null)
 const creating = ref(false)
 const confirmingDeleteId = ref<string | null>(null)
 const importInput = ref<HTMLInputElement | null>(null)
@@ -58,6 +61,29 @@ function triggerImport(): void {
   importInput.value?.click()
 }
 
+/**
+ * What an import that succeeded still has to tell the user, or `null` when the
+ * file read cleanly: how old the file was and how much had to be repaired. None
+ * of it blocks the import — the plan is created either way.
+ */
+function importNotice(imported: ImportedPlan, planName: string): string | null {
+  const parts: string[] = []
+  if (imported.migratedFrom !== null)
+    parts.push(`updated from an older format (v${imported.migratedFrom})`)
+  if (imported.issues.length === 1) parts.push('1 repair')
+  else if (imported.issues.length > 1) parts.push(`${imported.issues.length} repairs`)
+  if (parts.length === 0) return null
+  return `Imported “${planName}” with ${parts.join(' and ')}.`
+}
+
+/** A file from a newer build cannot be read at all: documents are never downgraded. */
+function importErrorMessage(err: unknown): string {
+  if (err instanceof UnsupportedSchemaVersionError) {
+    return 'This plan was made with a newer version of the app; update the app to open it.'
+  }
+  return messageFrom(err)
+}
+
 async function handleImportFile(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -65,12 +91,19 @@ async function handleImportFile(event: Event): Promise<void> {
   if (!file || importing.value) return
   importing.value = true
   error.value = null
+  notice.value = null
   try {
-    const { name, document } = await importPlanJson(file)
-    const plan = await plansStore.importPlan(name, document)
-    await router.push({ name: 'editor', params: { planId: plan.id } })
+    const imported = await importPlanJson(file)
+    const plan = await plansStore.importPlan(imported.name, imported.document)
+    notice.value = importNotice(imported, plan.name)
+    // A clean import opens straight in the editor; one with something to report
+    // stays here, because that is where the notice is rendered — the new plan is
+    // already in the list, one click away.
+    if (notice.value === null) {
+      await router.push({ name: 'editor', params: { planId: plan.id } })
+    }
   } catch (err) {
-    error.value = messageFrom(err)
+    error.value = importErrorMessage(err)
   } finally {
     importing.value = false
   }
@@ -143,6 +176,14 @@ onMounted(async () => {
         class="bg-danger-soft text-danger mb-6 rounded-md px-4 py-3 text-sm"
       >
         {{ error }}
+      </p>
+
+      <p
+        v-if="notice"
+        role="status"
+        class="bg-accent-soft text-accent mb-6 rounded-md px-4 py-3 text-sm"
+      >
+        {{ notice }}
       </p>
 
       <p v-if="loading" class="text-ink-muted py-16 text-center text-sm">Loading plans…</p>

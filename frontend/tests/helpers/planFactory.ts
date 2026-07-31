@@ -1,3 +1,4 @@
+import { CURRENT_SCHEMA_VERSION } from '@/schema/planDocumentSchema'
 import type {
   Circuit,
   ControlLink,
@@ -149,10 +150,15 @@ export function makeUnderlay(overrides: Partial<Underlay> = {}): Underlay {
   }
 }
 
-/** Builds a complete, empty v7 document; override any field per test. */
+/**
+ * Builds a complete, empty current-version document; override any field per
+ * test. The version tracks `CURRENT_SCHEMA_VERSION` rather than being pinned:
+ * a factory document must read back as already-current, or every test that
+ * pushes one through the read funnel would report it as migrated.
+ */
 export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocument {
   return {
-    schema_version: 7,
+    schema_version: CURRENT_SCHEMA_VERSION,
     viewport: { center: { x: 0, y: 0 }, zoom: 1 },
     underlay: null,
     walls: [],
@@ -176,7 +182,7 @@ export function makeDocument(overrides: Partial<PlanDocument> = {}): PlanDocumen
   }
 }
 
-/** Builds a full plan wrapping a (default empty) v7 document. */
+/** Builds a full plan wrapping a (default empty) current-version document. */
 export function makePlan(overrides: Partial<Plan> = {}): Plan {
   return {
     id: 'plan-1',

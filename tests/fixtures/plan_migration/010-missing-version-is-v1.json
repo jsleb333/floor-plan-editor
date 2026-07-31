@@ -1,0 +1,29 @@
+{
+  "name": "missing-version-is-v1",
+  "description": "The schema_version key only appeared once there was a second version; a document without it is the first version, migrated forward rather than refused.",
+  "input": {
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 }
+  },
+  "expected_document": {
+    "schema_version": 10,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "underlay": null,
+    "walls": [],
+    "joints": [],
+    "guides": [],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "devices": [],
+    "catalog_defaults": {},
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "display_precision_in": null,
+    "preset_lists": {},
+    "circuits": [],
+    "wires": [],
+    "control_links": [],
+    "active_tool": null,
+    "active_mode": null
+  }
+}

@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from backend.core.errors import (
     AssetNotFoundError,
     AssetTooLargeError,
+    InvalidSchemaVersionError,
     PlanNotArchivedError,
     PlanNotFoundError,
     RevisionConflictError,
@@ -25,6 +26,7 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(PlanNotArchivedError, _conflict_handler)
     app.add_exception_handler(AssetTooLargeError, _payload_too_large_handler)
     app.add_exception_handler(UnsupportedAssetTypeError, _unsupported_media_type_handler)
+    app.add_exception_handler(InvalidSchemaVersionError, _unprocessable_content_handler)
 
 
 def _not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
@@ -41,6 +43,13 @@ def _payload_too_large_handler(_request: Request, exc: Exception) -> JSONRespons
     """Map oversized upload errors to a 413 response."""
     return JSONResponse(
         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, content={"detail": str(exc)}
+    )
+
+
+def _unprocessable_content_handler(_request: Request, exc: Exception) -> JSONResponse:
+    """Map unreadable document content errors to a 422 response."""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": str(exc)}
     )
 
 

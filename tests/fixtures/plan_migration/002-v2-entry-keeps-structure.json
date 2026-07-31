@@ -1,0 +1,72 @@
+{
+  "name": "v2-entry-keeps-structure",
+  "description": "Entering at v2, the structure collections and thickness presets already exist and must survive verbatim; only the slots added by v3 onwards appear.",
+  "input": {
+    "schema_version": 2,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "walls": [],
+    "openings": [],
+    "stairs": [
+      {
+        "id": "st-1",
+        "origin": { "x": 330.0, "y": 6.0 },
+        "width_in": 52.0,
+        "length_in": 110.0,
+        "rotation_deg": 90.0,
+        "direction": "up"
+      }
+    ],
+    "labels": [
+      { "id": "lb-1", "position": { "x": 46.0, "y": 84.0 }, "text": "Chambre 1", "size_in": 8.0 }
+    ],
+    "dimensions": [
+      {
+        "id": "dm-1",
+        "p1": { "x": 0.0, "y": 0.0 },
+        "p2": { "x": 336.0, "y": 0.0 },
+        "offset_in": -36.0
+      }
+    ],
+    "thickness_presets_in": [12.0, 4.5, 3.5]
+  },
+  "expected_document": {
+    "schema_version": 10,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "underlay": null,
+    "walls": [],
+    "joints": [],
+    "guides": [],
+    "openings": [],
+    "stairs": [
+      {
+        "id": "st-1",
+        "origin": { "x": 330.0, "y": 6.0 },
+        "width_in": 52.0,
+        "length_in": 110.0,
+        "rotation_deg": 90.0,
+        "direction": "up"
+      }
+    ],
+    "labels": [
+      { "id": "lb-1", "position": { "x": 46.0, "y": 84.0 }, "text": "Chambre 1", "size_in": 8.0 }
+    ],
+    "dimensions": [
+      {
+        "id": "dm-1",
+        "p1": { "x": 0.0, "y": 0.0 },
+        "p2": { "x": 336.0, "y": 0.0 },
+        "offset_in": -36.0
+      }
+    ],
+    "devices": [],
+    "catalog_defaults": {},
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "display_precision_in": null,
+    "preset_lists": {},
+    "circuits": [],
+    "wires": [],
+    "control_links": [],
+    "active_tool": null,
+    "active_mode": null
+  }
+}
