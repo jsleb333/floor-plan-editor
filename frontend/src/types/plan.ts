@@ -1,14 +1,52 @@
+import type { z } from 'zod'
+
+import type {
+  circuitSchema,
+  controlLinkSchema,
+  cornerJointSchema,
+  deviceAttachmentSchema,
+  deviceSchema,
+  deviceTypeSchema,
+  dimensionSchema,
+  doorStyleSchema,
+  flushJointSchema,
+  flushPartySchema,
+  freeGuideSchema,
+  guideSchema,
+  jointSchema,
+  labelSchema,
+  openingSchema,
+  planDocumentSchema,
+  pointGuideSchema,
+  pointSchema,
+  stairsSchema,
+  surfaceGuideSchema,
+  teeJointSchema,
+  underlaySchema,
+  underlayTransformSchema,
+  viewportSchema,
+  wallBodyRefSchema,
+  wallEndRefSchema,
+  wallEndSchema,
+  wallSchema,
+  wallSideSchema,
+  wireSchema,
+} from '@/schema/planDocumentSchema'
+
+/**
+ * The shape of everything a plan persists. Every document type below is derived
+ * from its Zod schema in `@/schema/planDocumentSchema`, which mirrors the
+ * backend Pydantic model field for field — one definition of the document,
+ * enforced at both the type level and at read time. The records and derived
+ * results at the bottom of this file are not document shape and stay
+ * hand-written.
+ */
+
 /** A 2D point in world coordinates. Units are inches (one drawing unit = 1 inch). */
-export interface Point {
-  x: number
-  y: number
-}
+export type Point = z.output<typeof pointSchema>
 
 /** Persisted viewport state: world point at the screen centre and zoom factor (1 = 100%). */
-export interface Viewport {
-  center: Point
-  zoom: number
-}
+export type Viewport = z.output<typeof viewportSchema>
 
 /**
  * A wall chain stored as its reference polyline: vertices plus thickness and
@@ -18,78 +56,46 @@ export interface Viewport {
  * `color` (`#rrggbb`) overrides the drawn wall body; `null` takes the role
  * default derived from the plan's thickness presets (spec S1f).
  */
-export interface Wall {
-  id: string
-  vertices: Point[]
-  thickness_in: number
-  reference: 'center' | 'left' | 'right'
-  closed: boolean
-  locked_segments: number[]
-  color: string | null
-}
+export type Wall = z.output<typeof wallSchema>
 
 /** Which end of a wall chain a joint attaches to. */
-export type WallEnd = 'start' | 'end'
+export type WallEnd = z.output<typeof wallEndSchema>
 
 /** One of a wall's two surfaces, named relative to its drawing direction. */
-export type WallSide = 'left' | 'right'
+export type WallSide = z.output<typeof wallSideSchema>
 
 /** One wall end participating in a joint. */
-export interface WallEndRef {
-  wall_id: string
-  end: WallEnd
-}
+export type WallEndRef = z.output<typeof wallEndRefSchema>
 
 /** A wall body a joint passes through, identified by the segment it crosses. */
-export interface WallBodyRef {
-  wall_id: string
-  segment_index: number
-}
+export type WallBodyRef = z.output<typeof wallBodyRefSchema>
 
 /** One party of a flush relation: a wall end or body, and which of its surfaces is shared. */
-export interface FlushParty {
-  ref: WallEndRef | WallBodyRef
-  side: WallSide
-}
+export type FlushParty = z.output<typeof flushPartySchema>
 
 /**
  * Wall ends whose spines meet at one point (2 or more). Faces resolve pairwise
  * in angular order, so this covers L-corners, three-way meetings and a chain
  * split across separate walls alike. `rule` 'square' suppresses the mitre.
  */
-export interface CornerJoint {
-  id: string
-  kind: 'corner'
-  ends: WallEndRef[]
-  rule: 'miter' | 'square'
-}
+export type CornerJoint = z.output<typeof cornerJointSchema>
 
 /** One wall end abutting another wall's body. The host's own geometry is unaffected. */
-export interface TeeJoint {
-  id: string
-  kind: 'tee'
-  end: WallEndRef
-  host: WallBodyRef
-}
+export type TeeJoint = z.output<typeof teeJointSchema>
 
 /**
  * A declaration that two surfaces are ONE surface (`docs/WALL_NETWORK.md` §4).
  * The parties' spines are parallel and offset by half the thickness
  * difference, which is what makes walls of unequal thickness read as one body.
  */
-export interface FlushJoint {
-  id: string
-  kind: 'flush'
-  a: FlushParty
-  b: FlushParty
-}
+export type FlushJoint = z.output<typeof flushJointSchema>
 
 /**
  * A stored relation between walls (`docs/WALL_NETWORK.md` §3). `corner` and
  * `tee` are topology — they assert coincidence, which the constraint solver
  * maintains. `flush` is the only kind that may offset a spine.
  */
-export type Joint = CornerJoint | TeeJoint | FlushJoint
+export type Joint = z.output<typeof jointSchema>
 
 /**
  * A guide anchored to a wall surface (spec S9): the line parallel to the named
@@ -97,33 +103,16 @@ export type Joint = CornerJoint | TeeJoint | FlushJoint
  * the wall body). Stored as a relation, not a coordinate, so the guide keeps
  * its offset when the wall moves or changes thickness.
  */
-export interface SurfaceGuide {
-  id: string
-  kind: 'surface'
-  wall_id: string
-  segment_index: number
-  side: WallSide
-  offset_in: number
-}
+export type SurfaceGuide = z.output<typeof surfaceGuideSchema>
 
 /**
  * A guide through a wall end (spec S9), at `angle_deg` from the +x axis toward
  * +y. Anchored to the point, so it follows that corner through edits.
  */
-export interface PointGuide {
-  id: string
-  kind: 'point'
-  anchor: WallEndRef
-  angle_deg: number
-}
+export type PointGuide = z.output<typeof pointGuideSchema>
 
 /** A construction line anchored to nothing: through `origin` at `angle_deg` (spec S9). */
-export interface FreeGuide {
-  id: string
-  kind: 'free'
-  origin: Point
-  angle_deg: number
-}
+export type FreeGuide = z.output<typeof freeGuideSchema>
 
 /**
  * An infinite construction line placed with the tape measure (spec S9). The
@@ -131,102 +120,49 @@ export interface FreeGuide {
  * so the geometry re-derives them on every edit
  * (`frontend/src/utils/geometry/network/guideLine.ts`).
  */
-export type Guide = SurfaceGuide | PointGuide | FreeGuide
+export type Guide = z.output<typeof guideSchema>
 
 /**
  * The leaf configuration of a door (spec S4). Mirrors the backend `Opening.style`
  * union; it decides which of `hinge`/`swing` the drawn symbol reads.
  */
-export type DoorStyle = 'swing' | 'double' | 'sliding' | 'bifold' | 'double_bifold' | 'pocket'
+export type DoorStyle = z.output<typeof doorStyleSchema>
 
 /**
  * A door or window hosted on a wall segment. `t` is the opening centre in inches
  * along the segment's reference line. `style`, `hinge` and `swing` are meaningful
  * for doors only.
  */
-export interface Opening {
-  id: string
-  kind: 'door' | 'window'
-  wall_id: string
-  segment_index: number
-  t: number
-  width_in: number
-  style: DoorStyle
-  hinge: 'left' | 'right'
-  swing: 'in' | 'out'
-}
+export type Opening = z.output<typeof openingSchema>
 
 /** A rectangular stair run anchored at `origin`, rotated by `rotation_deg` degrees. */
-export interface Stairs {
-  id: string
-  origin: Point
-  width_in: number
-  length_in: number
-  rotation_deg: number
-  direction: 'up' | 'down'
-}
+export type Stairs = z.output<typeof stairsSchema>
 
 /** A free-placed text label; `size_in` is the font size in inches of plan space. */
-export interface Label {
-  id: string
-  position: Point
-  text: string
-  size_in: number
-}
+export type Label = z.output<typeof labelSchema>
 
 /** A persistent dimension line between two points, drawn offset by `offset_in` inches. */
-export interface Dimension {
-  id: string
-  p1: Point
-  p2: Point
-  offset_in: number
-}
+export type Dimension = z.output<typeof dimensionSchema>
 
 /**
  * Placement of the underlay image in world space: the world position of the
  * image's top-left pixel, a rotation about that origin, and the calibration
  * scale in world INCHES per image PIXEL.
  */
-export interface UnderlayTransform {
-  origin: Point
-  rotation_deg: number
-  scale: number
-}
+export type UnderlayTransform = z.output<typeof underlayTransformSchema>
 
 /**
  * The catalog of placeable electrical device types (spec §5.4, D5).
  * Mirrors the backend `DeviceType` union exactly.
  */
-export type DeviceType =
-  | 'outlet'
-  | 'outlet_gfci'
-  | 'switch'
-  | 'switch_3way'
-  | 'ceiling_light'
-  | 'wall_light'
-  | 'baseboard_heater'
-  | 'thermostat'
-  | 'water_heater'
-  | 'air_exchanger'
-  | 'central_vacuum'
-  | 'vacuum_inlet'
-  | 'smoke_detector'
-  | 'network_jack'
-  | 'panel'
-  | 'feed_up'
-  | 'feed_down'
+export type DeviceType = z.output<typeof deviceTypeSchema>
 
 /**
  * Parametric host address of a wall-mounted device (spec §4.2). `t` is the
  * distance in inches from the segment start along the reference line; `side`
  * is the wall face the device sits on. World position is always derived.
  */
-export interface DeviceAttachment {
-  wall_id: string
-  segment_index: number
-  t: number
-  side: 'left' | 'right'
-}
+export type DeviceAttachment = z.output<typeof deviceAttachmentSchema>
 
 /**
  * An electrical device placed on the plan (spec §5.4, §8). It carries EITHER a
@@ -237,18 +173,7 @@ export interface DeviceAttachment {
  * into the room (`null` = that dimension of the footprint applies, and both are
  * meaningless for symbolic types that have no real size).
  */
-export interface Device {
-  id: string
-  type: DeviceType
-  attachment: DeviceAttachment | null
-  position: Point | null
-  rotation_deg: number
-  label: string | null
-  load_w: number | null
-  length_in: number | null
-  depth_in: number | null
-  notes: string | null
-}
+export type Device = z.output<typeof deviceSchema>
 
 /**
  * A named, colour-coded group of devices protected by one breaker (spec C1/C2).
@@ -256,49 +181,27 @@ export interface Device {
  * carries load, while `data`/`low_voltage` pseudo-circuits carry none (spec C3).
  * Mirrors the backend `Circuit` model.
  */
-export interface Circuit {
-  id: string
-  name: string
-  color: string
-  breaker_a: number
-  voltage_v: 120 | 240
-  kind: 'power' | 'data' | 'low_voltage'
-}
+export type Circuit = z.output<typeof circuitSchema>
 
 /**
  * A curved connection between two devices on one circuit (spec §5.6, §8).
  * Endpoints reference device ids (never coordinates) so wires follow their
  * devices; only the interior cubic-Bézier `control_points` are absolute.
  */
-export interface Wire {
-  id: string
-  circuit_id: string
-  from_device_id: string
-  to_device_id: string
-  control_points: Point[]
-}
+export type Wire = z.output<typeof wireSchema>
 
 /**
  * A documentary link from a switch to what it controls (spec D6). `controls`
  * links a switch to a light/device; `three_way_pair` pairs two 3-way switches.
  * No load impact; rendered as a dashed arc on hover/selection only.
  */
-export interface ControlLink {
-  id: string
-  switch_id: string
-  target_id: string
-  kind: 'controls' | 'three_way_pair'
-}
+export type ControlLink = z.output<typeof controlLinkSchema>
 
-/** A raster image (photo/scan) displayed under the plan for tracing (spec §5.2). */
-export interface Underlay {
-  /** Server-stored asset id (see `POST /api/assets`). */
-  image_ref: string
-  transform: UnderlayTransform
-  opacity: number
-  locked: boolean
-  visible: boolean
-}
+/**
+ * A raster image (photo/scan) displayed under the plan for tracing (spec §5.2).
+ * `image_ref` is the stored asset id (see `POST /api/assets`).
+ */
+export type Underlay = z.output<typeof underlaySchema>
 
 /**
  * The versioned plan document — everything the editor persists via autosave.
@@ -315,51 +218,12 @@ export interface Underlay {
  * wall thickness presets and tracing underlay. `preset_lists` is additive
  * (no schema bump): it generalizes the wall-thickness-presets idea to any
  * plan-grown option-button list.
+ *
+ * Every field's type, constraint and default lives on `planDocumentSchema`,
+ * which also documents what happens to each one when a stored value is
+ * unreadable.
  */
-export interface PlanDocument {
-  schema_version: number
-  viewport: Viewport
-  underlay: Underlay | null
-  walls: Wall[]
-  /**
-   * How the walls connect (`docs/WALL_NETWORK.md`). Empty on a plan that has
-   * walls means "not derived yet" — the editor rebuilds it from geometry on
-   * open, which is also how a v7 document arrives.
-   */
-  joints: Joint[]
-  /**
-   * Infinite construction lines placed with the tape measure (spec S9). The
-   * anchored kinds carry a relation rather than a position, so the geometry
-   * resolves them from the walls they name on every edit.
-   */
-  guides: Guide[]
-  openings: Opening[]
-  stairs: Stairs[]
-  labels: Label[]
-  dimensions: Dimension[]
-  devices: Device[]
-  thickness_presets_in: number[]
-  /** Plan-level per-type default load in watts (spec §5.9 tier 2). */
-  catalog_defaults: Record<string, number>
-  /** Per-plan display precision override in inches; `null` falls back to 1/8" (spec §5.9 tier 2). */
-  display_precision_in: number | null
-  /**
-   * Plan-grown option-button lists, keyed by a canonical name (spec §5.9 tier
-   * 2, `frontend/src/utils/presetLists.ts`) — e.g. `door_width`. A key absent
-   * from the map means "use that list's built-in defaults".
-   */
-  preset_lists: Record<string, number[]>
-  /** Colour-coded circuits fed from a source device (spec §5.5). */
-  circuits: Circuit[]
-  /** Curved connections wiring devices into circuits (spec §5.6). */
-  wires: Wire[]
-  /** Documentary switch-to-target control links (spec D6). */
-  control_links: ControlLink[]
-  /** Tool armed when the session was last saved, restored on open (spec P4/E9). */
-  active_tool: string | null
-  /** Workspace mode last active, restored on open (spec P4/E10); frontend owns the valid ids. */
-  active_mode: string | null
-}
+export type PlanDocument = z.output<typeof planDocumentSchema>
 
 /** The computed electrical state of one circuit (spec C4/W4). Mirrors backend `CircuitLoad`. */
 export interface CircuitLoad {
