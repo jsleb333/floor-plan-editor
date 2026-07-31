@@ -1,0 +1,217 @@
+{
+  "name": "v5-entry-electrical-layout",
+  "description": "Entering at v5, the era the bundled demo plan was written in: the whole electrical layout survives, a control link that predates its kind field gets the documentary default, and only the v6-to-v10 slots appear.",
+  "input": {
+    "schema_version": 5,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "walls": [
+      {
+        "id": "wall-1",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 120.0, "y": 0.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "junctions": []
+      }
+    ],
+    "openings": [
+      {
+        "id": "d-1",
+        "kind": "door",
+        "wall_id": "wall-1",
+        "segment_index": 0,
+        "t": 60.0,
+        "width_in": 30.0,
+        "hinge": "left",
+        "swing": "in"
+      }
+    ],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "underlay": null,
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "attachment": { "wall_id": "wall-1", "segment_index": 0, "t": 6.0, "side": "left" },
+        "position": null,
+        "rotation_deg": 0.0,
+        "label": "Panneau",
+        "load_w": null,
+        "notes": null
+      },
+      {
+        "id": "out-1",
+        "type": "outlet",
+        "attachment": { "wall_id": "wall-1", "segment_index": 0, "t": 12.0, "side": "left" },
+        "position": null,
+        "rotation_deg": 0.0,
+        "label": null,
+        "load_w": null,
+        "notes": null
+      },
+      {
+        "id": "sw-1",
+        "type": "switch",
+        "attachment": { "wall_id": "wall-1", "segment_index": 0, "t": 24.0, "side": "left" },
+        "position": null,
+        "rotation_deg": 0.0,
+        "label": null,
+        "load_w": null,
+        "notes": null
+      },
+      {
+        "id": "lt-1",
+        "type": "ceiling_light",
+        "attachment": null,
+        "position": { "x": 60.0, "y": 60.0 },
+        "rotation_deg": 0.0,
+        "label": null,
+        "load_w": null,
+        "notes": null
+      }
+    ],
+    "catalog_defaults": {},
+    "circuits": [
+      {
+        "id": "c-1",
+        "name": "Prises",
+        "color": "#2563eb",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
+      }
+    ],
+    "wires": [
+      {
+        "id": "wr-1",
+        "circuit_id": "c-1",
+        "from_device_id": "panel",
+        "to_device_id": "out-1",
+        "control_points": [{ "x": 9.0, "y": 6.0 }]
+      }
+    ],
+    "control_links": [{ "id": "cl-1", "switch_id": "sw-1", "target_id": "lt-1" }]
+  },
+  "expected_document": {
+    "schema_version": 10,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "underlay": null,
+    "walls": [
+      {
+        "id": "wall-1",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 120.0, "y": 0.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "color": null
+      }
+    ],
+    "joints": [],
+    "guides": [],
+    "openings": [
+      {
+        "id": "d-1",
+        "kind": "door",
+        "wall_id": "wall-1",
+        "segment_index": 0,
+        "t": 60.0,
+        "width_in": 30.0,
+        "style": "swing",
+        "hinge": "left",
+        "swing": "in"
+      }
+    ],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "devices": [
+      {
+        "id": "panel",
+        "type": "panel",
+        "attachment": { "wall_id": "wall-1", "segment_index": 0, "t": 6.0, "side": "left" },
+        "position": null,
+        "rotation_deg": 0.0,
+        "label": "Panneau",
+        "load_w": null,
+        "length_in": null,
+        "depth_in": null,
+        "notes": null
+      },
+      {
+        "id": "out-1",
+        "type": "outlet",
+        "attachment": { "wall_id": "wall-1", "segment_index": 0, "t": 12.0, "side": "left" },
+        "position": null,
+        "rotation_deg": 0.0,
+        "label": null,
+        "load_w": null,
+        "length_in": null,
+        "depth_in": null,
+        "notes": null
+      },
+      {
+        "id": "sw-1",
+        "type": "switch",
+        "attachment": { "wall_id": "wall-1", "segment_index": 0, "t": 24.0, "side": "left" },
+        "position": null,
+        "rotation_deg": 0.0,
+        "label": null,
+        "load_w": null,
+        "length_in": null,
+        "depth_in": null,
+        "notes": null
+      },
+      {
+        "id": "lt-1",
+        "type": "ceiling_light",
+        "attachment": null,
+        "position": { "x": 60.0, "y": 60.0 },
+        "rotation_deg": 0.0,
+        "label": null,
+        "load_w": null,
+        "length_in": null,
+        "depth_in": null,
+        "notes": null
+      }
+    ],
+    "catalog_defaults": {},
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "display_precision_in": null,
+    "preset_lists": {},
+    "circuits": [
+      {
+        "id": "c-1",
+        "name": "Prises",
+        "color": "#2563eb",
+        "breaker_a": 15,
+        "voltage_v": 120,
+        "kind": "power"
+      }
+    ],
+    "wires": [
+      {
+        "id": "wr-1",
+        "circuit_id": "c-1",
+        "from_device_id": "panel",
+        "to_device_id": "out-1",
+        "control_points": [{ "x": 9.0, "y": 6.0 }]
+      }
+    ],
+    "control_links": [
+      { "id": "cl-1", "switch_id": "sw-1", "target_id": "lt-1", "kind": "controls" }
+    ],
+    "active_tool": null,
+    "active_mode": null
+  }
+}

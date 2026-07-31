@@ -1,0 +1,9 @@
+{
+  "name": "version-above-current-is-refused",
+  "description": "One version past the current one is already too far: migration only runs forward, so a document from a newer build is refused rather than downgraded by dropping what this build does not understand.",
+  "input": {
+    "schema_version": 11,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 }
+  },
+  "expected_error": "unsupported_schema_version"
+}

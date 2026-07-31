@@ -49,6 +49,21 @@ class UnsupportedSchemaVersionError(Exception):
         )
 
 
+class InvalidSchemaVersionError(Exception):
+    """Raised when a stored document's schema version is present but is not a number."""
+
+    def __init__(self, version: object) -> None:
+        """Build the error message from the unreadable version value.
+
+        Args:
+            version: Value found under the document's ``schema_version`` key.
+        """
+        super().__init__(
+            f"Document schema version {version!r} is not a number; "
+            f"which defaults a document is missing cannot be guessed from it."
+        )
+
+
 class AssetNotFoundError(Exception):
     """Raised when an operation targets an asset id that does not exist."""
 

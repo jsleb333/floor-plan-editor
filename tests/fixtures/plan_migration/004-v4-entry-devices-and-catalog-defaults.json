@@ -1,0 +1,89 @@
+{
+  "name": "v4-entry-devices-and-catalog-defaults",
+  "description": "Entering at v4: the devices and their plan-level default loads already exist and survive, while the per-device size overrides added later (length_in, depth_in) appear unset.",
+  "input": {
+    "schema_version": 4,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "walls": [
+      {
+        "id": "wall-1",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 120.0, "y": 0.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "junctions": []
+      }
+    ],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "underlay": null,
+    "devices": [
+      {
+        "id": "out-1",
+        "type": "outlet",
+        "attachment": { "wall_id": "wall-1", "segment_index": 0, "t": 12.0, "side": "left" },
+        "position": null,
+        "rotation_deg": 0.0,
+        "label": null,
+        "load_w": null,
+        "notes": null
+      }
+    ],
+    "catalog_defaults": { "baseboard_heater": 750.0 }
+  },
+  "expected_document": {
+    "schema_version": 10,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "underlay": null,
+    "walls": [
+      {
+        "id": "wall-1",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 120.0, "y": 0.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "color": null
+      }
+    ],
+    "joints": [],
+    "guides": [],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "devices": [
+      {
+        "id": "out-1",
+        "type": "outlet",
+        "attachment": { "wall_id": "wall-1", "segment_index": 0, "t": 12.0, "side": "left" },
+        "position": null,
+        "rotation_deg": 0.0,
+        "label": null,
+        "load_w": null,
+        "length_in": null,
+        "depth_in": null,
+        "notes": null
+      }
+    ],
+    "catalog_defaults": { "baseboard_heater": 750.0 },
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "display_precision_in": null,
+    "preset_lists": {},
+    "circuits": [],
+    "wires": [],
+    "control_links": [],
+    "active_tool": null,
+    "active_mode": null
+  }
+}

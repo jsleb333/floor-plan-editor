@@ -22,6 +22,55 @@ import { CIRCUIT_PALETTE } from '@/utils/circuits'
 /** The document shape this module writes; older documents are read and filled in. */
 export const CURRENT_SCHEMA_VERSION = 10
 
+/**
+ * The version a document that carries no `schema_version` is read as, mirroring
+ * `LEGACY_SCHEMA_VERSION` in `backend/constants.py`: the field only appeared
+ * once there was a second version to distinguish.
+ */
+export const LEGACY_SCHEMA_VERSION = 1
+
+/** Error `code` of {@link UnsupportedSchemaVersionError}. */
+export const UNSUPPORTED_SCHEMA_VERSION_CODE = 'unsupported_schema_version'
+
+/** Error `code` of {@link InvalidSchemaVersionError}. */
+export const INVALID_SCHEMA_VERSION_CODE = 'invalid_schema_version'
+
+/**
+ * Thrown when a document claims a schema version above
+ * {@link CURRENT_SCHEMA_VERSION}. Mirrors the backend
+ * `UnsupportedSchemaVersionError`: forward migration is the only direction, so a
+ * document written by a newer build cannot be read by this one.
+ */
+export class UnsupportedSchemaVersionError extends Error {
+  readonly code = UNSUPPORTED_SCHEMA_VERSION_CODE
+
+  constructor(readonly version: number) {
+    super(
+      `Document schema version ${version} is newer than the supported version ` +
+        `${CURRENT_SCHEMA_VERSION}; documents are never downgraded.`,
+    )
+    this.name = 'UnsupportedSchemaVersionError'
+  }
+}
+
+/**
+ * Thrown when a document's `schema_version` is present but is not a finite
+ * number. Unlike every other field, the version cannot fall back: which
+ * defaults a document is missing is exactly what it tells us, so guessing it
+ * would silently mis-read the rest.
+ */
+export class InvalidSchemaVersionError extends Error {
+  readonly code = INVALID_SCHEMA_VERSION_CODE
+
+  constructor(readonly value: unknown) {
+    super(
+      `Document schema version must be a number; read ${typeof value} ` +
+        `'${String(value)}' instead.`,
+    )
+    this.name = 'InvalidSchemaVersionError'
+  }
+}
+
 /** Every user-settable colour in a document is a `#rrggbb` string (spec S1f/C2). */
 export const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/
 
@@ -129,7 +178,7 @@ export const flushJointSchema = z.object({
  * `kind` carries no fallback on purpose: a joint whose discriminator is missing
  * or unknown says nothing about which walls relate how, so it is dropped. The
  * editor rebuilds joints from geometry when the collection ends up empty
- * (`healJoints` in `@/stores/editor`).
+ * (`healJoints` in `@/schema/jointHealing`).
  */
 export const jointSchema = z.discriminatedUnion('kind', [
   cornerJointSchema,
@@ -408,8 +457,13 @@ export interface DocumentIssue {
 
 /** A document read from untrusted JSON, plus everything that had to be repaired. */
 export interface PlanDocumentReadResult {
+  /** The document, always stamped to {@link CURRENT_SCHEMA_VERSION}. */
   document: ParsedPlanDocument
   issues: DocumentIssue[]
+  /** The version the document arrived as; {@link LEGACY_SCHEMA_VERSION} when it carried none. */
+  fromVersion: number
+  /** Whether the document arrived older than the current version, i.e. was brought forward. */
+  migrated: boolean
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -579,13 +633,47 @@ function dropWallOrphans(
 }
 
 /**
+ * The version an incoming document is read as, mirroring the resolution in
+ * `PlanMigrator.migrate` (`backend/core/plan_migrator.py`): an absent key means
+ * the schema predates versioning, a fractional version is truncated to the
+ * version whose shape it claims, and a version below the first one is read as
+ * that first one rather than refused — a `0` says "before all of this", which
+ * is what version 1 already means.
+ *
+ * @param raw The document's `schema_version` value, or `undefined` when absent.
+ * @returns The resolved source version, between {@link LEGACY_SCHEMA_VERSION}
+ *   and {@link CURRENT_SCHEMA_VERSION} inclusive.
+ * @throws {InvalidSchemaVersionError} When the value is present but not a finite number.
+ * @throws {UnsupportedSchemaVersionError} When the version is above the current one.
+ */
+function resolveSchemaVersion(raw: unknown): number {
+  if (raw === undefined) return LEGACY_SCHEMA_VERSION
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) throw new InvalidSchemaVersionError(raw)
+  const version = Math.trunc(raw)
+  if (version > CURRENT_SCHEMA_VERSION) throw new UnsupportedSchemaVersionError(version)
+  return Math.max(version, LEGACY_SCHEMA_VERSION)
+}
+
+/**
  * Reads a plan document out of untrusted JSON, repairing rather than rejecting
  * (spec X1). Fields absent from an older document are filled with their
  * defaults, salvageable values fall back, unreadable collection elements are
  * dropped, and anything the drops left dangling goes with them. The returned
  * `issues` are what a caller shows the user as "we repaired N things".
  *
+ * This is also the whole forward migration: every step the backend's
+ * `PlanMigrator` performs is "give this new field its default", which is what
+ * the `.default()`s below already do on read, and the two steps that instead
+ * remove data (a pre-v10 wall's `junctions`) are covered by `z.object`
+ * dropping unknown keys. The result is therefore stamped to
+ * {@link CURRENT_SCHEMA_VERSION}, with `fromVersion` reporting where it came
+ * from — reading an old document IS migrating it. What is deliberately NOT done
+ * here is rebuilding derived geometry: see `healJoints` in
+ * `@/schema/jointHealing`.
+ *
  * @param raw The result of `JSON.parse` on a stored or imported document.
+ * @throws {InvalidSchemaVersionError} When `schema_version` is present but not a finite number.
+ * @throws {UnsupportedSchemaVersionError} When the document is newer than this build.
  */
 export function readPlanDocument(raw: unknown): PlanDocumentReadResult {
   const issues: DocumentIssue[] = []
@@ -597,8 +685,10 @@ export function readPlanDocument(raw: unknown): PlanDocumentReadResult {
     })
   }
   const source: Record<string, unknown> = isRecord(raw) ? raw : {}
+  const fromVersion = resolveSchemaVersion(source.schema_version)
   const document: ParsedPlanDocument = {
     ...documentScalarsSchema.parse(source),
+    schema_version: CURRENT_SCHEMA_VERSION,
     walls: parseCollection(wallSchema, source.walls, 'walls', issues),
     joints: parseCollection(jointSchema, source.joints, 'joints', issues),
     guides: parseCollection(guideSchema, source.guides, 'guides', issues),
@@ -616,5 +706,10 @@ export function readPlanDocument(raw: unknown): PlanDocumentReadResult {
       issues,
     ),
   }
-  return { document: dropWallOrphans(document, issues), issues }
+  return {
+    document: dropWallOrphans(document, issues),
+    issues,
+    fromVersion,
+    migrated: fromVersion < CURRENT_SCHEMA_VERSION,
+  }
 }

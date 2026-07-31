@@ -1,0 +1,30 @@
+{
+  "name": "version-zero-clamped-to-v1",
+  "description": "A version below the first one says \"before all of this\", which is what version 1 already means: it is read as v1 and walked forward, not refused — refusing would trade a stored typo for an unopenable plan.",
+  "input": {
+    "schema_version": 0,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 }
+  },
+  "expected_document": {
+    "schema_version": 10,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "underlay": null,
+    "walls": [],
+    "joints": [],
+    "guides": [],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "devices": [],
+    "catalog_defaults": {},
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "display_precision_in": null,
+    "preset_lists": {},
+    "circuits": [],
+    "wires": [],
+    "control_links": [],
+    "active_tool": null,
+    "active_mode": null
+  }
+}

@@ -3,7 +3,7 @@
 from typing import Any
 
 import pytest
-from backend.core.errors import UnsupportedSchemaVersionError
+from backend.core.errors import InvalidSchemaVersionError, UnsupportedSchemaVersionError
 from backend.core.plan_migrator import PlanMigrator
 from backend.models.plan_document import PlanDocument
 
@@ -309,6 +309,49 @@ class TestPlanMigrator:
 
         assert did_migrate is False
         assert migrated == raw
+
+    @pytest.mark.parametrize("stored_version", [0, -3, 0.5])
+    def test_migrate__when_version_is_below_the_first_one__reads_it_as_the_first_one(
+        self, migrator: PlanMigrator, stored_version: float
+    ) -> None:
+        """A version below 1 says "before all of this", which is what version 1 already means: it walks forward from there rather than failing the step lookup and taking the whole read down with it."""
+        raw = _v1_document()
+        raw["schema_version"] = stored_version
+
+        migrated, did_migrate = migrator.migrate(raw)
+
+        assert did_migrate is True
+        assert migrated["schema_version"] == 10
+
+    def test_migrate__when_version_is_fractional__truncates_to_the_shape_it_claims(
+        self, migrator: PlanMigrator
+    ) -> None:
+        """A version stored as a float names the shape it is at, not the one it is heading for."""
+        raw = _v5_document()
+        raw["schema_version"] = 5.9
+
+        migrated, _ = migrator.migrate(raw)
+
+        assert migrated == {
+            **_v5_document(),
+            "schema_version": 10,
+            "active_tool": None,
+            "display_precision_in": None,
+            "active_mode": None,
+            "joints": [],
+            "guides": [],
+        }
+
+    @pytest.mark.parametrize("stored_version", ["5", None, True, [10], {"v": 10}, float("nan")])
+    def test_migrate__when_version_is_not_a_number__raises_invalid_schema_version(
+        self, migrator: PlanMigrator, stored_version: Any
+    ) -> None:
+        """The version is the one field with no sane default — which defaults the document is missing is exactly what it tells us — so an unreadable one is a domain error the API maps to 422, not a ValueError crashing the read."""
+        raw = _v1_document()
+        raw["schema_version"] = stored_version
+
+        with pytest.raises(InvalidSchemaVersionError):
+            migrator.migrate(raw)
 
     def test_migrate__when_version_is_above_current__raises_unsupported_version(
         self, migrator: PlanMigrator

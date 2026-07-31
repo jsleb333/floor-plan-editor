@@ -1,0 +1,138 @@
+{
+  "name": "v10-already-current-passes-through",
+  "description": "A document written by this version must come out byte-for-byte identical: no step runs, nothing is defaulted, and the joints and guides that only v10 can hold survive intact.",
+  "input": {
+    "schema_version": 10,
+    "viewport": { "center": { "x": 0.0, "y": 0.0 }, "zoom": 1.0 },
+    "underlay": null,
+    "walls": [
+      {
+        "id": "wall-1",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 120.0, "y": 0.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "color": null
+      },
+      {
+        "id": "wall-2",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 0.0, "y": 96.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "color": "#0f172a"
+      }
+    ],
+    "joints": [
+      {
+        "kind": "corner",
+        "id": "j-1",
+        "ends": [
+          { "wall_id": "wall-1", "end": "start" },
+          { "wall_id": "wall-2", "end": "start" }
+        ],
+        "rule": "miter"
+      }
+    ],
+    "guides": [
+      {
+        "kind": "surface",
+        "id": "g-1",
+        "wall_id": "wall-1",
+        "segment_index": 0,
+        "side": "left",
+        "offset_in": 12.0
+      },
+      { "kind": "free", "id": "g-2", "origin": { "x": 0.0, "y": 0.0 }, "angle_deg": 45.0 }
+    ],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "devices": [],
+    "catalog_defaults": {},
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "display_precision_in": 0.125,
+    "preset_lists": { "door_width": [30.0, 32.0, 36.0] },
+    "circuits": [],
+    "wires": [],
+    "control_links": [],
+    "active_tool": "select",
+    "active_mode": "structure"
+  },
+  "expected_document": {
+    "schema_version": 10,
+    "viewport": { "center": { "x": 0.0, "y": 0.0 }, "zoom": 1.0 },
+    "underlay": null,
+    "walls": [
+      {
+        "id": "wall-1",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 120.0, "y": 0.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "color": null
+      },
+      {
+        "id": "wall-2",
+        "vertices": [
+          { "x": 0.0, "y": 0.0 },
+          { "x": 0.0, "y": 96.0 }
+        ],
+        "thickness_in": 3.5,
+        "reference": "center",
+        "closed": false,
+        "locked_segments": [],
+        "color": "#0f172a"
+      }
+    ],
+    "joints": [
+      {
+        "kind": "corner",
+        "id": "j-1",
+        "ends": [
+          { "wall_id": "wall-1", "end": "start" },
+          { "wall_id": "wall-2", "end": "start" }
+        ],
+        "rule": "miter"
+      }
+    ],
+    "guides": [
+      {
+        "kind": "surface",
+        "id": "g-1",
+        "wall_id": "wall-1",
+        "segment_index": 0,
+        "side": "left",
+        "offset_in": 12.0
+      },
+      { "kind": "free", "id": "g-2", "origin": { "x": 0.0, "y": 0.0 }, "angle_deg": 45.0 }
+    ],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "devices": [],
+    "catalog_defaults": {},
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "display_precision_in": 0.125,
+    "preset_lists": { "door_width": [30.0, 32.0, 36.0] },
+    "circuits": [],
+    "wires": [],
+    "control_links": [],
+    "active_tool": "select",
+    "active_mode": "structure"
+  }
+}

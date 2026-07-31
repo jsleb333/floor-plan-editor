@@ -1,0 +1,43 @@
+{
+  "name": "v3-entry-fills-underlay-defaults",
+  "description": "Entering at v3 with an underlay that names only its asset: the placement, opacity and layer flags are optional and must resolve to the same defaults on both sides.",
+  "input": {
+    "schema_version": 3,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "walls": [],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "underlay": { "image_ref": "asset-1" }
+  },
+  "expected_document": {
+    "schema_version": 10,
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 },
+    "underlay": {
+      "image_ref": "asset-1",
+      "transform": { "origin": { "x": 0.0, "y": 0.0 }, "rotation_deg": 0.0, "scale": 1.0 },
+      "opacity": 0.4,
+      "locked": false,
+      "visible": true
+    },
+    "walls": [],
+    "joints": [],
+    "guides": [],
+    "openings": [],
+    "stairs": [],
+    "labels": [],
+    "dimensions": [],
+    "devices": [],
+    "catalog_defaults": {},
+    "thickness_presets_in": [12.0, 4.5, 3.5],
+    "display_precision_in": null,
+    "preset_lists": {},
+    "circuits": [],
+    "wires": [],
+    "control_links": [],
+    "active_tool": null,
+    "active_mode": null
+  }
+}

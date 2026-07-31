@@ -4,6 +4,7 @@ import { computed, ref, shallowRef } from 'vue'
 import { getPlan, savePlanDocument, updatePlanMetadata } from '@/persistence/plans'
 import { ApiError } from '@/persistence/ports'
 import type { PlanMetadataPatch } from '@/persistence/plans'
+import { healJoints } from '@/schema/jointHealing'
 import type {
   Circuit,
   ControlLink,
@@ -597,28 +598,6 @@ export const useEditorStore = defineStore('editor', () => {
   const displayPrecisionIn = computed<number>(
     () => document.value?.display_precision_in ?? DEFAULT_DISPLAY_PRECISION_IN,
   )
-
-  /**
-   * Rebuilds wall connectivity when a document arrives without it — a v7 plan
-   * migrated forward, an imported file, or anything hand-edited. Derived from
-   * geometry, so it is a repair rather than a guess, and it runs outside the
-   * history: nothing the user did is being undone (`docs/WALL_NETWORK.md` §9).
-   */
-  function healJoints(loaded: PlanDocument): PlanDocument {
-    if (loaded.joints.length > 0 || loaded.walls.length === 0) return loaded
-    const joints = deriveJoints(loaded.walls)
-    // Derived relations are not enough on their own: a pre-v8 document stored T
-    // endpoints on the HOST's spine, half a thickness past where the wall really
-    // ends. Solving once makes the stored geometry honest, which is what every
-    // parametric address on those walls depends on.
-    const solution = solveConstraints(
-      loaded.walls,
-      joints,
-      loaded.walls.map((wall) => wall.id),
-    )
-    const walls = loaded.walls.map((wall) => solution.moved.get(wall.id) ?? wall)
-    return { ...loaded, walls, joints }
-  }
 
   function adoptPlan(loaded: Plan): void {
     plan.value = loaded

@@ -1,5 +1,6 @@
 """Forward migration of plan documents to the current schema version."""
 
+from math import isfinite
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
@@ -9,7 +10,7 @@ from backend.constants import (
     DEFAULT_THICKNESS_PRESETS_IN,
     LEGACY_SCHEMA_VERSION,
 )
-from backend.core.errors import UnsupportedSchemaVersionError
+from backend.core.errors import InvalidSchemaVersionError, UnsupportedSchemaVersionError
 
 
 if TYPE_CHECKING:
@@ -23,10 +24,17 @@ class PlanMigrator:
         Owns the ordered per-version migration steps (spec section 8): old
         documents are migrated forward, never rejected and never destroyed —
         the caller persists a pre-migration backup. Documents without a
-        ``schema_version`` are treated as version 1. Documents newer than the
-        current version are refused (never downgraded). Adding a new schema
-        version means writing one new ``_migrate_vN_to_vN+1`` step and
-        registering it.
+        ``schema_version`` are treated as version 1, as are documents claiming
+        a version below it; documents newer than the current version are
+        refused (never downgraded) and a version that is not a number at all
+        is refused as unreadable. Adding a new schema version means writing one
+        new ``_migrate_vN_to_vN+1`` step and registering it.
+
+        The frontend read funnel (``frontend/src/schema/planDocumentSchema.ts``)
+        mirrors this class end to end: every step below gives a newly added
+        field its default, which is what the Zod ``.default()``s there do on
+        read, and the shared corpus in ``tests/fixtures/plan_migration/`` pins
+        the two implementations to the same output.
     """
 
     def __init__(self) -> None:
@@ -46,6 +54,9 @@ class PlanMigrator:
     def migrate(self, raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         """Migrate a raw document dict forward to the current schema version.
 
+        The version the document claims is resolved by :meth:`_resolve_version`,
+        which also refuses one that is not a number.
+
         Args:
             raw: Document dict exactly as stored; it is not mutated. A missing
                 ``schema_version`` is treated as version 1.
@@ -59,7 +70,7 @@ class PlanMigrator:
                 above the current schema version.
         """
         document = dict(raw)
-        version = int(document.get("schema_version", LEGACY_SCHEMA_VERSION))
+        version = self._resolve_version(document.get("schema_version", LEGACY_SCHEMA_VERSION))
         if version > CURRENT_SCHEMA_VERSION:
             raise UnsupportedSchemaVersionError(version, CURRENT_SCHEMA_VERSION)
         migrated = False
@@ -69,6 +80,31 @@ class PlanMigrator:
             version += 1
             migrated = True
         return document, migrated
+
+    @staticmethod
+    def _resolve_version(raw: Any) -> int:
+        """Read the version a document claims, mirrored by the frontend read funnel.
+
+        Args:
+            raw: Value stored under ``schema_version``, already defaulted to
+                :data:`LEGACY_SCHEMA_VERSION` when the key was absent.
+
+        Returns:
+            The claimed version, never below :data:`LEGACY_SCHEMA_VERSION`: a
+            fractional version is truncated to the version whose shape it
+            claims, and anything below the first version is read as the first
+            one rather than refused — a ``0`` says "before all of this", which
+            is what version 1 already means. Refusing it instead would only
+            trade a stored typo for an unopenable plan.
+
+        Raises:
+            InvalidSchemaVersionError: When the value is not a real number. It
+                is the one field that cannot fall back to a default: which
+                defaults the document is missing is exactly what it tells us.
+        """
+        if isinstance(raw, bool) or not isinstance(raw, int | float) or not isfinite(raw):
+            raise InvalidSchemaVersionError(raw)
+        return max(int(raw), LEGACY_SCHEMA_VERSION)
 
     @staticmethod
     def _migrate_v1_to_v2(document: dict[str, Any]) -> dict[str, Any]:

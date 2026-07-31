@@ -1,0 +1,9 @@
+{
+  "name": "non-numeric-version-is-refused",
+  "description": "The version is the one field that cannot fall back to a default, because which defaults the document is missing is exactly what it tells us. A stringified version is close enough to be tempting and is still refused.",
+  "input": {
+    "schema_version": "9",
+    "viewport": { "center": { "x": 24.0, "y": -12.0 }, "zoom": 2.0 }
+  },
+  "expected_error": "invalid_schema_version"
+}
