@@ -63,8 +63,20 @@ const gridRect = computed<Rect>(() => ({
 }))
 
 interface RulerTick {
+  /**
+   * Stable identity: the tick's index in the world-space step sequence, not its
+   * screen position. Keying the `v-for` on the screen position would give every
+   * tick a new key on every pan and zoom frame, so Vue would unmount and remount
+   * both rulers wholesale instead of patching two coordinates per line.
+   */
+  key: number
   position: number
   label: string
+}
+
+interface RulerSubTick {
+  key: number
+  position: number
 }
 
 const rulerStepFeet = computed(() => {
@@ -75,15 +87,19 @@ const rulerStepFeet = computed(() => {
 function buildTicks(startIn: number, endIn: number, toScreen: (worldIn: number) => number) {
   const stepIn = rulerStepFeet.value * 12
   const major: RulerTick[] = []
-  const minor: number[] = []
+  const minor: RulerSubTick[] = []
   const subStepIn = stepIn / (rulerStepFeet.value >= 5 ? 5 : rulerStepFeet.value * 2)
   const showSubTicks = subStepIn * scale.value >= 7
   const first = Math.floor(startIn / stepIn) * stepIn
   for (let world = first; world <= endIn + stepIn; world += stepIn) {
-    major.push({ position: toScreen(world), label: `${Math.round(world / 12)}'` })
+    major.push({
+      key: Math.round(world / stepIn),
+      position: toScreen(world),
+      label: `${Math.round(world / 12)}'`,
+    })
     if (showSubTicks) {
       for (let sub = world + subStepIn; sub < world + stepIn; sub += subStepIn) {
-        minor.push(toScreen(sub))
+        minor.push({ key: Math.round(sub / subStepIn), position: toScreen(sub) })
       }
     }
   }
@@ -328,7 +344,7 @@ onBeforeUnmount(() => {
       aria-hidden="true"
       class="bg-surface/90 pointer-events-none absolute inset-x-0 top-0 h-6 w-full"
     >
-      <g v-for="tick in ticksX.major" :key="`x-${tick.position}`">
+      <g v-for="tick in ticksX.major" :key="`x-${tick.key}`">
         <line
           :x1="tick.position"
           :x2="tick.position"
@@ -342,10 +358,10 @@ onBeforeUnmount(() => {
         </text>
       </g>
       <line
-        v-for="position in ticksX.minor"
-        :key="`xm-${position}`"
-        :x1="position"
-        :x2="position"
+        v-for="sub in ticksX.minor"
+        :key="`xm-${sub.key}`"
+        :x1="sub.position"
+        :x2="sub.position"
         y1="19"
         y2="24"
         class="stroke-line"
@@ -358,7 +374,7 @@ onBeforeUnmount(() => {
       aria-hidden="true"
       class="bg-surface/90 pointer-events-none absolute inset-y-0 left-0 h-full w-6"
     >
-      <g v-for="tick in ticksY.major" :key="`y-${tick.position}`">
+      <g v-for="tick in ticksY.major" :key="`y-${tick.key}`">
         <line
           x1="14"
           x2="24"
@@ -378,12 +394,12 @@ onBeforeUnmount(() => {
         </text>
       </g>
       <line
-        v-for="position in ticksY.minor"
-        :key="`ym-${position}`"
+        v-for="sub in ticksY.minor"
+        :key="`ym-${sub.key}`"
         x1="19"
         x2="24"
-        :y1="position"
-        :y2="position"
+        :y1="sub.position"
+        :y2="sub.position"
         class="stroke-line"
         stroke-width="1"
       />
